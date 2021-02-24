@@ -47,11 +47,14 @@ public class CompletableFutureTest {
     @Test
     public void testUpdateFuture() {
         /*
-            completableFuture.supplyAsync方法会：
+            CompletableFuture.supplyAsync方法会：
             1.创建一个CompletableFuture对象
             2.把传入的Supplier对象封装成一个任务，把该任务提交给另一个线程来执行
             3.把创建的CompletableFuture对象返回给用户线程
             此时用户线程收到的CompletableFuture对象是未完成的，待另一个线程中的Supplier对象执行完毕后，会给该CompletableFuture对象赋值成已完成
+
+            因此CompletableFuture.supplyAsync方法集成了：创建CompletableFuture对象、异步提交任务、当任务执行完成后，为CompletableFuture对象赋值完成状态的功能。
+            所以：使用CompletableFuture.supplyAsync的话，就只需要给出如何获取CompletableFuture的结果就可以了，创建CompletableFuture对象和给CompletableFuture对象赋值完成状态都由supplyAsync内部去做了。
         */
         CompletableFuture<String> completableFuture = CompletableFuture.supplyAsync(() -> {
             // 模拟子线程执行了5秒才计算出结果
@@ -251,20 +254,34 @@ public class CompletableFutureTest {
         ExecutorService executorService = Executors.newFixedThreadPool(1);
         // 假设这块的代码我们不能改，我们只能获取到一个Future对象
         Future<String> future = executorService.submit(() -> {
+            Thread.sleep(5000);
             return "hello world";
         });
 
-        // 把CompletableFuture链条搭建好，也就是把后续任务安排好
-        CompletableFuture<String> completableFuture = new CompletableFuture<>();
-        completableFuture.thenApply(str -> str.split(" ")).thenApply(strArray -> strArray[1]).thenAccept(str -> System.out.println("end:" + str));
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        // 使用CompletableFuture.supplyAsync方法，把获取Future的结果作为一个异步任务提交出去
+        CompletableFuture<String> completableFuture = CompletableFuture.supplyAsync(() -> {
+            try {
+                // 从Future中获取数据，然后把获取到的数据交给CompletableFuture，这样它就自动进行后续任务的处理了，不需要用户在手动指出后续任务了
+                return future.get();
+            } catch (InterruptedException | ExecutionException e) {
+                e.printStackTrace();
+            }
+            return null;
+        });
+
+        // 此后主线程只需要为completableFuture布置后续任务即可
+        completableFuture.thenApply(str -> str.split(" "))
+                .thenApply(strArray -> strArray[1])
+                .thenAccept(str -> System.out.println("end:" + str))
+                .whenComplete((unused, throwable) -> countDownLatch.countDown());
 
         try {
-            // 主线程从Future中获取数据，然后把获取到的数据交给CompletableFuture，这样它就自动进行后续任务的处理了，不需要用户在手动指出后续任务了
-            String value = future.get();
-            completableFuture.complete(value);
-        } catch (InterruptedException | ExecutionException e) {
+            countDownLatch.await();
+        } catch (InterruptedException e) {
             e.printStackTrace();
         }
+        System.out.println("main end");
     }
 
     @Test
