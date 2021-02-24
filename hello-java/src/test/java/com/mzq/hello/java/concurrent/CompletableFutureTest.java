@@ -5,6 +5,11 @@ import org.junit.Test;
 import java.util.Objects;
 import java.util.concurrent.*;
 
+/**
+ * 总结：
+ * CompletableFuture是为了更方便地给异步任务安排后续任务来使用的，并没有要代替Future的意图。
+ * 如果我仅仅需要将任务提交到线程池，异步执行任务，然后获取任务的执行结果话，直接使用Future手动判断是否任务已完成也是没有问题的。
+ */
 public class CompletableFutureTest {
 
     /**
