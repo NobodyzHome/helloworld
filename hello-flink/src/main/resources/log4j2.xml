@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--设置log4j2的自身log级别为warn -->
+<configuration status="warn">
+
+    <appenders>
+        <Console target="SYSTEM_OUT" name="console">
+            <PatternLayout pattern="%m%n"/>
+        </Console>
+    </appenders>
+
+    <loggers>
+        <root level="info">
+            <appender-ref ref="console"/>
+        </root>
+    </loggers>
+</configuration>
