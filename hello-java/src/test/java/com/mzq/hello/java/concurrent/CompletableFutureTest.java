@@ -14,7 +14,7 @@ public class CompletableFutureTest {
 
     /**
      * Future的核心思想是：主线程想让子线程去做些事情，并且需要获取子线程做完事情的结果，那么子线程就给主线程开了张空头支票Future
-     * 主线程拿着这张空头支票，在需要获取子线程结果时，就调用这个Future的get方法获取子线程的执行结果。如果此时子线程已经执行完了，就可以顺序拿到子线程的处理结果。但如果子线程没有执行完，则主线程会被阻塞住，等待子线程执行完成。
+     * 主线程拿着这张空头支票，在需要获取子线程结果时，就调用这个Future的get方法获取子线程的执行结果。如果此时子线程已经执行完了，就可以顺利拿到子线程的处理结果。但如果子线程没有执行完，则主线程会被阻塞住，等待子线程执行完成。
      * 而与此同时，子线程在处理完毕后，就把这个空头支票Future设置为已处理完成，此后主线程调用这个Future的get方法，就可以获取子线程的执行结果了
      * <p>
      * Future的一个不方便的点在于：用户线程在获取到子线程给的Future对象后，需要自己来判断这个Future是否执行完成了。我们在实际应用中有一种需求是期望在这个Future执行完成（执行成功或异常）后，来执行对应的后续处理任务，而不是
@@ -44,7 +44,6 @@ public class CompletableFutureTest {
         } while (Objects.isNull(result));
     }
 
-
     /**
      * 我们把上面使用Future不方便的地方使用CompletableFuture进行改造，发现就少了很多用户线程等待Future执行完成的代码，而是由CompletableFuture自己
      * 来判断应该何时执行任务。
@@ -60,6 +59,7 @@ public class CompletableFutureTest {
 
             因此CompletableFuture.supplyAsync方法集成了：创建CompletableFuture对象、异步提交任务、当任务执行完成后，为CompletableFuture对象赋值完成状态的功能。
             所以：使用CompletableFuture.supplyAsync的话，就只需要给出如何获取CompletableFuture的结果就可以了，创建CompletableFuture对象和给CompletableFuture对象赋值完成状态都由supplyAsync内部去做了。
+            一般来说，我们使用CompletableFuture.supplyAsync方法来创建CompletableFuture链条上的第一个CompletableFuture对象，而不是直接使用new CompletableFuture来创建
         */
         CompletableFuture<String> completableFuture = CompletableFuture.supplyAsync(() -> {
             // 模拟子线程执行了5秒才计算出结果
@@ -156,12 +156,15 @@ public class CompletableFutureTest {
      * 总结，触发CompletableFuture链条的每一个CompletableFuture变成完成状态的两个时机：
      * 1.使用thenApply、thenAccept等方法搭建链条时。前提是搭建链条时，链条上的第一个CompletableFuture就已经完成了
      * 2.对链条中第一个CompletableFuture调用complete、completeExceptionally等完结方法
+     * <p>
+     * 通过下面可以看到，complete方法在执行时，需要在complete方法所在的线程中执行CompletableFuture链中串行执行每一个任务，
+     * 因此如果CompletableFuture链中的任务执行起来都很耗时的话，那么complete方法会阻塞当前线程很长时间。
      */
     @Test
     public void testCompleteAfterAssign() {
         CompletableFuture<String> completableFuture = new CompletableFuture<>();
         // 上面我们说了，completableFuture.thenApply(...).thenApply(...).thenAccept(...)实际上是形成了一个CompletableFuture链，而且由于completableFuture没有完成，那么由它产生的后续future也都是没有完成的状态
-        // 也就是future1、future2、future3都是没有完成的，那么何时处罚这个链表的每一个CompletableFuture对象变成完成状态呢？那就是在后续调用completableFuture.complete方法时
+        // 也就是future1、future2、future3都是没有完成的，那么何时触发这个链表的每一个CompletableFuture对象变成完成状态呢？那就是在后续调用completableFuture.complete方法时
         CompletableFuture<String> future1 = completableFuture.thenApply(str -> {
             return "hello" + str;
         });
@@ -173,19 +176,25 @@ public class CompletableFutureTest {
         });
 
         /*
-         * completableFuture.complete的处理内容，这些操作都是在【当前线程】同步执行的：
+         * completableFuture.complete的处理内容，这些操作都是在【执行complete方法的线程】中同步执行的：
          * 1.把自身赋值成已完成状态
          * 2.发现和completableFuture有关联的future1，执行future1对应的任务str->"hello"+str，然后把结果赋值给future1
          * 3.发现和future1有关联的future2，执行future2对应的任务str->"test"+str，然后把结果赋值给future2
          * 4.发现和future2有关联的future3，执行future3对应的任务str->System.out.println(str);，然后把结果赋值给future3
          * 5.未发现和future3有关联的，completableFuture.complete方法处理结束
          * 也就是当调用completableFuture.complete方法时，它会尝试调用CompletableFuture链中的每一个任务，并把任务结果赋值给对应的CompletableFuture对象
+         * 所以如果CompletableFuture链中的每一个任务都很耗时的话，complete方法会阻塞当前线程很长时间
          */
         completableFuture.complete("world");
         System.out.println("test");
     }
 
     /**
+     * 为了解决CompletableFuture的thenApply、complete方法会阻塞当前线程，直至后续任务处理完成的问题。因此增加了thenApplyAsync等方法，使用异步的方式执行后续任务，
+     * 减少了对用户线程的阻塞。
+     * completableFuture.thenApply(str->str+"world")代表后续任务str->str+"world"是由当前线程执行的
+     * completableFuture.thenApplyAsync(str->str+"world")代表后续任务str->str+"world"是由新的线程异步执行的
+     * <p>
      * 关于异步的方法，例如completableFuture.thenApplyAsync(str->str+"world")，无论completableFuture是否执行完成，方法都会直接返回一个新的CompletableFuture
      * 对象，并且在【用户线程】是不执行任务str->str+"world"的。
      * 只不过如果completableFuture已完成，那么会新提出一个线程来执行任务str->str+"world"，而如果completableFuture未完成，则不会有该操作。
