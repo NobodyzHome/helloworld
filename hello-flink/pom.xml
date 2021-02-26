@@ -20,7 +20,6 @@
         <dependency>
             <groupId>com.mzq.excercise.hello</groupId>
             <artifactId>hello-common</artifactId>
-            <version>${version}</version>
         </dependency>
 
         <!-- https://mvnrepository.com/artifact/org.apache.flink/flink-streaming-java -->

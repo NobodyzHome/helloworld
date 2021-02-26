@@ -2,6 +2,7 @@ package com.mzq.hello.flink;
 
 import com.mzq.hello.domain.WaybillC;
 import com.mzq.hello.flink.func.WaybillCSource;
+import org.apache.commons.lang3.RandomUtils;
 import org.apache.flink.streaming.api.datastream.AsyncDataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
@@ -26,6 +27,10 @@ public class HelloWorldFlink {
             例如：假如在MapFunction中使用异步的方式处理数据，那么假设上游发过来的数据是A、B、C，在经过MapFunction的异步处理后，有可能向下游输出的是B、C、A（因为有可能B和C在异步处理中先处理完，而A处理的较慢，后处理完）
             这就导致了Map算子接收上游发过来的数据顺序和Map算子处理完并发送到下游算子的数据顺序不一致，这在对数据顺序比较敏感的场景下是不允许的
             而AsyncDataStream.orderedWait方法，会保证异步处理数据的顺序，也就是说即使异步情况下，C先处理完、B再处理完、A再处理完的情况，orderedWait方法也会保证算子输出到下游时，是以A、B、C的顺序发送的
+
+            A common confusion that we want to explicitly point out here is that the AsyncFunction is not called in a multi-threaded fashion.
+            There exists only one instance of the AsyncFunction and it is called sequentially for each record in the respective partition of the stream.
+            Unless the asyncInvoke(...) method returns fast and relies on a callback (by the client), it will not result in proper asynchronous I/O.
          */
         SingleOutputStreamOperator<String> waybillCodeStream = AsyncDataStream.unorderedWait(waybillCDataStreamSource,
                 // 注意：flink在执行AsyncFunction时，并不是异步来执行的。是需要asyncInvoke自己来实现异步的处理。
@@ -34,15 +39,14 @@ public class HelloWorldFlink {
                     @Override
                     public void asyncInvoke(WaybillC input, ResultFuture<String> resultFuture) throws Exception {
                         CompletableFuture.supplyAsync(input::getWaybillCode)
-                                .thenAcceptAsync(
-                                        waybillCode -> {
-//                                            try {
-//                                                Thread.sleep(RandomUtils.nextLong(1000, 3000));
-//                                            } catch (InterruptedException e) {
-//                                                e.printStackTrace();
-//                                            }
-                                            resultFuture.complete(Collections.singleton(waybillCode));
-                                        });
+                                .thenAcceptAsync(waybillCode -> {
+                                    try {
+                                        Thread.sleep(RandomUtils.nextLong(1000, 3000));
+                                    } catch (InterruptedException e) {
+                                        e.printStackTrace();
+                                    }
+                                    resultFuture.complete(Collections.singleton(waybillCode));
+                                });
                     }
 
                     @Override
