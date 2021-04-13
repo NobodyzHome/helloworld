@@ -1,4 +1,4 @@
-package com.mzq.hello.flink.func;
+package com.mzq.hello.flink.func.source;
 
 import com.mzq.hello.domain.WaybillOrder;
 import org.apache.commons.lang3.StringUtils;

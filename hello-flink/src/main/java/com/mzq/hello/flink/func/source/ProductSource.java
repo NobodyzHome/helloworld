@@ -1,4 +1,4 @@
-package com.mzq.hello.flink.func;
+package com.mzq.hello.flink.func.source;
 
 import com.mzq.hello.domain.ProductIncome;
 import org.apache.commons.lang3.RandomStringUtils;

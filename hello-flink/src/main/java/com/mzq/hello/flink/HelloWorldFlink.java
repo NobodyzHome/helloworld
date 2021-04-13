@@ -1,17 +1,20 @@
 package com.mzq.hello.flink;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.mzq.hello.domain.WaybillC;
-import com.mzq.hello.flink.func.WaybillCSource;
+import com.mzq.hello.flink.func.source.WaybillCSource;
 import com.mzq.hello.flink.kafka.WaybillcDeserializationSchema;
 import com.mzq.hello.flink.kafka.WaybillcSerializationSchema;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulRedisConnection;
+import io.lettuce.core.codec.RedisCodec;
 import org.apache.commons.lang3.RandomUtils;
 import org.apache.flink.api.common.functions.RuntimeContext;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.AsyncDataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
@@ -19,6 +22,7 @@ import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.async.AsyncFunction;
 import org.apache.flink.streaming.api.functions.async.ResultFuture;
+import org.apache.flink.streaming.api.functions.async.RichAsyncFunction;
 import org.apache.flink.streaming.api.functions.sink.RichSinkFunction;
 import org.apache.flink.streaming.connectors.elasticsearch.ElasticsearchSinkBase;
 import org.apache.flink.streaming.connectors.elasticsearch.ElasticsearchSinkFunction;
@@ -27,11 +31,13 @@ import org.apache.flink.streaming.connectors.elasticsearch.util.RetryRejectedExe
 import org.apache.flink.streaming.connectors.elasticsearch7.ElasticsearchSink;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaProducer;
+import org.apache.flink.streaming.connectors.kafka.KafkaDeserializationSchema;
 import org.apache.http.HttpHost;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.impl.client.SystemDefaultCredentialsProvider;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -42,6 +48,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.Properties;
@@ -246,5 +253,91 @@ public class HelloWorldFlink {
 
         waybillCodeStream.print();
         streamExecutionEnvironment.execute();
+    }
+
+    public static void testUseAsyncIO1() {
+        // 先把es索引删了，然后后面消费kafka消息，根据waybillCode从redis里获取数据，再写到es
+
+        StreamExecutionEnvironment streamExecutionEnvironment = StreamExecutionEnvironment.getExecutionEnvironment();
+
+        KafkaDeserializationSchema<WaybillC> waybillCKafkaDeserializationSchema = new KafkaDeserializationSchema<WaybillC>() {
+            private ObjectMapper objectMapper = new ObjectMapper().disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+
+            @Override
+            public boolean isEndOfStream(WaybillC nextElement) {
+                return false;
+            }
+
+            @Override
+            public WaybillC deserialize(ConsumerRecord<byte[], byte[]> record) throws Exception {
+                return objectMapper.readValue(record.value(), WaybillC.class);
+            }
+
+            @Override
+            public TypeInformation<WaybillC> getProducedType() {
+                return TypeInformation.of(WaybillC.class);
+            }
+        };
+
+        Properties consumerConfig = new Properties();
+        consumerConfig.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "kafka:9092");
+        consumerConfig.put(ConsumerConfig.GROUP_ID_CONFIG, "myGroup");
+        consumerConfig.put(ConsumerConfig.CLIENT_ID_CONFIG, "myClient");
+        consumerConfig.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "true");
+        consumerConfig.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        FlinkKafkaConsumer<WaybillC> flinkKafkaConsumer = new FlinkKafkaConsumer<>("waybill-c", waybillCKafkaDeserializationSchema, consumerConfig);
+        DataStreamSource<WaybillC> waybillcKafkaSource = streamExecutionEnvironment.addSource(flinkKafkaConsumer);
+
+        SingleOutputStreamOperator<String> waybillCodeStream = waybillcKafkaSource.map(WaybillC::getWaybillCode).returns(String.class);
+        AsyncDataStream.unorderedWait(waybillCodeStream, new RichAsyncFunction<String, WaybillC>() {
+            private ObjectMapper objectMapper;
+            private RedisClient redisClient;
+            private StatefulRedisConnection<String, byte[]> stringStatefulRedisConnection;
+
+            @Override
+            public void open(Configuration parameters) throws Exception {
+                super.open(parameters);
+                objectMapper = new ObjectMapper().disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+                RedisClient redisClient = RedisClient.create("redis://my-redis:6379/3");
+                redisClient.connect(new RedisCodec<String, byte[]>() {
+                    @Override
+                    public String decodeKey(ByteBuffer bytes) {
+                        return null;
+                    }
+
+                    @Override
+                    public byte[] decodeValue(ByteBuffer bytes) {
+                        return new byte[0];
+                    }
+
+                    @Override
+                    public ByteBuffer encodeKey(String key) {
+                        return null;
+                    }
+
+                    @Override
+                    public ByteBuffer encodeValue(byte[] value) {
+                        return null;
+                    }
+                });
+            }
+
+            @Override
+            public void close() throws Exception {
+                super.close();
+                stringStatefulRedisConnection.close();
+                redisClient.shutdown();
+            }
+
+            @Override
+            public void timeout(String input, ResultFuture<WaybillC> resultFuture) throws Exception {
+
+            }
+
+            @Override
+            public void asyncInvoke(String input, ResultFuture<WaybillC> resultFuture) throws Exception {
+
+            }
+        }, 2, TimeUnit.SECONDS, 100);
     }
 }

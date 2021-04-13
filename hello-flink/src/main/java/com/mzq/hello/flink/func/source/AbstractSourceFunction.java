@@ -1,4 +1,4 @@
-package com.mzq.hello.flink.func;
+package com.mzq.hello.flink.func.source;
 
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.source.RichSourceFunction;
