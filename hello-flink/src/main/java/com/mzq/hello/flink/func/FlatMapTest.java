@@ -22,12 +22,12 @@ import java.util.Objects;
 public class FlatMapTest extends RichCoFlatMapFunction<WaybillCEM, WaybillRouteLink, WaybillCEMRouteLink> implements CheckpointedFunction {
 
     private ValueState<WaybillCEM> waybillCEMState;
-    private MapState<String, Date> packageState;
+    private MapState<String, Long> packageState;
 
     @Override
     public void open(Configuration parameters) throws Exception {
         waybillCEMState = getRuntimeContext().getState(new ValueStateDescriptor<>("waybill-cem-state", Types.GENERIC(WaybillCEM.class)));
-        packageState = getRuntimeContext().getMapState(new MapStateDescriptor<>("route-link-state", Types.STRING, Types.GENERIC(Date.class)));
+        packageState = getRuntimeContext().getMapState(new MapStateDescriptor<>("route-link-state", Types.STRING, Types.GENERIC(Long.class)));
     }
 
     @Override
@@ -46,7 +46,7 @@ public class FlatMapTest extends RichCoFlatMapFunction<WaybillCEM, WaybillRouteL
         waybillCEMRouteLink.setDeliveryDate(value.getDeliveryDate());
 
         boolean hasPackage = false;
-        for (Map.Entry<String, Date> entry : packageState.entries()) {
+        for (Map.Entry<String, Long> entry : packageState.entries()) {
             waybillCEMRouteLink.setPackageCode(entry.getKey());
             waybillCEMRouteLink.setStaticDeliveryTime(entry.getValue());
             hasPackage = true;

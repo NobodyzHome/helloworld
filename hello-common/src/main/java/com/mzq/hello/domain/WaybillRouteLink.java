@@ -9,5 +9,5 @@ public class WaybillRouteLink {
 
     private String waybillCode;
     private String packageCode;
-    private Date staticDeliveryTime;
+    private Long staticDeliveryTime;
 }

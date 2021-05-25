@@ -16,5 +16,5 @@ public class WaybillCEMRouteLink {
     private Date pickupDate;
     private Date deliveryDate;
     private String packageCode;
-    private Date staticDeliveryTime;
+    private Long staticDeliveryTime;
 }

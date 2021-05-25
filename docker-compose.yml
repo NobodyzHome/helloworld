@@ -97,6 +97,8 @@ services:
     expose:
       - 6121
       - 6122
+    volumes:
+      - "/Users/maziqiang/Downloads:/my-files"
 
   # 配置第二个taskManager
   flink-taskmanager-2:
@@ -113,6 +115,8 @@ services:
     depends_on:
       - flink-jobmanager
     command: taskmanager
+    volumes:
+      - "/Users/maziqiang/Downloads:/my-files"
 
   # 配置第三个taskManager
   flink-taskmanager-3:
@@ -129,6 +133,8 @@ services:
       - 6121
       - 6122
     command: taskmanager
+    volumes:
+      - "/Users/maziqiang/Downloads:/my-files"
 
   my-redis:
     image: redis

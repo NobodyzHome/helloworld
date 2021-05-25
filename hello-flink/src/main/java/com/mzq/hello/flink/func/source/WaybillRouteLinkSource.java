@@ -6,7 +6,6 @@ import org.apache.flink.api.common.accumulators.IntCounter;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.source.RichSourceFunction;
 
-import java.util.Date;
 import java.util.concurrent.TimeUnit;
 
 public class WaybillRouteLinkSource extends RichSourceFunction<WaybillRouteLink> {
@@ -27,7 +26,7 @@ public class WaybillRouteLinkSource extends RichSourceFunction<WaybillRouteLink>
                 WaybillRouteLink waybillRouteLink = new WaybillRouteLink();
                 waybillRouteLink.setWaybillCode("JD" + StringUtils.leftPad(String.valueOf(count), 10, "0"));
                 waybillRouteLink.setPackageCode(String.format("%s-%d", waybillRouteLink.getWaybillCode(), i));
-                waybillRouteLink.setStaticDeliveryTime(new Date());
+                waybillRouteLink.setStaticDeliveryTime(System.currentTimeMillis());
                 ctx.collect(waybillRouteLink);
             }
             Thread.sleep(TimeUnit.SECONDS.toMillis(1));
