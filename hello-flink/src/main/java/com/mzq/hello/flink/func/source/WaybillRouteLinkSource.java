@@ -26,10 +26,10 @@ public class WaybillRouteLinkSource extends RichSourceFunction<WaybillRouteLink>
                 WaybillRouteLink waybillRouteLink = new WaybillRouteLink();
                 waybillRouteLink.setWaybillCode("JD" + StringUtils.leftPad(String.valueOf(count), 10, "0"));
                 waybillRouteLink.setPackageCode(String.format("%s-%d", waybillRouteLink.getWaybillCode(), i));
-                waybillRouteLink.setStaticDeliveryTime(System.currentTimeMillis());
-                ctx.collect(waybillRouteLink);
+                waybillRouteLink.setStaticDeliveryTime(intCounter.getLocalValue().longValue());
+                ctx.collectWithTimestamp(waybillRouteLink, System.currentTimeMillis());
             }
-            Thread.sleep(TimeUnit.SECONDS.toMillis(1));
+            Thread.sleep(TimeUnit.SECONDS.toMillis(5));
         }
     }
 

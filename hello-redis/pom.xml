@@ -20,7 +20,6 @@
         <dependency>
             <groupId>com.mzq.excercise.hello</groupId>
             <artifactId>hello-common</artifactId>
-            <version>1.0-SNAPSHOT</version>
         </dependency>
 
         <!-- https://mvnrepository.com/artifact/io.lettuce/lettuce-core -->

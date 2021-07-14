@@ -18,16 +18,16 @@
     </properties>
 
     <dependencies>
-        <dependency>
-            <groupId>com.mzq.excercise.hello</groupId>
-            <artifactId>hello-common</artifactId>
-        </dependency>
-
         <!-- https://mvnrepository.com/artifact/org.apache.flink/flink-streaming-java -->
         <dependency>
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-streaming-java_2.12</artifactId>
+            <version>${flink.version}</version>
+            <scope>test</scope>
+            <!-- 必须要有这个，而且classifier提供了的话，version和scope需要显式提供 -->
+            <classifier>tests</classifier>
         </dependency>
+
 
         <!-- flink本地运行时需要引这个包 -->
         <!-- https://mvnrepository.com/artifact/org.apache.flink/flink-clients -->
@@ -72,6 +72,16 @@
         <dependency>
             <groupId>io.lettuce</groupId>
             <artifactId>lettuce-core</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.mzq.excercise.hello</groupId>
+            <artifactId>hello-common</artifactId>
         </dependency>
     </dependencies>
 

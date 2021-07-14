@@ -6,6 +6,8 @@ import org.apache.commons.lang3.RandomUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.flink.api.common.accumulators.IntCounter;
 
+import java.time.Duration;
+
 public class WaybillCSource extends AbstractSourceFunction<WaybillC> {
 
     private IntCounter intCounter;
@@ -13,6 +15,11 @@ public class WaybillCSource extends AbstractSourceFunction<WaybillC> {
     @Override
     protected void init() {
         intCounter = getRuntimeContext().getIntCounter("waybillC-counter");
+    }
+
+    @Override
+    protected Duration interval() {
+        return Duration.ofSeconds(5);
     }
 
     @Override
@@ -25,7 +32,7 @@ public class WaybillCSource extends AbstractSourceFunction<WaybillC> {
         waybillC.setWaybillSign(RandomStringUtils.random(30, "01"));
         waybillC.setSiteCode(String.valueOf(RandomUtils.nextInt(1, 10)));
         waybillC.setSiteName(String.format("站点%s", waybillC.getSiteCode()));
-        waybillC.setTimeStamp(value.longValue());
+        waybillC.setTimeStamp(System.currentTimeMillis());
         return waybillC;
     }
 }

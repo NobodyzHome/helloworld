@@ -2,6 +2,7 @@ package com.mzq.hello.util;
 
 
 import com.mzq.hello.domain.BdWaybillOrder;
+import com.mzq.hello.domain.WaybillRouteLink;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.RandomUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -38,6 +39,15 @@ public class GenerateDomainUtils {
         bdWaybillOrder.setTimestamp(System.currentTimeMillis() + RandomUtils.nextLong(0, 10000));
 
         return bdWaybillOrder;
+    }
+
+    public static WaybillRouteLink generateWaybillRouteLink() {
+        WaybillRouteLink waybillRouteLink = new WaybillRouteLink();
+        waybillRouteLink.setWaybillCode(generateOrderCode("JD"));
+        waybillRouteLink.setPackageCode(waybillRouteLink.getWaybillCode() + "-1-1");
+        waybillRouteLink.setStaticDeliveryTime(System.currentTimeMillis());
+
+        return waybillRouteLink;
     }
 
     public static String generateOrderCode(String prefix) {
