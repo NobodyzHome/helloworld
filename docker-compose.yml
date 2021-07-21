@@ -9,19 +9,56 @@ services:
     networks:
       - my-network
 
-  kafka:
+  kafka-1:
     image: wurstmeister/kafka
     ports:
       - "9092:9092"
     environment:
-      # 如果在宿主机里运行，该配置需要配置为localhost。如果在容器里运行，该配置需要配置为kafka
-      KAFKA_ADVERTISED_HOST_NAME: kafka
+      # KAFKA_LISTENERS是kafka server真正监听的地址和端口
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      # KAFKA_ADVERTISED_LISTENERS是注册给zookeeper的，用于kafka客户端真正连接到kafka server的地址
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      # zookeeper连接地址
       KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      # kafka server的id。连接到zookeeper上的多个kafka server不能有相同的id
+      KAFKA_BROKER_ID: 1
     depends_on:
       - zookeeper
-    container_name: my-kafka
+    container_name: my-kafka-1
     networks:
       - my-network
+
+#  kafka-2:
+#    image: wurstmeister/kafka
+#    ports:
+#      - "9093:9093"
+#    environment:
+#      # 如果在宿主机里运行，该配置需要配置为localhost。如果在容器里运行，该配置需要配置为kafka
+#      KAFKA_LISTENERS: PLAINTEXT://kafka-2:9093
+#      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-2:9093
+#      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+#      KAFKA_BROKER_ID: 2
+#    depends_on:
+#      - zookeeper
+#    container_name: my-kafka-2
+#    networks:
+#      - my-network
+#
+#  kafka-3:
+#    image: wurstmeister/kafka
+#    ports:
+#      - "9094:9094"
+#    environment:
+#      # 如果在宿主机里运行，该配置需要配置为localhost。如果在容器里运行，该配置需要配置为kafka
+#      KAFKA_LISTENERS: PLAINTEXT://kafka-3:9094
+#      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-3:9094
+#      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+#      KAFKA_BROKER_ID: 3
+#    depends_on:
+#      - zookeeper
+#    container_name: my-kafka-3
+#    networks:
+#      - my-network
 
   my-kibana:
     image: docker.elastic.co/kibana/kibana:7.10.0
