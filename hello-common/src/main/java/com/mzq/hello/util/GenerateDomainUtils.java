@@ -2,6 +2,7 @@ package com.mzq.hello.util;
 
 
 import com.mzq.hello.domain.BdWaybillOrder;
+import com.mzq.hello.domain.WaybillC;
 import com.mzq.hello.domain.WaybillRouteLink;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.RandomUtils;
@@ -60,5 +61,25 @@ public class GenerateDomainUtils {
 
     public static Date generateDate() {
         return Date.from(ZonedDateTime.now().plusDays(RandomUtils.nextLong(1, 1000)).toInstant());
+    }
+
+    public static WaybillC generateWaybillc() {
+        WaybillC waybillC = new WaybillC();
+        waybillC.setWaybillCode(generateOrderCode("JD"));
+        waybillC.setWaybillSign(generateSign());
+        waybillC.setSiteCode(String.valueOf(RandomUtils.nextInt(100, 1000)));
+        waybillC.setSiteName(waybillC.getSiteCode() + "站点");
+        waybillC.setTimeStamp(System.currentTimeMillis());
+        waybillC.setWatermark(waybillC.getTimeStamp() - RandomUtils.nextInt(1000, 10000));
+
+        return waybillC;
+    }
+
+    public static List<WaybillC> generateWaybillc(int count) {
+        List<WaybillC> waybillCList = new ArrayList<>(count);
+        do {
+            waybillCList.add(generateWaybillc());
+        } while (--count > 0);
+        return waybillCList;
     }
 }
