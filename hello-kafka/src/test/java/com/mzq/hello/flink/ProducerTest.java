@@ -378,6 +378,7 @@ public class ProducerTest {
          * 我们知道，客户端在向broker发送数据时，使用的肯定是二进制字节码。但在程序中，我们的数据是java的各种数据类型。这里就产生一个问题：如何将程序中的各种数据类型转换成二进制字节码。
          * KafkaProducer允许我们发送数据的key和value是程序中的数据类型，由KafkaProducer内部来进行二进制字节码的转换，但这前提就是要在KafkaProducer中给出key和value的
          * org.apache.kafka.common.serialization.Serializer。KafkaProducer会使用他们来将发来的ProducerRecord中的key和value转换成二进制字节码。
+         * 也就是：程序把数据发出来 -> KafkaProducer把数据的key和value转换成二进制 -> KafkaProducer把二进制数据发送给broker
          *
          * 在KafkaProducer的范型中，就是Key和Value的类型，当我们给KafkaProducer的范型的范型赋值后，就要求发送的ProducerRecord中key和value是对应类型的数据。
          * 因此我们就要设置对应的key和value类型的Serializer，让KafkaProducer可以对key和value这两种类型的对象进行二进制字节码转换。
