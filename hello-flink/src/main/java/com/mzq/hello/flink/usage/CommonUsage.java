@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.InputStream;
+import java.net.URL;
 import java.util.Properties;
 
 public class CommonUsage extends BaseFlinkUsage {
@@ -33,10 +34,11 @@ public class CommonUsage extends BaseFlinkUsage {
         integerDataStreamSource.addSink(new SinkFunction<Integer>() {
             @Override
             public void invoke(Integer value, Context context) throws Exception {
+                URL resource = CommonUsage.class.getClassLoader().getResource("test.properties");
                 InputStream inputStream = CommonUsage.class.getClassLoader().getResourceAsStream("test.properties");
                 Properties properties = new Properties();
                 properties.load(inputStream);
-                logger.info("properties is:{}", properties);
+                logger.info("file url is:{},properties is:{}", resource, properties);
             }
         });
     }

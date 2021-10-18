@@ -149,7 +149,7 @@ public class ConsumerTest {
         properties.setProperty(ConsumerConfig.GROUP_ID_CONFIG, "hello-group");
         properties.setProperty(ConsumerConfig.CLIENT_ID_CONFIG, "my-client");
         properties.setProperty(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
-        properties.setProperty(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, "200000");
+        properties.setProperty(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, "5000");
 
         KafkaConsumer<String, BdWaybillOrder> kafkaConsumer = new KafkaConsumer<>(properties);
         kafkaConsumer.subscribe(Collections.singleton(TOPIC), new ConsumerRebalanceListener() {
@@ -337,14 +337,217 @@ public class ConsumerTest {
     @Test
     public void testSeek() {
         // 我们在上面的例子中，使用了各种方法来获取各种位点信息，为了什么？就是为了和seek方法联动，只要你知道要拉取的位点信息，就可以使用seek方法，可以把consumer拉取的位点移动到对应位置
+        Properties properties = new Properties();
+        properties.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+        properties.setProperty(ConsumerConfig.GROUP_ID_CONFIG, "myGroup");
+        properties.setProperty(ConsumerConfig.CLIENT_ID_CONFIG, "myClient");
+        properties.setProperty(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
+        properties.setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeSerializer.class.getName());
+        properties.setProperty(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "true");
+        properties.setProperty(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG, "1000");
+        properties.setProperty(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG, "5000");
+
+        KafkaConsumer<String, BdWaybillOrder> kafkaConsumer = new KafkaConsumer<>(properties);
+        kafkaConsumer.subscribe(Collections.singleton(TOPIC));
+
+        Set<TopicPartition> assignment;
+        do {
+            kafkaConsumer.poll(Duration.ofMillis(200));
+            assignment = kafkaConsumer.assignment();
+        } while (Objects.isNull(assignment) || assignment.isEmpty());
+
+        Map<TopicPartition, OffsetAndMetadata> committed = kafkaConsumer.committed(assignment);
+        for (Map.Entry<TopicPartition, OffsetAndMetadata> offset : committed.entrySet()) {
+            kafkaConsumer.seek(offset.getKey(), offset.getValue().offset() - 10);
+        }
+
+        int curTime = 1, maxTimes = 10;
+        do {
+            ConsumerRecords<String, BdWaybillOrder> consumerRecords = kafkaConsumer.poll(Duration.ofMillis(800));
+            Set<TopicPartition> partitions = consumerRecords.partitions();
+            for (TopicPartition topicPartition : partitions) {
+                List<ConsumerRecord<String, BdWaybillOrder>> partitionRecords = consumerRecords.records(topicPartition);
+                long startPosition = partitionRecords.get(0).offset();
+                long endPosition = partitionRecords.get(partitionRecords.size() - 1).offset();
+                long position = kafkaConsumer.position(topicPartition);
+            }
+        } while (++curTime <= maxTimes);
+
+        kafkaConsumer.close();
+    }
+
+    @Test
+    public void testSeekBeginning() {
+        Properties properties = new Properties();
+        properties.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+        properties.setProperty(ConsumerConfig.GROUP_ID_CONFIG, "myGroup");
+        properties.setProperty(ConsumerConfig.CLIENT_ID_CONFIG, "myClient");
+        properties.setProperty(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
+        properties.setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, BdWaybillInfoDeSerializer.class.getName());
+        properties.setProperty(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "true");
+        properties.setProperty(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG, "1000");
+        properties.setProperty(ConsumerConfig.REQUEST_TIMEOUT_MS_CONFIG, "2000");
+
+        KafkaConsumer<String, BdWaybillOrder> kafkaConsumer = new KafkaConsumer<>(properties);
+        kafkaConsumer.subscribe(Collections.singleton(TOPIC));
+
+        Set<TopicPartition> assignment;
+        do {
+            kafkaConsumer.poll(Duration.ofMillis(300));
+            assignment = kafkaConsumer.assignment();
+        } while (assignment.isEmpty());
+
+        kafkaConsumer.seekToBeginning(assignment);
+        for (TopicPartition topicPartition : assignment) {
+            long position = kafkaConsumer.position(topicPartition);
+        }
+
+        int curTime = 1, maxTime = 5;
+        do {
+            ConsumerRecords<String, BdWaybillOrder> consumerRecords = kafkaConsumer.poll(Duration.ofMillis(800));
+            for (TopicPartition topicPartition : consumerRecords.partitions()) {
+                for (ConsumerRecord<String, BdWaybillOrder> consumerRecord : consumerRecords.records(topicPartition)) {
+                    log.info("key={},value={},partition={},offset={}", consumerRecord.key(), consumerRecord.value(), consumerRecord.partition(), consumerRecord.offset());
+                }
+            }
+        } while (++curTime <= maxTime);
+        kafkaConsumer.close();
     }
 
     @Test
     public void testCommitSync() {
+        Properties properties = new Properties();
+        properties.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+        properties.setProperty(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
+        properties.setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, BdWaybillInfoDeSerializer.class.getName());
+        properties.setProperty(ConsumerConfig.GROUP_ID_CONFIG, "hello-group");
+        properties.setProperty(ConsumerConfig.CLIENT_ID_CONFIG, "my-client");
+        properties.setProperty(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
+        properties.setProperty(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG, String.valueOf(Duration.ofSeconds(2).toMillis()));
+        properties.setProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        // 每个分区最大拉取的数据数量，如果拉取一个分区中，第一条数据的大小就超过了该配置，那consumer就不会继续从该分区再拉取数据了
+        properties.setProperty(ConsumerConfig.MAX_PARTITION_FETCH_BYTES_CONFIG, String.valueOf(DataSize.ofKilobytes(3).toBytes()));
+        // 本次poll请求最大拉取的数据量，也就是说从所有分配给这个consumer的分区中拉取到的所有数据的数据量的最大值
+        properties.setProperty(ConsumerConfig.FETCH_MAX_BYTES_CONFIG, String.valueOf(DataSize.ofKilobytes(20).toBytes()));
+        // 本次poll请求最大拉取的数据条数。它和fetch.max.bytes是谁先到达就用谁的关系，例如fetch.max.bytes配置为100MB，但max.poll.records配置为10，那么consumer依然会只最多拉取10条数据，反之亦然。
+        properties.setProperty(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, "2");
+        // consumer两次调用poll()方法拉取数据，如果超过了该间隔，当前consumer会给broker发送一个leave group request，这样broker就会把当前consumer剔除出group，将分配给它的分区分配给组内其他正在保持心跳的consumer
+        properties.setProperty(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, String.valueOf(Duration.ofSeconds(5).toMillis()));
+        // 一次poll请求最少拉取的数据量，如果broker中数据量少于该配置，那么broker不会马上对这个POLL REQUEST进行响应，而是暂时挂起当前请求，直到broker中收到足够的数据后才会给当前REQUEST进行响应
+        properties.setProperty(ConsumerConfig.FETCH_MIN_BYTES_CONFIG, String.valueOf(DataSize.ofBytes(1).toBytes()));
+        // 由于fetch.min.bytes可能使当前poll request进行挂起等待，为了避免长时间让consumer进行等待，可以配置该参数，这样broker会有两个条件来对挂起的request进行响应：1.broker中有足够数量的数据了 2.broker判断挂起时长超过该配置了
+        properties.setProperty(ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG, String.valueOf(Duration.ofSeconds(2).toMillis()));
 
+        KafkaConsumer<String, BdWaybillOrder> kafkaConsumer = new KafkaConsumer<>(properties);
+        kafkaConsumer.subscribe(Collections.singleton(TOPIC));
+
+        Set<TopicPartition> assignment;
+        do {
+            kafkaConsumer.poll(Duration.ofMillis(300));
+            assignment = kafkaConsumer.assignment();
+        } while (assignment.isEmpty());
+
+        long searchTime = ZonedDateTime.parse("2021-12-01T00:00:00+08:00").toInstant().toEpochMilli();
+        // 如果offsetsForTimes没有查询到对应分区在指定时间之后的数据，那么返回的map中，该分区对应的value是null，因此要注意null的处理
+        Map<TopicPartition, OffsetAndTimestamp> topicPartitionOffsets = kafkaConsumer.offsetsForTimes(assignment.stream().collect(Collectors.toMap(topicPartition -> topicPartition, topicPartition -> searchTime)));
+        for (Map.Entry<TopicPartition, OffsetAndTimestamp> topicPartitionOffset : topicPartitionOffsets.entrySet()) {
+            OffsetAndTimestamp offsetAndTimestamp = topicPartitionOffset.getValue();
+            long offset;
+            TopicPartition topicPartition = topicPartitionOffset.getKey();
+            if (Objects.nonNull(offsetAndTimestamp)) {
+                offset = offsetAndTimestamp.offset();
+            } else {
+                Map<TopicPartition, Long> beginningOffsets = kafkaConsumer.beginningOffsets(Collections.singleton(topicPartition));
+                offset = beginningOffsets.get(topicPartition);
+            }
+            kafkaConsumer.seek(topicPartition, offset);
+        }
+
+        int curTime = 1, maxTime = 5;
+        do {
+            ConsumerRecords<String, BdWaybillOrder> consumerRecords = kafkaConsumer.poll(Duration.ofMillis(800));
+            Map<TopicPartition, OffsetAndMetadata> toCommit = new HashMap<>(consumerRecords.partitions().size());
+            for (TopicPartition topicPartition : consumerRecords.partitions()) {
+                long lastOffset = -1;
+                for (ConsumerRecord<String, BdWaybillOrder> consumerRecord : consumerRecords.records(topicPartition)) {
+                    log.info("key={},value={},partition={},offset={}", consumerRecord.key(), consumerRecord.value(), consumerRecord.partition(), consumerRecord.offset());
+                    lastOffset = consumerRecord.offset();
+                }
+                toCommit.put(topicPartition, new OffsetAndMetadata(lastOffset + 1));
+
+                /*
+                1.为什么要手动提交位点，因为自动提交位点的话，在拉取数据指定时间之后，consumer就认为数据处理正确了，可以提交位点了，但真正这批数据拉取完以后处理的正不正确，只有用户程序知道。所以自动提交位点有可能产生的问题是位点提交了，
+                  但是这批拉取的数据处理异常，但是由于位点已经提交，无法再次拉取到处理错误的数据了（除非consumer主动使用seek）。所以我们在处理位点时，还是应尽量使用手动提交，在拉取的数据正确处理后再提交位点。
+                2.每次拉取并处理完数据时就进行一次commit，为什么要这样做？假如多次拉取，最后一起commit，有可能造成的问题是假设前两次拉取数据和处理数据没问题，而第三次拉取和处理数据出现异常了，导致位点提交没有执行，这样这三次拉取的数据都白处理了
+                  ，下次再拉取数据还是得从第一次拉取的位置拉取数据（因为没有提交位点），这就导致了数据的重复处理
+                3.每次拉取并处理完数据时进行一次commit，那么仅有可能在出现异常时，让这次拉取的数据白处理了，也就是只重复处理了这次拉取的数据。
+                4.位点提交也要注意提交的频率，因为每一次提交都需要和kafka进行通信，并且是阻塞的（因为是同步提交），在kafka没有对提交位点操作给出回应之前，用户线程都处于阻塞状态。
+                  在这里我们又细分到拉取一次数据后，按数据的partition进行位点提交，每有一个partition就提交一次。这应该只用于测试，正常情况下
+                5.同步提交位点适用于客户端需要知道位点提交结果的情况
+                */
+                kafkaConsumer.commitSync(toCommit);
+            }
+
+
+            // commitSync方法可以把当前consumer所拉到的所有分区的位点一起提交。该方法相对来说卡的就比较死，我们不能指定每个分区的LEO
+//            kafkaConsumer.commitSync();
+        } while (++curTime <= maxTime);
+        kafkaConsumer.close();
     }
 
     @Test
     public void testCommitAsync() {
+        Properties properties = new Properties();
+        properties.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+        properties.setProperty(ConsumerConfig.GROUP_ID_CONFIG, "my-group");
+        properties.setProperty(ConsumerConfig.CLIENT_ID_CONFIG, "my-client");
+        properties.setProperty(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
+        properties.setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, BdWaybillInfoDeSerializer.class.getName());
+        properties.setProperty(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
+        properties.setProperty(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG, "800");
+        properties.setProperty(ConsumerConfig.REQUEST_TIMEOUT_MS_CONFIG, "1500");
+        properties.setProperty(ConsumerConfig.MAX_PARTITION_FETCH_BYTES_CONFIG, String.valueOf(DataSize.ofKilobytes(2).toBytes()));
+        properties.setProperty(ConsumerConfig.FETCH_MAX_BYTES_CONFIG, String.valueOf(DataSize.ofKilobytes(5).toBytes()));
+        properties.setProperty(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, "30");
+        properties.setProperty(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, "2000");
+        properties.setProperty(ConsumerConfig.FETCH_MIN_BYTES_CONFIG, String.valueOf(DataSize.ofKilobytes(1).toBytes()));
+        properties.setProperty(ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG, "900");
+
+        KafkaConsumer<String, BdWaybillOrder> kafkaConsumer = new KafkaConsumer<>(properties);
+        kafkaConsumer.subscribe(Collections.singleton(TOPIC));
+
+        Set<TopicPartition> assignment;
+        do {
+            kafkaConsumer.poll(Duration.ofMillis(300));
+            assignment = kafkaConsumer.assignment();
+        } while (assignment.isEmpty());
+
+        kafkaConsumer.seekToBeginning(assignment);
+
+        int currentTime = 1, maxTime = 5;
+        do {
+            ConsumerRecords<String, BdWaybillOrder> consumerRecords = kafkaConsumer.poll(Duration.ofMillis(500));
+            Map<TopicPartition, OffsetAndMetadata> toCommit = new HashMap<>(consumerRecords.partitions().size());
+            for (TopicPartition topicPartition : consumerRecords.partitions()) {
+                long lastOffset = 0;
+                for (ConsumerRecord<String, BdWaybillOrder> consumerRecord : consumerRecords.records(topicPartition)) {
+                    log.info("consumer record.key={},value={},partition={},offset={}", consumerRecord.key(), consumerRecord.value(), consumerRecord.partition(), consumerRecord.offset());
+                    lastOffset = consumerRecord.offset();
+                }
+                toCommit.put(topicPartition, new OffsetAndMetadata(lastOffset + 1));
+            }
+
+            // 和同步提交位点一样，异步提交位点也是用于更精准控制位点何时真正应该提交（在数据都处理完），只不过和同步提交位点不同的是，异步提交位点不会阻塞用户线程，通常用于用户不需要关心位点提交结果的情况下
+            // commitAsync方法中传入的callback对象，会在broker对请求响应后，客户端任意线程调用poll方法时执行callback对象
+            kafkaConsumer.commitAsync(toCommit, (offsets, exception) -> {
+                if (Objects.nonNull(exception)) {
+                    log.error("异步提交位点异常！", exception);
+                } else {
+                    log.info("异步提交位点成功。位点信息：{}", offsets);
+                }
+
+            });
+        } while (++currentTime <= maxTime);
+        kafkaConsumer.close();
     }
 }
