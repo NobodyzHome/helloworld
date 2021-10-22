@@ -150,20 +150,61 @@ public class ConsumerTest {
         properties.setProperty(ConsumerConfig.CLIENT_ID_CONFIG, "my-client");
         properties.setProperty(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
         properties.setProperty(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, "5000");
+        properties.setProperty(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, "100000");
 
         KafkaConsumer<String, BdWaybillOrder> kafkaConsumer = new KafkaConsumer<>(properties);
-        kafkaConsumer.subscribe(Collections.singleton(TOPIC), new ConsumerRebalanceListener() {
+        Map<TopicPartition, Long> offsetMap = new HashMap<>();
+        /*
+         * ConsumerRebalanceListener主要用于这个场景：假设我当前consumer poll了很多次，但是还没有提交，这时，如果当前consumer poll超时了，那么就会把分给当前consumer的分区剥夺。
+         * 由于当前consumer并没有提交位点，因此接到这个分区的consumer又要重新从上次提交位点的数据开始处理，导致这个consumer处理了很多当前consumer已处理过的数据。
+         * 假如当前consumer发现被从group移除后，又重新加入group，那么当前consumer又被重新分配了这些分区，这时ConsumerRebalanceListener就起作用了，在onPartitionsAssigned方法执行时，
+         * 发现如果有此前没来得及提交分区的位点信息，那么就使用seek，直接将拉取的位点信息移动至上次被剥夺分区前已处理的位点信息。这样，当前consumer就在被剥夺分区然后重新获取分区后，不会重复处理已处理过但没来得及提交的数据了
+         */
+        ConsumerRebalanceListener listener = new ConsumerRebalanceListener() {
 
+            /**
+             * 当前方法会在当前consumer被剥夺分区后，下一次调用poll方法时来执行该方法
+             * 执行到该方法时，broker就已经剥夺了入参的这些分区，所以无法使用kafkaConsumer做一些必须拥有分区后才能执行的方法，例如seek、commit、position方法
+             *
+             * @param partitions 已剥夺的分区
+             */
             @Override
             public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
                 log.info("移出了以下分区：" + partitions);
             }
 
+            /**
+             * 当前方法会在当前consumer调用poll方法时，发送JoinGroupRequest成功并且broker给它分配分区后，来执行该方法
+             * 执行到该方法时，broker就已经分配给该consumer分区了
+             *
+             * @param partitions 分配给的分区
+             */
             @Override
             public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
                 log.info("增加了以下分区：" + partitions);
+                // 如果有未提交的位点信息记录，那么把位点移动至未提交的位点位置，代表之前处理过的数据就不要再重复处理了
+                for (Map.Entry<TopicPartition, Long> entry : offsetMap.entrySet()) {
+                    log.info("检测到分区有此前未提交的位点信息，现在把位点信息拉取到该位置。分区={}，拉取到的位点信息={}", entry.getKey(), entry.getValue() + 1);
+                    kafkaConsumer.seek(entry.getKey(), entry.getValue() + 1);
+                }
+                for (TopicPartition topicPartition : partitions) {
+                    long position = kafkaConsumer.position(topicPartition);
+                    log.info("分区【{}】的初始拉取位置：{}", topicPartition, position);
+                }
             }
-        });
+        };
+        kafkaConsumer.subscribe(Collections.singleton(TOPIC), listener);
+
+        Set<TopicPartition> assignment;
+        do {
+            kafkaConsumer.poll(Duration.ofMillis(300));
+            assignment = kafkaConsumer.assignment();
+        } while (Objects.isNull(assignment) || assignment.isEmpty());
+
+        Map<TopicPartition, Long> beginningOffsets = kafkaConsumer.beginningOffsets(assignment);
+        for (Map.Entry<TopicPartition, Long> entry : beginningOffsets.entrySet()) {
+            kafkaConsumer.seek(entry.getKey(), entry.getValue());
+        }
 
         /*
          * 假设group中有consumerA、consumerB、consumerC：
@@ -171,15 +212,39 @@ public class ConsumerTest {
          *   broker才会给存活的consumer（在这里可能是consumerA、consumerB、consumerC、consumerD）平均分配partition，这样就完成了再平衡。
          * 2.当consumerC发送leave group请求时，broker也会发起再平衡，在再平衡期间，broker会收回所有已经给consumer分配的partition，此时需要consumerA、B发起join group请求或leave group请求，broker才会进行partition的重新分配
          *   （在这里可能是consumerA、consumerB），这样就完成了再平衡。
+         * 3.ConsumerRebalanceListener的onPartitionsRevoked、onPartitionsAssigned方法都是在调用poll方法时执行的，具体来说是client向broker发送LeaveGroupRequest、JoinGroupRequest请求得到响应后执行的。
+         *   我们如果通过手动提交位点的方式提交位点，那么上一次poll拉取的数据有可能没有提交位点，这时我们就需要记录每个分区需要提交的位点信息，当当前consumer被剥夺分区然后再次获取到该分区后，可以在onPartitionsAssigned中把位点信息调回来
+         * 4.同时它也能处理，假设当前consumer被剥夺分区后，如果把分区分配给其他consumer，并且其他consumer对该分区提交了位点。当这个consumer退出后，broker将分区归还给当前consumer后，当前consumer可以将位点还原回它上次处理的位置，而不是从使用其他consumer已提交的位点位置。
          */
         ConsumerRecords<String, BdWaybillOrder> consumerRecords = kafkaConsumer.poll(Duration.ofMillis(5000));
-        System.out.println(consumerRecords);
-        ConsumerRecords<String, BdWaybillOrder> consumerRecords1 = kafkaConsumer.poll(Duration.ofMillis(5000));
-        ConsumerRecords<String, BdWaybillOrder> consumerRecords2 = kafkaConsumer.poll(Duration.ofMillis(5000));
-        // 假如当前consumer只获取到了partition3和4，当前consumer也可以对他没拥有的partition进行commit位点，broker会短暂地把那个partition的位点改变，但当他发现改变位点的consumer并不拥有该分区时，它就把位点信息又调回改变之前的了
-        // 所以consumer在提交位点时，只对分配给它的分区提交位点，才是有效的。对不属于它的分区进行位点提交，即使提交了也是无效的。
-        kafkaConsumer.commitSync(Collections.singletonMap(new TopicPartition(TOPIC, 0), new OffsetAndMetadata(1L)));
+        for (TopicPartition topicPartition : consumerRecords.partitions()) {
+            List<ConsumerRecord<String, BdWaybillOrder>> partitionRecords = consumerRecords.records(topicPartition);
+            ConsumerRecord<String, BdWaybillOrder> consumerRecord = partitionRecords.get(partitionRecords.size() - 1);
+            log.info("分区{}拉取到最后一条数据的offset:{}", topicPartition, consumerRecord.offset());
+            offsetMap.put(topicPartition, consumerRecord.offset());
+        }
+
+        // 让主线程睡6秒，在此期间kafka的心跳线程发现距离上一次poll方法执行的时间已经超过了max.poll.interval.ms的配置，那么kafka的子线程就会发起LeaveGroupRequest，broker就会把当前consumer的分区进行剥夺
+        Thread.sleep(6000);
+        // 主线程再一次调用poll方法后，consumer发现已经被剥夺分区了，就会重新向GroupCoordinator发起JoinGroupRequest，broker就会把分区重新分配给它。
+        // 这里就是关键点，我们要在重新获取到分区后，把上一次poll拉取数据的位点信息（没来得及提交到kafka中）重新恢复到当前consumer中，使当前consumer不要再重复处理上一次poll时已处理过的数据
+        ConsumerRecords<String, BdWaybillOrder> consumerRecords1;
+        do {
+            consumerRecords1 = kafkaConsumer.poll(Duration.ofMillis(3000));
+            if (!consumerRecords1.isEmpty()) {
+                for (TopicPartition topicPartition : consumerRecords1.partitions()) {
+                    List<ConsumerRecord<String, BdWaybillOrder>> records = consumerRecords1.records(topicPartition);
+                    ConsumerRecord<String, BdWaybillOrder> firstRecord = records.get(0);
+                    ConsumerRecord<String, BdWaybillOrder> lastRecord = records.get(records.size() - 1);
+                    log.info("分区{}的第一条数据的offset:{}，最后一条数据的offset:{}", topicPartition, firstRecord.offset(), lastRecord.offset());
+                    // 每一个分区提交一次位点
+                    kafkaConsumer.commitSync(Collections.singletonMap(topicPartition, new OffsetAndMetadata(lastRecord.offset() + 1)));
+                }
+            }
+        } while (consumerRecords1.isEmpty());
+
         kafkaConsumer.close();
+        System.out.println("test");
     }
 
     /**
@@ -358,6 +423,7 @@ public class ConsumerTest {
 
         Map<TopicPartition, OffsetAndMetadata> committed = kafkaConsumer.committed(assignment);
         for (Map.Entry<TopicPartition, OffsetAndMetadata> offset : committed.entrySet()) {
+            // consumer只能对broker分配给它的分区进行seek操作，这也是为什么我们在seek方法前执行poll方法
             kafkaConsumer.seek(offset.getKey(), offset.getValue().offset() - 10);
         }
 
@@ -417,13 +483,26 @@ public class ConsumerTest {
     @Test
     public void testCommitSync() {
         Properties properties = new Properties();
+        // consumer连接的初始服务器。因为consumer会被分配多个分区，每个分区可能存在于不同的broker中。这样consumer需要和broker集群中的多个broker都进行连接。
+        // 我们在配置consumer时，仅需要填broker集群的一两个broker，consumer会向配置的broker发起集群嗅探的请求，broker接到请求后，会将集群中的所有broker连接方式都发送给consumer。这样consumer就可以向集群中所有broker发起连接请求了。
         properties.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+        // KafkaConsumer允许我们在程序中使用自己的类型（例如value的类型是BdWaybillInfo），但前提是需要给kafka提供将从broker拉取到的数据转换成我们需要的类型的转换器。
+        // key.deserializer和value.deserializer分别用于提供对拉取的数据的key和value进行转换的处理类。
         properties.setProperty(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         properties.setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, BdWaybillInfoDeSerializer.class.getName());
+        // kafka有两种订阅模式，一种是以加入到group中的subscribe模式，另一种是直接消费指定分区的assign模式。使用subscribe模式可以实现位点迁移、动态负载均衡（我们往相同组中加入新的consumer，会剥夺当前consumer分配的一些分区，移动给新的consumer，这样就减少了当前consumer的负载）
+        // 当我们使用subscribe订阅模式时，需要提供一个groupId，consumer会像GroupCoordinator发起加入组的请求
         properties.setProperty(ConsumerConfig.GROUP_ID_CONFIG, "hello-group");
+        // 当前consumer客户端的一个命名，使我们在broker中可以看到都有哪些客户端获取到了分区
         properties.setProperty(ConsumerConfig.CLIENT_ID_CONFIG, "my-client");
+        // 是否允许自动提交位点。如果启动的话，consumer会开启一个线程，定时的提交位点
+        // 通常我们是需要手动提交位点的，因为一旦我们提交位点了，那么在broker中就记录了该group中，该分区已消费到了哪儿。下次再有consumer获取该分区后，会自动从该位置拉取数据。
+        // 我们提交位点的前提应该是我这次拉取的数据都正确处理完成了，而自动提交是无法实现这个保证的，它就认为过了指定时间后，就可以提交位点了，它就把位点信息提交给broker。所以在自动提交位点情况下，有可能数据处理不正确，但位点依旧提交出去了。
         properties.setProperty(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
+        // 当enable.auto.commit为true时，也就是自动提交位点时，指定每隔多长时间进行一次位点提交
         properties.setProperty(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG, String.valueOf(Duration.ofSeconds(2).toMillis()));
+        // 当consumer和分配的分区的broker建立好连接后，它在拉取数据之前需要先向broker获取要拉取的位点信息。如果当前consumer的group在broker中没有位点提交信息，那么broker会根据该配置给consumer返回位点信息。
+        // 如果该值为earliest，那么broker会把该分区第一个数据的offset发给consumer，代表consumer需要从该分区的第一条数据来拉取。如果该值为latest，那么broker会把该分区最后一个数据的offset发送给consumer，代表consumer需要从该分区最后一条数据来拉取。
         properties.setProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         // 每个分区最大拉取的数据数量，如果拉取一个分区中，第一条数据的大小就超过了该配置，那consumer就不会继续从该分区再拉取数据了
         properties.setProperty(ConsumerConfig.MAX_PARTITION_FETCH_BYTES_CONFIG, String.valueOf(DataSize.ofKilobytes(3).toBytes()));
@@ -431,12 +510,18 @@ public class ConsumerTest {
         properties.setProperty(ConsumerConfig.FETCH_MAX_BYTES_CONFIG, String.valueOf(DataSize.ofKilobytes(20).toBytes()));
         // 本次poll请求最大拉取的数据条数。它和fetch.max.bytes是谁先到达就用谁的关系，例如fetch.max.bytes配置为100MB，但max.poll.records配置为10，那么consumer依然会只最多拉取10条数据，反之亦然。
         properties.setProperty(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, "2");
+        // kafkaConsumer在启动后，会开启一个线程来监听consumer poll方法的调用频率，如果调用频率低于该配置，那么该线程会主动向GroupCoordinator发起LeaveGroupRequest，让broker从当前分组中把该client剔除掉，并且把分配给它的分区收回，分配给分组中其他active的consumer。
         // consumer两次调用poll()方法拉取数据，如果超过了该间隔，当前consumer会给broker发送一个leave group request，这样broker就会把当前consumer剔除出group，将分配给它的分区分配给组内其他正在保持心跳的consumer
         properties.setProperty(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, String.valueOf(Duration.ofSeconds(5).toMillis()));
-        // 一次poll请求最少拉取的数据量，如果broker中数据量少于该配置，那么broker不会马上对这个POLL REQUEST进行响应，而是暂时挂起当前请求，直到broker中收到足够的数据后才会给当前REQUEST进行响应
+        // 一次poll请求最少拉取的数据量，如果broker中数据量少于该配置，那么broker不会马上对这个POLL REQUEST进行响应，而是暂时挂起当前请求，直到broker中收到足够的数据后才会给当前REQUEST进行响应。
+        // 这样可以减少client向broker发起请求的频率，但会增加用于线程调用consumer的poll方法的阻塞时间
         properties.setProperty(ConsumerConfig.FETCH_MIN_BYTES_CONFIG, String.valueOf(DataSize.ofBytes(1).toBytes()));
         // 由于fetch.min.bytes可能使当前poll request进行挂起等待，为了避免长时间让consumer进行等待，可以配置该参数，这样broker会有两个条件来对挂起的request进行响应：1.broker中有足够数量的数据了 2.broker判断挂起时长超过该配置了
         properties.setProperty(ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG, String.valueOf(Duration.ofSeconds(2).toMillis()));
+        // consumer在运作时，会向broker发起很多请求，例如JoinGroupRequest、LeaveGroupRequest，该配置用于控制请求发出去后需要最晚多长时间接收到响应。如果超过该配置没有收到响应，那么consumer会再次发起请求或把这次请求认定为请求失败。
+        // 例如该配置为3秒，当consumer在10:50发起请求后，如果10：53还没有接收到broker的响应，那么consumer就会发起重试或认定该请求发送失败
+        properties.setProperty(ConsumerConfig.REQUEST_TIMEOUT_MS_CONFIG, String.valueOf(Duration.ofSeconds(2).toMillis()));
+        properties.setProperty(ConsumerConfig.INTERCEPTOR_CLASSES_CONFIG, BdWaybillInfoConsumerInterceptor.class.getName());
 
         KafkaConsumer<String, BdWaybillOrder> kafkaConsumer = new KafkaConsumer<>(properties);
         kafkaConsumer.subscribe(Collections.singleton(TOPIC));
