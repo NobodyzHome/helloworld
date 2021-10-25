@@ -521,6 +521,7 @@ public class ConsumerTest {
         // consumer在运作时，会向broker发起很多请求，例如JoinGroupRequest、LeaveGroupRequest，该配置用于控制请求发出去后需要最晚多长时间接收到响应。如果超过该配置没有收到响应，那么consumer会再次发起请求或把这次请求认定为请求失败。
         // 例如该配置为3秒，当consumer在10:50发起请求后，如果10：53还没有接收到broker的响应，那么consumer就会发起重试或认定该请求发送失败
         properties.setProperty(ConsumerConfig.REQUEST_TIMEOUT_MS_CONFIG, String.valueOf(Duration.ofSeconds(2).toMillis()));
+        // 配置consumer的拦截器，多个拦截器以逗号分割。consumer拦截器的主要作用是对consumer的poll、commit等方法获得broker的响应后进行的拦截
         properties.setProperty(ConsumerConfig.INTERCEPTOR_CLASSES_CONFIG, BdWaybillInfoConsumerInterceptor.class.getName());
 
         KafkaConsumer<String, BdWaybillOrder> kafkaConsumer = new KafkaConsumer<>(properties);

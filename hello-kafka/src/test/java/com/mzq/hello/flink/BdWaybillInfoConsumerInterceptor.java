@@ -10,14 +10,18 @@ import org.apache.kafka.common.TopicPartition;
 
 import java.util.Map;
 
+/**
+ * ConsumerInterceptor用于对KafkaConsumer的poll、commit等方法，在获取到broker返回的响应后进行的拦截
+ */
 @Slf4j
 public class BdWaybillInfoConsumerInterceptor implements ConsumerInterceptor<String, BdWaybillOrder> {
 
     /**
-     * 在消费到数据时
+     * 在kafkaConsumer的poll方法被调用，从broker拉取到数据后，在poll方法内会调用该方法来获取数据
+     * 我们可以使用该方法来修改拉取到的数据，这里只是演示，但生产环境非常不建议这么做。会增加排查问题的难度：出问题的数据是kafka本来的数据，还是经过拦截器修改的数据？
      *
-     * @param records
-     * @return
+     * @param records 从broker拉取的数据
+     * @return 返回给用户的数据
      */
     @Override
     public ConsumerRecords<String, BdWaybillOrder> onConsume(ConsumerRecords<String, BdWaybillOrder> records) {
@@ -31,16 +35,29 @@ public class BdWaybillInfoConsumerInterceptor implements ConsumerInterceptor<Str
         return records;
     }
 
+    /**
+     * 该方法在KafkaConsumer调用commit方法，发送Commit请求并且得到broker的响应后，才会被调用
+     *
+     * @param offsets 每个分区提交的位点信息
+     */
     @Override
     public void onCommit(Map<TopicPartition, OffsetAndMetadata> offsets) {
-
+        log.info("位点提交信息：{}", offsets);
     }
 
+    /**
+     * 该方法会在KafkaConsumer关闭时（调用close方法）被调用
+     */
     @Override
     public void close() {
-
+        log.info("kafka consumer即将被关闭！");
     }
 
+    /**
+     * 该方法在new KafkaConsumer时被调用，传入的configs参数就是传给KafkaConsumer的配置
+     *
+     * @param configs
+     */
     @Override
     public void configure(Map<String, ?> configs) {
         log.info("consumer配置如下：{}", configs);
