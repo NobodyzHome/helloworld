@@ -20,6 +20,9 @@ public class BdWaybillInfoConsumerInterceptor implements ConsumerInterceptor<Str
      * 在kafkaConsumer的poll方法被调用，从broker拉取到数据后，在poll方法内会调用该方法来获取数据
      * 我们可以使用该方法来修改拉取到的数据，这里只是演示，但生产环境非常不建议这么做。会增加排查问题的难度：出问题的数据是kafka本来的数据，还是经过拦截器修改的数据？
      *
+     * 虽然该方法是在poll方法内部被执行的，但当执行该方法时，consumer已经开始针对max.poll.interval.ms进行计时了，因此如果这里面的逻辑过重或需要连接外部设备（redis等），
+     * 有可能导致来不及进行下一次poll，就已经超过max.poll.interval.ms的配置了。下一次poll的话，consumer又要重新和broker建立连接，触发rebalance，使消费性能非常低（要知道，在rebalance执行过程中，group中的所有consumer都无法进行数据拉取）。
+     *
      * @param records 从broker拉取的数据
      * @return 返回给用户的数据
      */

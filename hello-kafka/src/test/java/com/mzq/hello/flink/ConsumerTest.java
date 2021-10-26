@@ -480,6 +480,12 @@ public class ConsumerTest {
         kafkaConsumer.close();
     }
 
+    /**
+     * 整个KafkaConsumer大体有三个部分：
+     * 1.设置拉取数据的位点（可选的）
+     * 2.和broker建立连接，拉取数据
+     * 3.提交位点
+     */
     @Test
     public void testCommitSync() {
         Properties properties = new Properties();
@@ -510,9 +516,6 @@ public class ConsumerTest {
         properties.setProperty(ConsumerConfig.FETCH_MAX_BYTES_CONFIG, String.valueOf(DataSize.ofKilobytes(20).toBytes()));
         // 本次poll请求最大拉取的数据条数。它和fetch.max.bytes是谁先到达就用谁的关系，例如fetch.max.bytes配置为100MB，但max.poll.records配置为10，那么consumer依然会只最多拉取10条数据，反之亦然。
         properties.setProperty(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, "2");
-        // kafkaConsumer在启动后，会开启一个线程来监听consumer poll方法的调用频率，如果调用频率低于该配置，那么该线程会主动向GroupCoordinator发起LeaveGroupRequest，让broker从当前分组中把该client剔除掉，并且把分配给它的分区收回，分配给分组中其他active的consumer。
-        // consumer两次调用poll()方法拉取数据，如果超过了该间隔，当前consumer会给broker发送一个leave group request，这样broker就会把当前consumer剔除出group，将分配给它的分区分配给组内其他正在保持心跳的consumer
-        properties.setProperty(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, String.valueOf(Duration.ofSeconds(5).toMillis()));
         // 一次poll请求最少拉取的数据量，如果broker中数据量少于该配置，那么broker不会马上对这个POLL REQUEST进行响应，而是暂时挂起当前请求，直到broker中收到足够的数据后才会给当前REQUEST进行响应。
         // 这样可以减少client向broker发起请求的频率，但会增加用于线程调用consumer的poll方法的阻塞时间
         properties.setProperty(ConsumerConfig.FETCH_MIN_BYTES_CONFIG, String.valueOf(DataSize.ofBytes(1).toBytes()));
@@ -523,10 +526,52 @@ public class ConsumerTest {
         properties.setProperty(ConsumerConfig.REQUEST_TIMEOUT_MS_CONFIG, String.valueOf(Duration.ofSeconds(2).toMillis()));
         // 配置consumer的拦截器，多个拦截器以逗号分割。consumer拦截器的主要作用是对consumer的poll、commit等方法获得broker的响应后进行的拦截
         properties.setProperty(ConsumerConfig.INTERCEPTOR_CLASSES_CONFIG, BdWaybillInfoConsumerInterceptor.class.getName());
+        // kafkaConsumer在启动后，会开启一个线程来监听consumer poll方法的调用频率，如果调用频率低于该配置，那么该线程会主动向GroupCoordinator发起LeaveGroupRequest，让broker从当前分组中把该client剔除掉，并且把分配给它的分区收回，分配给分组中其他active的consumer。
+        // consumer两次调用poll()方法拉取数据，如果超过了该间隔，当前consumer会给broker发送一个leave group request，这样broker就会把当前consumer剔除出group，将分配给它的分区分配给组内其他正在保持心跳的consumer
+        properties.setProperty(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, String.valueOf(Duration.ofSeconds(26665).toMillis()));
+        // 当consumer加入一个group成功并获取到分区后，它就会和broker建立连接。之后的一个问题broker如何判断这个consumer是否一直存活。kafka使用consumer定时向GroupCoordinator发送心跳来解决这个问题。
+        // 每隔heartbeat.interval.ms时间，consumer就会定时给GroupCoordinator发送一个心跳，证明自己还存活。但是如果有一次心跳超时就判定该consumer不存活了，又过于严格。
+        // 所以就有了session.timeout.ms配置，在session.timeout.ms配置的范围内，如果没有consumer没有发送过一个心跳包，GroupCoordinator就可以认为该consumer不存活了。
+        // 一般情况，heartbeat.interval.ms要小于session.timeout.ms的1/3大小。
+        properties.setProperty(ConsumerConfig.HEARTBEAT_INTERVAL_MS_CONFIG, String.valueOf(Duration.ofMillis(800).toMillis()));
+        properties.setProperty(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, String.valueOf(Duration.ofMillis(50000).toMillis()));
 
+        /*
+         * KafkaConsumer在底层的大部分操作，都是交由ConsumerCoordinator来完成，而ConsumerCoordinator大部分和kafka broker交互的动作，都是consumer找到GroupCoordinator并提交给GroupCoordinator来完成。
+         * 例如ConsumerCoordinator的commit操作，就是将位点信息发送给GroupCoordinator，由GroupCoordinator来往__commit_offsets中存储提交进来的位点信息。
+         * 注意ConsumerCoordinator和GroupCoordinator的区别，它们虽然都是Coordinator，但是ConsumerCoordinator是执行在client端，它是KafkaConsumer具体处理的实现。而GroupCoordinator则其实是broker集群中的一个node
+         */
         KafkaConsumer<String, BdWaybillOrder> kafkaConsumer = new KafkaConsumer<>(properties);
         kafkaConsumer.subscribe(Collections.singleton(TOPIC));
 
+        /*
+         * 当调用poll方法时，参考ConsumerCoordinator的poll方法：
+         * 1.如果当前consumer还没有和broker建立连接，则发起建立连接流程
+         *   a) 向最小负载的broker节点上发送FindCoordinatorRequest，获取GroupCoordinator
+         *   b) 向GroupCoordinator发送JoinGroupRequest，JoinGroupRequest中带着当前consumer的分区分配策略
+         *   c) GroupCoordinator从该group的consumer中选出一个，作为leader consumer，其余为follower consumer
+         *   d) GroupCoordinator收集到这个group的所有consumer的分区分配策略后，从中选出被所有consumer支持最多的分区分配策略，作为实际分区分配结果。选出后给leader consumer的响应中有分区分配策略，而follower consumer收到的响应中没有分区分配策略
+         *   e) 在收到GroupCoordinator对JoinGroupRequest的正确响应后，每一个consumer都要向GroupCoordinator发起SyncGroupRequest。如果consumer是leader，那么SyncGroupRequest请求中包含了各个consumer的分区分配结果，否则发送的SyncGroupRequest中没有分区分配结果
+         *   f) 所有consumer在收到SyncGroupRequest的响应后，就收到了分配给它的分区。此时该consumer就可以正常工作了，在次之前它会开启一个心跳线程，定时向GroupCoordinator发送心跳，以表明当前consumer是存活的。
+         *   g) 在consumer拉取数据之前，它需要知道这个分区的拉取位点。它会向GroupCoordinator发起OffsetFetchRequest，GroupCoordinator收到请求后，会从__commit_offset中找到这个group中该partition对应的位点信息，发送给consumer
+         *   h) 如果启动了自动提交位点（enable.auto.commit=true），且距离上次提交位点已经过了auto.commit.interval.ms指定的距离，就会发起一次异步位点提交请求
+         * 上面这些过程其实就是consumer从不知道分配的分区到获取到broker分配给它的分区的过程
+         * 2.经过上述步骤后，consumer已经知道了要拉取的分区以及要拉取分区的位点信息，那么它就要开始拉取数据了。它就不向GroupCoordinator发送消息了，而是向各个分区的所在broker发起FetchRequest，开始进行数据拉取了
+         * 注意：
+         * 1.在consumer获取到分区之前，都是ConsumerCoordinator对GroupCoordinator发起请求，而consumer获取到分配的分区以后，就是直接向分区对应的broker发起请求了。
+         * 2.下一次调用poll方法时，如果当前consumer已经在group中了，就不用再经过步骤1了，直接向分配的分区对应的broker拉取数据即可。
+         * 3.自动提交位点机制是通过不断调用KafkaConsumer的poll方法来实现的，通过ConsumerCoordinator的poll方法触发位点提交动作
+         *
+         * 当consumer和broker建立好连接后，consumer会开启一个线程（心跳线程），心跳线程主要用于：
+         * 1.定时向GroupCoordinator发送心跳
+         * 2.监控距离上一次poll的时间间隔，当超时后，会向GroupCoordinator发送LeaveGroupRequest
+         * 3.监控在session.timeout.ms配置的时间范围内，是否有发送过心跳包，没有则向GroupCoordinator发送LeaveGroupRequest
+         *
+         * 当consumer和broker建立好连接开始拉取数据后，有以下情况会使consumer给GroupCoordinator发起LeaveGroupRequest
+         * 1.consumer在session.timeout.ms配置的时间范围内，没有发过一次心跳包
+         * 2.consumer在最后一次调用poll方法后，超过max.poll.interval.ms毫秒都没有进行下一次poll方法的调用
+         * 3.consumer主动调用unsubscribe方法，对topic进行取消订阅
+         */
         Set<TopicPartition> assignment;
         do {
             kafkaConsumer.poll(Duration.ofMillis(300));
@@ -561,19 +606,24 @@ public class ConsumerTest {
                 }
                 toCommit.put(topicPartition, new OffsetAndMetadata(lastOffset + 1));
 
-                /*
-                1.为什么要手动提交位点，因为自动提交位点的话，在拉取数据指定时间之后，consumer就认为数据处理正确了，可以提交位点了，但真正这批数据拉取完以后处理的正不正确，只有用户程序知道。所以自动提交位点有可能产生的问题是位点提交了，
-                  但是这批拉取的数据处理异常，但是由于位点已经提交，无法再次拉取到处理错误的数据了（除非consumer主动使用seek）。所以我们在处理位点时，还是应尽量使用手动提交，在拉取的数据正确处理后再提交位点。
-                2.每次拉取并处理完数据时就进行一次commit，为什么要这样做？假如多次拉取，最后一起commit，有可能造成的问题是假设前两次拉取数据和处理数据没问题，而第三次拉取和处理数据出现异常了，导致位点提交没有执行，这样这三次拉取的数据都白处理了
-                  ，下次再拉取数据还是得从第一次拉取的位置拉取数据（因为没有提交位点），这就导致了数据的重复处理
-                3.每次拉取并处理完数据时进行一次commit，那么仅有可能在出现异常时，让这次拉取的数据白处理了，也就是只重复处理了这次拉取的数据。
-                4.位点提交也要注意提交的频率，因为每一次提交都需要和kafka进行通信，并且是阻塞的（因为是同步提交），在kafka没有对提交位点操作给出回应之前，用户线程都处于阻塞状态。
-                  在这里我们又细分到拉取一次数据后，按数据的partition进行位点提交，每有一个partition就提交一次。这应该只用于测试，正常情况下
-                5.同步提交位点适用于客户端需要知道位点提交结果的情况
+                 /*
+                    提交位点的流程，参见ConsumerCoordinator的commitOffsetsSync方法：
+                    1.向负载最小的broker节点发起FindCoordinatorRequest，获取GroupCoordinator
+                    2.向GroupCoordinator发起OffsetCommitRequest请求，请求中附带了每个分区的位点信息
+                    3.GroupCoordinator在收到OffsetCommitRequest请求后，将该group的分区的位点信息提交到__commit_offset中存储
+                    所以：我们提交位点，本质上就是要把位点信息写入到__commit_offset中，让broker知道，该group中对于该分区已经处理完指定offset之前的数据了，下次拉取数据从该位置拉取数据即可
+
+                    1.为什么要手动提交位点，因为自动提交位点的话，在拉取数据指定时间之后，consumer就认为数据处理正确了，可以提交位点了，但真正这批数据拉取完以后处理的正不正确，只有用户程序知道。所以自动提交位点有可能产生的问题是位点提交了，
+                      但是这批拉取的数据处理异常，但是由于位点已经提交，无法再次拉取到处理错误的数据了（除非consumer主动使用seek）。所以我们在处理位点时，还是应尽量使用手动提交，在拉取的数据正确处理后再提交位点。
+                    2.每次拉取并处理完数据时就进行一次commit，为什么要这样做？假如多次拉取，最后一起commit，有可能造成的问题是假设前两次拉取数据和处理数据没问题，而第三次拉取和处理数据出现异常了，导致位点提交没有执行，这样这三次拉取的数据都白处理了
+                      ，下次再拉取数据还是得从第一次拉取的位置拉取数据（因为没有提交位点），这就导致了数据的重复处理
+                    3.每次拉取并处理完数据时进行一次commit，那么仅有可能在出现异常时，让这次拉取的数据白处理了，也就是只重复处理了这次拉取的数据。
+                    4.位点提交也要注意提交的频率，因为每一次提交都需要和GroupCoordinator进行通信，并且是阻塞的（因为是同步提交），在kafka没有对提交位点操作给出回应之前，用户线程都处于阻塞状态。
+                      在这里我们又细分到拉取一次数据后，按数据的partition进行位点提交，每有一个partition就提交一次。这应该只用于测试，正常情况下
+                    5.同步提交位点适用于客户端需要知道位点提交结果的情况
                 */
                 kafkaConsumer.commitSync(toCommit);
             }
-
 
             // commitSync方法可以把当前consumer所拉到的所有分区的位点一起提交。该方法相对来说卡的就比较死，我们不能指定每个分区的LEO
 //            kafkaConsumer.commitSync();
