@@ -115,7 +115,17 @@ public class ProducerTest {
          * 解决方案：1.我们可以提高该配置，降低ProducerBatch过期几率 2.增加该topic对应的分区数，使send()方法发来的ProducerBatch存储于不同的分区中
          * 注意：此时超时的ProducerBatch是无法通过retries参数进行重试的，因为retries控制的是broker给出响应后，发现响应中有可重试的异常才会重试。但这种情况下，Sender线程根本没有往broker里发送ProducerBatch，所以无法重试。
          */
-        properties.setProperty(ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, "150");
+        properties.setProperty(ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, "1000");
+        /*
+        * 当我们发送消息时，为了减少网络I/O的使用，producer在发送的ProducerRecord时，会把数据先存储到内存中，具体是存储到ProducerBatch中。此后，producer会在以下情况将内存中的ProducerBatch发送给broker：
+        * 1.ProducerBatch的大小超过batch.size，代表该ProducerBatch已经装满数据了，可以被发送出去了
+        * 2.ProducerBatch的大小虽然小于batch.size，但在RecordAccumulator中存在的时间也超过了linger.ms时间。
+        * linger.ms配置的目的是：让ProducerBatch即使没有满足大小的要求，也可以及时发送到broker中，不会因为一直不生产新的ProducerRecord，导致数据都积压在producer的内存中
+        *
+        * 注意：一个ProducerBatch如果在RecordAccumulator中存在时间超过delivery.timeout.ms后也没发送到broker中，那么KafkaProducer会抛出异常。因此linger.ms应该远小于delivery.timeout.ms，
+        * 让producer尽量不会因为ProducerBatch存储在内存中时间过长而抛出异常。
+        */
+        properties.setProperty(ProducerConfig.LINGER_MS_CONFIG, "600");
 
         KafkaProducer<String, String> kafkaProducer = new KafkaProducer<>(properties);
         /*
