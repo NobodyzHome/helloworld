@@ -17,7 +17,7 @@ services:
       # KAFKA_LISTENERS是kafka server真正监听的地址和端口
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
       # KAFKA_ADVERTISED_LISTENERS是注册给zookeeper的，用于kafka客户端真正连接到kafka server的地址
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-1:9092
       # zookeeper连接地址
       KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
       # kafka server的id。连接到zookeeper上的多个kafka server不能有相同的id
@@ -181,6 +181,16 @@ services:
       - my-network
     ports:
       - "6379:6379"
+
+  my-mysql:
+    image: mysql:5.7
+    container_name: mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+    ports:
+      - "3306:3306"
+    networks:
+      - my-network
 
 
 # 配置自己的network，其实这里也可以不配置，因为本来就想让所有service走一个network，那么走默认的即可。这里只是为了展示networks的用法。
