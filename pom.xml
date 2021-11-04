@@ -24,6 +24,7 @@
         <module>hello-zookeeper</module>
         <module>hello-jackson</module>
         <module>hello-springboot</module>
+        <module>hello-LeetCode</module>
     </modules>
     <packaging>pom</packaging>
 
