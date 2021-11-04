@@ -5,14 +5,28 @@ public class LongestPalindrome {
     public String solution(String words) {
         int max = Integer.MIN_VALUE;
         String longest = null;
+        if (words.length() == 1) {
+            return words;
+        }
 
-        for (int i = 0; i <= words.length() - 2; i++) {
-            for (int j = i + 1; j <= words.length() - 1; j++) {
-                String subStr = words.substring(i, j + 1);
+        int maxIndex = words.length() - 1;
+        for (int i = 0; i <= maxIndex; i++) {
+            if (i == maxIndex) {
+                String subStr = words.substring(i);
                 if (isPalindrome(subStr)) {
                     if (subStr.length() > max) {
                         max = subStr.length();
                         longest = subStr;
+                    }
+                }
+            } else {
+                for (int j = i; j <= words.length() - 1; j++) {
+                    String subStr = words.substring(i, j + 1);
+                    if (isPalindrome(subStr)) {
+                        if (subStr.length() > max) {
+                            max = subStr.length();
+                            longest = subStr;
+                        }
                     }
                 }
             }
@@ -51,6 +65,6 @@ public class LongestPalindrome {
     }
 
     public static void main(String[] args) {
-        System.out.println(new LongestPalindrome().solution("ab"));
+        System.out.println(new LongestPalindrome().solution("vaomxdtiuwqlwhgutkhxxhccsgvyoaccuicgybnqnslogtqhblegfudagpxfvjdacsxgevvepuwthdtybgflsxjdmmfumyqgpxatvdypjmlapccaxwkuxkilqqgpihyepkilhlfkdrbsefinitdcaghqmhylnixidrygdnzmgubeybczjceiybowglkywrpkfcwpsjbkcpnvfbxnpuqzhotzspgebptnhwevbkcueyzecdrjpbpxemagnwmtwikmkpqluwmvyswvxghajknjxfazshsvjkstkezdlbnkwxawlwkqnxghjzyigkvqpapvsntojnxlmtywdrommoltpbvxwqyijpkirvndwpgufgjelqvwffpuycqfwenhzrbzbdtupyutgccdjyvhptnuhxdwbmdcbpfvxvtfryszhaakwshrjseonfvjrrdefyxefqfvadlwmedpvnozobftnnsutegrtxhwitrwdpfienhdbvvykoynrsbpmzjtotjxbvemgoxreiveakmmbbvbmfbbnyfxwrueswdlxvuelbkrdxlutyukppkzjnmfmclqpkwzyylwlzsvriwomchzzqwqglpflaepoxcnnewzstvegyaowwhgvcwjhbbstvzhhvghigoazbjiikglbqlxlccrwqvyqxpbtpoqjliziwmdkzfsrqtqdkeniulsavsfqsjwnvpprvczcujihoqeanobhlsvbzmgflhykndfydbxatskf"));
     }
 }
