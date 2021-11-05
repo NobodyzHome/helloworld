@@ -3,6 +3,35 @@ package com.mzq.hello.leetCode;
 public class IsPalindrome {
 
     public boolean solution(int num) {
+        return bestSolution(num);
+    }
+
+    /**
+     * 最优解，使用数学的方式计算
+     */
+    public boolean bestSolution(int num){
+        // 如果num是负数，按照题目要求不符合回文数
+        if (num < 0) {
+            return false;
+        } else if (num < 10) {
+            // 如果num只有一位，那它必然也是回文数
+            return true;
+        }
+
+        int tempNum = num, result = 0;
+        int temp;
+        do {
+            temp = tempNum % 10;
+            result = result * 10 + temp;
+            tempNum = tempNum / 10;
+        } while (tempNum != 0);
+        return num == result;
+    }
+
+    /**
+     * 次解，使用字符串的方式计算
+     */
+    public boolean secondSolution(int num){
         // 如果num是负数，按照题目要求不符合回文数
         if (num < 0) {
             return false;
@@ -39,6 +68,8 @@ public class IsPalindrome {
         }
         return isPalindrome;
     }
+
+
 
     public static void main(String[] args) {
         boolean solution = new IsPalindrome().solution(10);
