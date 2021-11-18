@@ -4,7 +4,7 @@
 
     <appenders>
         <Console target="SYSTEM_OUT" name="console">
-            <PatternLayout pattern="[%p][%d][%c{1.}] ------ %m%n"/>
+            <PatternLayout pattern="[%p][%d][%c] ------ %m%n"/>
         </Console>
     </appenders>
 

@@ -14,7 +14,7 @@
     <properties>
         <maven.compiler.source>8</maven.compiler.source>
         <maven.compiler.target>8</maven.compiler.target>
-        <start-class>com.mzq.hello.flink.HelloWorldFlink</start-class>
+        <start-class>com.mzq.hello.flink.FlinkSqlUsage</start-class>
     </properties>
 
     <dependencies>

@@ -1,0 +1,46 @@
+version: "3.8"
+services:
+  zookeeper:
+    image: zookeeper
+    restart: unless-stopped
+    ports:
+      - "2181:2181"
+    container_name: test-zookeeper
+    networks:
+      - my-network
+
+  kafka-1:
+    image: wurstmeister/kafka
+    ports:
+      - "9092:9092"
+    environment:
+      # KAFKA_LISTENERS是kafka server真正监听的地址和端口
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      # KAFKA_ADVERTISED_LISTENERS是注册给zookeeper的，用于kafka客户端真正连接到kafka server的地址
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      # zookeeper连接地址
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      # kafka server的id。连接到zookeeper上的多个kafka server不能有相同的id
+      KAFKA_BROKER_ID: 1
+    depends_on:
+      - zookeeper
+    container_name: test-kafka
+    networks:
+      - my-network
+
+  my-mysql:
+    image: mysql:5.7
+    container_name: test-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+    ports:
+      - "3306:3306"
+    networks:
+      - my-network
+
+# 配置自己的network，其实这里也可以不配置，因为本来就想让所有service走一个network，那么走默认的即可。这里只是为了展示networks的用法。
+networks:
+  # 这个是配置的network的名称，service使用该名称来加入这个网络
+  my-network:
+    # 这个是这个network所使用的driver，目前基础的好像只有bridge和host这两个driver，一般本地连的话用bridge就可以了
+    driver: bridge
