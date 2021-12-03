@@ -1,5 +1,6 @@
 package com.mzq.hello.flink;
 
+import com.mzq.hello.flink.usage.sql.UdfFunctionUsage;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
@@ -16,9 +17,11 @@ public class FlinkSqlUsage {
      * @param args
      */
     public static void main(String[] args) {
+//        AggregationUsage aggregationUsage = new AggregationUsage();
+//        aggregationUsage.execute();
 
-
-        test4();
+        UdfFunctionUsage udfFunctionUsage = new UdfFunctionUsage();
+        udfFunctionUsage.execute();
     }
 
     public static void test1() {
@@ -86,10 +89,11 @@ public class FlinkSqlUsage {
 
     public static void test4() {
         StreamExecutionEnvironment executionEnvironment = StreamExecutionEnvironment.getExecutionEnvironment();
+        executionEnvironment.setParallelism(1);
         TableEnvironment tableEnvironment = StreamTableEnvironment.create(executionEnvironment);
-        tableEnvironment.executeSql("create view test(id,name) as select id,name from (values (1,'hello'),(2,'world')) as t(id,name)");
-        tableEnvironment.executeSql("create table kafka_sink(id int,name string) with ('connector'='kafka','properties.bootstrap.servers'='kafka-1:9092','topic'='hello_database','format'='json','key.fields'='id','key.format'='raw')");
-        tableEnvironment.executeSql("insert into kafka_sink select * from test");
+//        TableResult tableResult = tableEnvironment.executeSql("create view test(id,name) as select id,name from (values (1,'hello'),(2,'world')) as t(id,name)");
+        tableEnvironment.executeSql("create table es_sink(id string primary key,name string,proc_time as PROCTIME()) with('connector'='elasticsearch-7','hosts'='http://localhost:9200','index'='test_index','format'='json')");
+        tableEnvironment.executeSql("insert into es_sink(id) values('1')");
     }
 
     public static void test3() {
@@ -137,4 +141,6 @@ public class FlinkSqlUsage {
         // 执行这句话时，flink任务需要的source和sink都全了（也就是从哪儿拉取数据，数据又写到哪儿），这时他就会开始生成DAG图，然后来把算子分发给taskManager
         tableEnvironment.executeSql("insert into print_sink select * from student_teacher");
     }
+
+
 }

@@ -239,14 +239,26 @@ services:
       # canal.mq.dynamicTopic=.*\\..*代表对于任何库下的任何表的binlog，把这些binlog都放到kafka的名为库名_表名的topic，例如把hello_database.hello_world的数据写入到hello_database_hello_world这个topic中，把my_database.hello_world的数据写入到my_database_hello_world_1这个topic中
       # canal.mq.dynamicTopic=hello_database,my_database\\..*代表对于hello_database库下的任何表的binlog，把这些binlog都放到kafka的名为hello_database的topic，对于my_database下的任何表的binlog数据，写入到my_database_表名这个topic中。把my_database.hello_world的binlog数据写入到my_database_hello_world这个topic中
       # canal.mq.dynamicTopic可以用多个匹配语句，可以把单独匹配的表的放到前面，统一匹配的表放到后面
+
+      # 上面的配置方式：具体使用哪个topic由canal系统自己来生成，例如canal.mq.dynamicTopic=hello_database\\..*，对于hello_database下的hello_test table的话，生成的topic名就是hello_database_hello_topic。不是由我们自己控制的
+      # canal提供了：topicName:schema 或 topicName:schema.table的方式，使用表达式捕获的table的binlog数据，均发送到用户自己指定的topic。不过这种方式，虽然是使用我们自己的topic，但是没办法根据不同的table生成不同的topic了。
+      # 例如：hello_topic:hello_database\\..*，那么是将hello_database下的所有表的binlog都发送到hello_topic这个topic中
       canal.mq.dynamicTopic: "hello_database\\..*,my_database"
       # 这个参数不是用来指定canal创建topic的分区数，而是用来指定topic的分区数，canal会用根据canal.mq.partitionHash计算出要发送的数据的hash值，然后与配属性值求余数，求出来的余数就是canal要将该数据发送到哪个分区。所以，该属性值需要和broker的num.partitions一致
       # 这点就非常坑，canal在创建topic，不会指定要创建的分区个数，完全是按照broker配置中的num.partitions来决定创建的topic的分区个数的
       canal.mq.partitionsNum: 5
-      # 当canal创建的topic是多分区时，就涉及到一个问题就是如何对表发送的数据进行hash，让相同hash的发送到同一个kafka的partition中，保证同一个主键或同一个表的数据发送到同一个partition中
+      # 当canal要发送的topic是多分区时，就涉及到一个问题就是如何对表发送的数据进行hash，让相同hash的发送到同一个kafka的partition中，保证同一个主键或同一个表的数据发送到同一个partition中
       # 注意：canal只是计算出要发送的分区号，但是canal向kafka发送的数据中没有key，也就是说canal不是通过key来保证数据的一致性的
-      # hello_database\\..*:$pk$代表的就是hello_database库下的任何表的binlog数据，都是使用主键（canal会自动获取有哪些主键）进行hash，保证同一个表的相同主键都使用一个hash，都发送到同一个partition，保证了主键级别的顺序
-      # 理论上应该是hello_database\\..*:$pk$，为什么这里用的是hello_database\\..*:$$pk$$，因为docker compose里，$应该是有含义的符号，在前面再加一个$，就进行转义了。也就是docker compose里，$$才代表$
+      # canal可以使用表达式，让同一个表的数据落在一个分区或同一个主键的数据落在同一个分区。根据用户实际的使用情况来判断
+      # 1.hello_database\\..*:$pk$代表的就是hello_database库下的任何表的binlog数据，都是使用主键（canal会自动获取有哪些主键）进行hash，保证同一个表的相同主键的数据都发送到同一个partition，保证了主键级别的顺序
+      # 2.hello_database\\..*，没有给出分区计算规则，代表的就是hello_database库下的任何表的binlog数据，都是使用表名进行hash，保证同一个表的数据都发送到同一个partition，保证了表级别的顺序（注意：如果有的表数据很大，可能会造成特定分区的数据很大）
+      # 3.hello_database.hello_world:my_id，代表的就是hello_database库下的hello_world表的binlog数据，使用字段my_id进行hash，保证相同my_id字段值的数据都发送到同一个partition
+      # 4.hello_database.hello_world:my_id1^my_id2，代表的就是hello_database库下的hello_world表的binlog数据，使用字段my_id1和my_id2一起进行hash，保证相同my_id1和my_id2字段值的数据都发送到同一个partition
+      # 5.如果没有写匹配规则，那么默认写到分区0
+      # 6.hello_database\\..*:$pk$,my_database\\.test:my_id，多个匹配规则，代表的是hello_database下的所有表，使用主键进行hash，my_database下的test表，使用my_id字段进行hash
+      # （下面理论上应该是hello_database\\..*:$pk$，为什么这里用的是hello_database\\..*:$$pk$$，因为docker compose里，$应该是有含义的符号，在前面再加一个$，就进行转义了。也就是docker compose里，$$才代表$）
+
+      # 总结：canal.mq.dynamicTopic决定了数据表的binlog写到哪些topic中，而当写入的topic是多个分区时，canal.mq.partitionHash决定了binlog数据写到哪个kafka分区的计算规则
       canal.mq.partitionHash: ".*\\..*:$$pk$$"
 
 # 配置自己的network，其实这里也可以不配置，因为本来就想让所有service走一个network，那么走默认的即可。这里只是为了展示networks的用法。
