@@ -12,7 +12,8 @@ public class UdfFunctionUsage extends BaseSqlUsage {
 //        innerJoinTableFunction();
 //        leftOuterJoinTableFunction();
 //        scalarFunction();
-        aggregateFunction();
+        scalarFunction1();
+//        aggregateFunction();
     }
 
     public void basicTableFunction() {
@@ -84,13 +85,25 @@ public class UdfFunctionUsage extends BaseSqlUsage {
         tableEnvironment.executeSql("insert into print_sink select id,name,query_alias(id,name) alias from (values(1,'hello'),(2,'world')) as student(id,name)");
     }
 
+    public void scalarFunction1() {
+        Configuration configuration = new Configuration();
+        configuration.setString("table.exec.resource.default-parallelism", "1");
+        configuration.setString("pipeline.global-job-parameters", "redis.url:'redis://localhost:6379'");
+
+        TableEnvironment tableEnvironment = TableEnvironment.create(configuration);
+        tableEnvironment.executeSql("create table print_sink(id int,name string,score DECIMAL(5,2)) with('connector'='print')");
+        tableEnvironment.executeSql("create function redis_query as 'com.mzq.hello.flink.sql.udf.scalar.RedisQuery'");
+        tableEnvironment.executeSql("insert into print_sink select id,name,redis_query(id,name) score from (values(1,'hello'),(2,'world')) as t(id,name)");
+    }
+
     public void aggregateFunction() {
         Configuration configuration = new Configuration();
         configuration.setString("table.exec.resource.default-parallelism", "1");
 
         TableEnvironment tableEnvironment = TableEnvironment.create(configuration);
-        tableEnvironment.executeSql("create function collect_set as 'com.mzq.hello.flink.func.sql.CollectUniqueStringAggregate'");
-        tableEnvironment.executeSql("create table print_sink(id int,name string) with('connector'='print')");
-        tableEnvironment.executeSql("insert into print_sink select id,collect_set(name) from (select * from (values(1,'hello'),(1,'world')) as t(id,name)) group by id");
+        tableEnvironment.executeSql("create function collect_set as 'com.mzq.hello.flink.sql.udf.aggregation.CollectUniqueStringAggregate'");
+        tableEnvironment.executeSql("create table print_sink(id int,name string,nameArray array<string>) with('connector'='print')");
+        tableEnvironment.executeSql("insert into print_sink select id,joined.joined,joined.uniqueStrArray from " +
+                "(select id,collect_set(name,alias) joined from (select * from (values(1,'hello','haha'),(1,'world','heihei')) as t(id,name,alias)) group by id)");
     }
 }
