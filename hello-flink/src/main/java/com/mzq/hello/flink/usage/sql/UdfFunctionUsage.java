@@ -12,8 +12,9 @@ public class UdfFunctionUsage extends BaseSqlUsage {
 //        innerJoinTableFunction();
 //        leftOuterJoinTableFunction();
 //        scalarFunction();
-        scalarFunction1();
+//        scalarFunction1();
 //        aggregateFunction();
+        aggregateFunction1();
     }
 
     public void basicTableFunction() {
@@ -91,9 +92,9 @@ public class UdfFunctionUsage extends BaseSqlUsage {
         configuration.setString("pipeline.global-job-parameters", "redis.url:'redis://localhost:6379'");
 
         TableEnvironment tableEnvironment = TableEnvironment.create(configuration);
-        tableEnvironment.executeSql("create table print_sink(id int,name string,score DECIMAL(5,2)) with('connector'='print')");
+        tableEnvironment.executeSql("create table print_sink(id int,name string,use_which string,score DECIMAL(5,2)) with('connector'='print')");
         tableEnvironment.executeSql("create function redis_query as 'com.mzq.hello.flink.sql.udf.scalar.RedisQuery'");
-        tableEnvironment.executeSql("insert into print_sink select id,name,redis_query(id,name) score from (values(1,'hello'),(2,'world')) as t(id,name)");
+        tableEnvironment.executeSql("insert into print_sink select id,name,search_result.use_which,search_result.score from (select id,name,redis_query(id,name) search_result from (values(1,'hello'),(2,'world')) as t(id,name))");
     }
 
     public void aggregateFunction() {
@@ -103,7 +104,18 @@ public class UdfFunctionUsage extends BaseSqlUsage {
         TableEnvironment tableEnvironment = TableEnvironment.create(configuration);
         tableEnvironment.executeSql("create function collect_set as 'com.mzq.hello.flink.sql.udf.aggregation.CollectUniqueStringAggregate'");
         tableEnvironment.executeSql("create table print_sink(id int,name string,nameArray array<string>) with('connector'='print')");
-        tableEnvironment.executeSql("insert into print_sink select id,joined.joined,joined.uniqueStrArray from " +
-                "(select id,collect_set(name,alias) joined from (select * from (values(1,'hello','haha'),(1,'world','heihei')) as t(id,name,alias)) group by id)");
+        tableEnvironment.executeSql("insert into print_sink select id,joined.joined,joined.uniqueStrArray " +
+                "from (select id,collect_set(name,alias) joined from (select * from (values(1,'hello','haha'),(1,'world','heihei')) as t(id,name,alias)) group by id)");
+    }
+
+    public void aggregateFunction1() {
+        Configuration configuration = new Configuration();
+        configuration.setString("table.exec.resource.default-parallelism", "1");
+        configuration.setString("pipeline.global-job-parameters", "redis.url:'redis://localhost:6379'");
+
+        TableEnvironment tableEnvironment = TableEnvironment.create(configuration);
+        tableEnvironment.executeSql("create table print_sink(id int,name string) with('connector'='print')");
+        tableEnvironment.executeSql("create function alias_concat as 'com.mzq.hello.flink.sql.udf.aggregation.AliasSearchAggregate'");
+        tableEnvironment.executeSql("insert into print_sink select id,alias_concat(name) alias_concat from (select id,name from (values(1,'hello'),(1,'world'),(2,'zhangsan'),(2,'lisi')) as t(id,name)) group by id");
     }
 }
