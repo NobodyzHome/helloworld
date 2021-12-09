@@ -72,7 +72,48 @@ sELECT window_start, window_end, SUM(id) FROM TABLE(
    TUMBLE(TABLE student, DESCRIPTOR(proc_time), INTERVAL '10' MINUTES))
    GROUP BY window_start, window_end;
 
-create table hello_world(id string,name string,proc_time as PROCTIME()) with('connector'='kafka','properties.bootstrap.servers'='kafka-1:9092','topic'='hello_world','scan.startup.mode'='earliest-offset','key.format'='raw','key.fields'='id','value.format'='json');
+create table hello_world_1(id string,
+                        name string,
+                        update_time timestamp(3),
+                        watermark for update_time as update_time - interval '30' second)
+                        with('connector'='kafka','properties.bootstrap.servers'='kafka-1:9092'
+                            ,'topic'='hello_world_1'
+                            ,'scan.startup.mode'='earliest-offset'
+                            ,'key.format'='raw'
+                            ,'key.fields'='id'
+                            ,'value.format'='json');
+
+create table hello_world_2(id string,
+                        name string,
+                        update_time timestamp(3),
+                        watermark for update_time as update_time - interval '30' second)
+                        with('connector'='kafka','properties.bootstrap.servers'='kafka-1:9092','topic'='hello_world_2','scan.startup.mode'='earliest-offset','key.format'='raw','key.fields'='id','value.format'='json');
+
+insert into hello_world_1 values('3','lisi',TIMESTAMP '2021-12-08 07:00:00');
+insert into hello_world_1 values('3','lisi1',TIMESTAMP '2021-12-08 07:10:00');
+insert into hello_world_1 values('3','lisi2',TIMESTAMP '2021-12-08 08:30:00');
+insert into hello_world_1 values('3','lisi3',TIMESTAMP '2021-12-08 08:40:00');
+insert into hello_world_1 values('3','lisi4',TIMESTAMP '2021-12-08 08:50:00');
+insert into hello_world_1 values('3','lisi5',TIMESTAMP '2021-12-08 08:55:00');
+insert into hello_world_1 values('3','lisi6',TIMESTAMP '2021-12-08 08:56:00');
+
+insert into hello_world_2 values('3','ls',TIMESTAMP '2021-12-08 07:30:00');
+insert into hello_world_2 values('3','ls1',TIMESTAMP '2021-12-08 07:20:00');
+insert into hello_world_2 values('3','lsx',TIMESTAMP '2021-12-08 07:40:00');
+insert into hello_world_2 values('3','ls2',TIMESTAMP '2021-12-08 09:20:00');
+insert into hello_world_2 values('3','ls3',TIMESTAMP '2021-12-08 09:00:00');
+insert into hello_world_2 values('3','ls4',TIMESTAMP '2021-12-08 09:10:00');
+insert into hello_world_2 values('2','zs77',TIMESTAMP '2021-12-08 06:30:00');
+
+insert into hello_world_1 values('2','zhangsanxx',TIMESTAMP '2021-12-08 06:30:00');
+insert into hello_world_1 values('2','zhangsanxxy',TIMESTAMP '2021-12-08 06:30:00');
+
+insert into hello_world_2 values('2','zs88',TIMESTAMP '2021-12-08 06:30:00');
+
+insert into hello_world_1 values('4','zhaowu',TIMESTAMP '2021-12-08 06:30:00');
+insert into hello_world_2 values('4','zw',TIMESTAMP '2021-12-08 06:30:00');
+
+select t1.id,t1.update_time,t1.name,t2.id,t2.name from (select * from hello_world_1 where id='2') t1 join hello_world_2 t2 on t1.id=t2.id and t1.update_time between t2.update_time - interval '1' hour and t2.update_time;
 
 select window_start,window_end,id,listagg(name) from table(
    tumble(table hello_world, descriptor(proc_time), interval '10' seconds))
@@ -168,5 +209,128 @@ select * from table(generate_rows());
 -- 设置global parameters
 set pipeline.global-job-parameters=redis.url:'redis://my-redis:6379',my-param:hello_world;
 
+CREATE TABLE orders (
+ id INT primary key,
+ name STRING,
+ description STRING,
+ order_time timestamp(3),
+ update_time timestamp(3),
+ watermark for update_time as update_time - interval '30' second
+) WITH (
+ 'connector' = 'mysql-cdc',
+ 'hostname' = 'my-mysql',
+ 'port' = '3306',
+ 'username' = 'user_binlog',
+ 'password' = '123456',
+ 'database-name' = 'hello_database',
+ 'table-name' = 'orders'
+);
+
+CREATE TABLE shipment (
+ id INT primary key,
+ name STRING,
+ ship_time timestamp(3),
+ order_id int,
+ update_time timestamp(3),
+ watermark for update_time as update_time - interval '30' second
+) WITH (
+ 'connector' = 'mysql-cdc',
+ 'hostname' = 'my-mysql',
+ 'port' = '3306',
+ 'username' = 'user_binlog',
+ 'password' = '123456',
+ 'database-name' = 'hello_database',
+ 'table-name' = 'shipment'
+);
+
+select window_start,window_end,max(name) from table(tumble(table orders,descriptor(update_time),INTERVAL '10' SECONDS)) group by window_start,window_end;
+select id,max(name) from orders group by id;
+
+select * from orders left join shipment on orders.id=shipment.order_id;
+
+SELECT *
+FROM orders o left join shipment s
+on  o.id = s.order_id
+AND o.order_time BETWEEN s.ship_time - INTERVAL '20' HOUR AND s.ship_time;
+
+insert into print_sink
+select id,max(o_name) from (
+SELECT
+    orders.id,orders.name o_name,shipment.name s_name
+FROM orders
+LEFT JOIN shipment FOR SYSTEM_TIME AS OF orders.update_time
+ON orders.id = shipment.id)
+group by id;
+
+create table print_sink(id int,name string) with('connector'='print');
+
+create table test_es(
+                id int primary key,
+                name1 string,
+                name2 string)
+            with('connector'='elasticsearch-7'
+                ,'hosts'='http://my-elasticsearch:9200'
+                ,'format'='json'
+                ,'index'='test123');
 
 
+SELECT *
+FROM hello_world t1 , hello_world_1 t2
+where  t1.id = cast((cast(t2.id as int)+1) as string)
+AND t1.proc_time BETWEEN t2.proc_time - INTERVAL '1' hour AND t2.proc_time;
+
+select t1.id,t1.name,t1.window_start,t1.window_end,t2.id,t2.name,t2.window_start,t2.window_end from (
+    select * from table(tumble(table hello_world_1,descriptor(update_time),interval '1' minute))
+) t1 left join (
+    select * from table(tumble(table hello_world_2,descriptor(update_time),interval '1' minute))
+) t2 on t1.id=t2.id and t1.window_start=t2.window_start and t1.window_end=t2.window_end;
+
+insert into hello_world_2 values('1','zsx1',TIMESTAMP '2021-12-08 02:35:00');
+
+select id,listagg(name) from table(tumble(table hello_world,descriptor(proc_time),interval '10' second)) group by id,window_start,window_end;
+
+
+insert into hello_world_1 values('6','test1',TIMESTAMP '2021-12-07 06:30:00');
+insert into hello_world_2 values('6','tt1',TIMESTAMP '2021-12-07 07:33:00');
+
+select id,window_start,window_end from table(tumble(table hello_world_1,descriptor(update_time),interval '5' second)) group by id,window_start,window_end;
+
+
+
+insert into hello_world_2 values('1','test1',TIMESTAMP '2021-12-11 02:30:01');
+insert into hello_world_2 values('2','test1',TIMESTAMP '2021-12-10 23:31:01');
+insert into hello_world_2 values('3','test1',TIMESTAMP '2021-12-10 23:32:01');
+insert into hello_world_2 values('4','test1',TIMESTAMP '2021-12-11 01:33:01');
+insert into hello_world_2 values('5','test1',TIMESTAMP '2021-12-10 23:34:01');
+insert into hello_world_2 values('6','test1',TIMESTAMP '2021-12-10 23:35:01');
+insert into hello_world_2 values('7','test1',TIMESTAMP '2021-12-10 23:35:01');
+insert into hello_world_2 values('8','test1',TIMESTAMP '2021-12-11 03:35:01');
+
+-- 演示sql
+create table hello_world(id string,
+                        name string,
+                        update_time timestamp(3),
+                        watermark for update_time as update_time - interval '30' second)
+                        with('connector'='kafka','properties.bootstrap.servers'='kafka-1:9092'
+                            ,'topic'='hello_world'
+                            ,'scan.startup.mode'='earliest-offset'
+                            ,'key.format'='raw'
+                            ,'key.fields'='id'
+                            ,'value.format'='json');
+
+create table es_sink(
+    id string primary key,
+    name string,
+    update_time timestamp(3)
+)with('connector'='elasticsearch-7'
+     ,'hosts'='http://my-elasticsearch:9200'
+     ,'index'='hello_world'
+     ,'format'='json');
+
+insert into es_sink
+select id,listagg(concat(name,'-helloworld')) concat_name,max(update_time)
+from hello_world
+where cast(id as int)>=15
+group by id;
+
+insert into hello_world values('15','hello',TIMESTAMP '2021-12-08 08:35:20'),('15','world',TIMESTAMP '2021-12-08 08:35:25'),('16','zhangsan',TIMESTAMP '2021-12-08 09:40:05'),('17','lisi',TIMESTAMP '2021-10-08 09:50:03');

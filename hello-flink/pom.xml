@@ -53,9 +53,10 @@
             <artifactId>flink-table-api-java-bridge_2.12</artifactId>
         </dependency>
 
+        <!-- https://mvnrepository.com/artifact/org.apache.flink/flink-table-planner -->
         <dependency>
             <groupId>org.apache.flink</groupId>
-            <artifactId>flink-table-planner-blink_2.12</artifactId>
+            <artifactId>flink-table-planner_2.12</artifactId>
         </dependency>
 
         <dependency>

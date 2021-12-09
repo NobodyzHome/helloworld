@@ -116,6 +116,7 @@ services:
         execution.checkpointing.timeout: 10 s
         execution.checkpointing.interval: 2 s
         classloader.resolve-order: child-first
+        rest.flamegraph.enabled: true
 
   # 配置第一个taskManager
   flink-taskmanager-1:
@@ -138,6 +139,7 @@ services:
         execution.checkpointing.timeout: 10 s
         execution.checkpointing.interval: 2 s
         classloader.resolve-order: child-first
+        rest.flamegraph.enabled: true
     depends_on:
       - flink-jobmanager
     # 替换flink镜像的默认command，替换为taskManager，代表告诉flink镜像创建taskManager
@@ -170,6 +172,7 @@ services:
         execution.checkpointing.timeout: 10 s
         execution.checkpointing.interval: 2 s
         classloader.resolve-order: child-first
+        rest.flamegraph.enabled: true
     expose:
       - 6121
       - 6122

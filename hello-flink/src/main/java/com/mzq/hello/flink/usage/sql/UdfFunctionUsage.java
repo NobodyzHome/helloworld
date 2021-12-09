@@ -15,6 +15,9 @@ public class UdfFunctionUsage extends BaseSqlUsage {
 //        scalarFunction1();
 //        aggregateFunction();
         aggregateFunction1();
+//        test1();
+//        test2();
+//        test3();
     }
 
     public void basicTableFunction() {
@@ -118,4 +121,114 @@ public class UdfFunctionUsage extends BaseSqlUsage {
         tableEnvironment.executeSql("create function alias_concat as 'com.mzq.hello.flink.sql.udf.aggregation.AliasSearchAggregate'");
         tableEnvironment.executeSql("insert into print_sink select id,alias_concat(name) alias_concat from (select id,name from (values(1,'hello'),(1,'world'),(2,'zhangsan'),(2,'lisi')) as t(id,name)) group by id");
     }
+
+    public void test1() {
+        Configuration configuration = new Configuration();
+        configuration.setString("table.exec.resource.default-parallelism", "1");
+
+        TableEnvironment tableEnvironment = TableEnvironment.create(configuration);
+        tableEnvironment.executeSql("CREATE TABLE orders (\n" +
+                " id INT primary key,\n" +
+                " name STRING,\n" +
+                " description STRING,\n" +
+                " order_time timestamp(3),\n" +
+                " update_time timestamp(3),\n" +
+                " watermark for update_time as update_time - interval '30' second\n" +
+                ") WITH (\n" +
+                " 'connector' = 'mysql-cdc',\n" +
+                " 'hostname' = 'my-mysql',\n" +
+                " 'port' = '3306',\n" +
+                " 'username' = 'user_binlog',\n" +
+                " 'password' = '123456',\n" +
+                " 'database-name' = 'hello_database',\n" +
+                " 'table-name' = 'orders'\n" +
+                ")");
+
+        tableEnvironment.executeSql("create table print_sink(id int,name string) with ('connector'='print')");
+        tableEnvironment.executeSql("insert into print_sink select id,max(name) from orders group by id");
+    }
+
+    public void test2() {
+        Configuration configuration = new Configuration();
+        configuration.setString("table.exec.resource.default-parallelism", "1");
+
+        TableEnvironment tableEnvironment = TableEnvironment.create(configuration);
+        tableEnvironment.executeSql("CREATE TABLE orders (\n" +
+                " id INT primary key,\n" +
+                " name STRING,\n" +
+                " description STRING,\n" +
+                " order_time timestamp(3),\n" +
+                " update_time timestamp(3),\n" +
+                " watermark for update_time as update_time - interval '30' second\n" +
+                ") WITH (\n" +
+                " 'connector' = 'mysql-cdc',\n" +
+                " 'hostname' = 'localhost',\n" +
+                " 'port' = '3306',\n" +
+                " 'username' = 'user_binlog',\n" +
+                " 'password' = '123456',\n" +
+                " 'database-name' = 'hello_database',\n" +
+                " 'table-name' = 'orders'\n" +
+                ")");
+
+        tableEnvironment.executeSql("CREATE TABLE shipment (\n" +
+                " id INT primary key,\n" +
+                " name STRING,\n" +
+                " ship_time timestamp(3),\n" +
+                " order_id int,\n" +
+                " update_time timestamp(3),\n" +
+                " watermark for update_time as update_time - interval '30' second\n" +
+                ") WITH (\n" +
+                " 'connector' = 'mysql-cdc',\n" +
+                " 'hostname' = 'localhost',\n" +
+                " 'port' = '3306',\n" +
+                " 'username' = 'user_binlog',\n" +
+                " 'password' = '123456',\n" +
+                " 'database-name' = 'hello_database',\n" +
+                " 'table-name' = 'shipment'\n" +
+                ")");
+
+        tableEnvironment.executeSql("create table print_sink(id int,name string) with('connector'='print')");
+        tableEnvironment.executeSql("insert into print_sink SELECT o.id,s.name\n" +
+                "FROM orders o , shipment s\n" +
+                "where  o.id = s.order_id\n" +
+                "AND o.update_time BETWEEN s.update_time - INTERVAL '20' HOUR AND s.ship_time");
+    }
+
+    public void hello_world() {
+        Configuration configuration = new Configuration();
+        configuration.setString("table.exec.resource.default-parallelism", "1");
+        configuration.setString("table.exec.state.ttl", "30 min");
+
+        TableEnvironment tableEnvironment = TableEnvironment.create(configuration);
+        // 向jm中注册source table
+        tableEnvironment.executeSql("create table hello_world(id string,\n" +
+                "                        name string,\n" +
+                "                        update_time timestamp(3),\n" +
+                "                        watermark for update_time as update_time - interval '30' second)\n" +
+                "                        with('connector'='kafka','properties.bootfstrap.servers'='kafka-1:9092'\n" +
+                "                            ,'topic'='hello_world'\n" +
+                "                            ,'scan.startup.mode'='earliest-offset'\n" +
+                "                            ,'key.format'='raw'\n" +
+                "                            ,'key.fields'='id'\n" +
+                "                            ,'value.format'='json')");
+        // 向jm中注册sink table
+        tableEnvironment.executeSql("create table es_sink(\n" +
+                "                           id string primary key,\n" +
+                "                           name string,\n" +
+                "                           update_time timestamp(3)\n" +
+                "                       )with('connector'='elasticsearch-7'\n" +
+                "                           ,'hosts'='http://my-elasticsearch:9200'\n" +
+                "                           ,'index'='hello_world'\n" +
+                "                           ,'format'='json')");
+        // 提交flink任务
+        tableEnvironment.executeSql("insert into es_sink\n" +
+                "select id,listagg(concat(name,'-helloworld')) concat_name,max(update_time)\n" +
+                "from hello_world\n" +
+                "where cast(id as int)>=15\n" +
+                "group by id");
+        // 提交flink任务
+        tableEnvironment.executeSql("insert into hello_world values('15','hello',TIMESTAMP '2021-12-08 08:35:20'),('15','world',TIMESTAMP '2021-12-08 08:35:25')" +
+                ",('16','zhangsan',TIMESTAMP '2021-12-08 09:40:05'),('17','lisi',TIMESTAMP '2021-10-08 09:50:03')");
+    }
+
 }
