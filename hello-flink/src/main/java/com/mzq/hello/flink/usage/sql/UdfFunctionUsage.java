@@ -11,10 +11,10 @@ public class UdfFunctionUsage extends BaseSqlUsage {
 //        tableFunctionWithParam();
 //        innerJoinTableFunction();
 //        leftOuterJoinTableFunction();
-//        scalarFunction();
+        scalarFunction();
 //        scalarFunction1();
 //        aggregateFunction();
-        aggregateFunction1();
+//        aggregateFunction1();
 //        test1();
 //        test2();
 //        test3();

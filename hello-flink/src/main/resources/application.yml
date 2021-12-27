@@ -1,0 +1,6 @@
+spring:
+  redis:
+    url:
+      basic-info:
+        url: test123
+

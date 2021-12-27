@@ -307,17 +307,6 @@ insert into hello_world_2 values('7','test1',TIMESTAMP '2021-12-10 23:35:01');
 insert into hello_world_2 values('8','test1',TIMESTAMP '2021-12-11 03:35:01');
 
 -- 演示sql
-create table hello_world(id string,
-                        name string,
-                        update_time timestamp(3),
-                        watermark for update_time as update_time - interval '30' second)
-                        with('connector'='kafka','properties.bootstrap.servers'='kafka-1:9092'
-                            ,'topic'='hello_world'
-                            ,'scan.startup.mode'='earliest-offset'
-                            ,'key.format'='raw'
-                            ,'key.fields'='id'
-                            ,'value.format'='json');
-
 create table es_sink(
     id string primary key,
     name string,
@@ -330,7 +319,85 @@ create table es_sink(
 insert into es_sink
 select id,listagg(concat(name,'-helloworld')) concat_name,max(update_time)
 from hello_world
-where cast(id as int)>=15
 group by id;
 
-insert into hello_world values('15','hello',TIMESTAMP '2021-12-08 08:35:20'),('15','world',TIMESTAMP '2021-12-08 08:35:25'),('16','zhangsan',TIMESTAMP '2021-12-08 09:40:05'),('17','lisi',TIMESTAMP '2021-10-08 09:50:03');
+insert into hello_world values('16','world',TIMESTAMP '2021-12-09 02:20:20'),('16','world',TIMESTAMP '2021-12-09 02:10:20'),('16','world',TIMESTAMP '2021-12-09 02:30:20'),('16','world',TIMESTAMP '2021-12-09 01:33:55');
+insert into hello_world values('16','world',TIMESTAMP '2021-12-01 11:23:50');
+insert into hello_world values('16','world',TIMESTAMP '2021-12-12 05:25:31');
+insert into hello_world values('16','world',TIMESTAMP '2021-12-13 03:12:00');
+insert into hello_world values('16','world',TIMESTAMP '2021-12-08 23:35:20');
+insert into hello_world values('16','world',TIMESTAMP '2021-12-08 23:35:30');
+insert into hello_world values('16','world',TIMESTAMP '2021-12-08 08:35:30');
+insert into hello_world values('16','world',TIMESTAMP '2021-12-07 22:11:25'),('16','world',TIMESTAMP '2021-12-06 11:25:38'),('16','world',TIMESTAMP '2021-12-07 23:19:06'),('16','world',TIMESTAMP '2021-12-01 06:12:31'),('16','world',TIMESTAMP '2021-12-13 09:15:22');
+insert into hello_world values('6','world',TIMESTAMP '2021-12-07 22:11:25'),('7','world',TIMESTAMP '2021-12-06 11:25:38'),('8','world',TIMESTAMP '2021-12-07 23:19:06'),('9','world',TIMESTAMP '2021-12-01 06:12:31'),('10','world',TIMESTAMP '2021-12-13 09:15:22');
+insert into hello_world values('11','world',TIMESTAMP '2021-12-07 22:11:25'),('12','world',TIMESTAMP '2021-12-06 11:25:38'),('13','world',TIMESTAMP '2021-12-07 23:19:06'),('19','world',TIMESTAMP '2021-12-01 06:12:31'),('20','world',TIMESTAMP '2021-12-13 09:15:22');
+insert into hello_world values('4','world',TIMESTAMP '2021-12-07 22:11:25'),('5','world',TIMESTAMP '2021-12-06 11:25:38'),('6','world',TIMESTAMP '2021-12-07 23:19:06'),('7','world',TIMESTAMP '2021-12-01 06:12:31'),('8','world',TIMESTAMP '2021-12-13 09:15:22')
+,('4','world',TIMESTAMP '2021-12-07 22:11:25'),('5','world',TIMESTAMP '2021-12-06 11:25:38'),('6','world',TIMESTAMP '2021-12-07 23:19:06'),('7','world',TIMESTAMP '2021-12-01 06:12:31'),('8','world',TIMESTAMP '2021-12-13 09:15:22')
+,('4','world',TIMESTAMP '2021-12-07 22:11:25'),('5','world',TIMESTAMP '2021-12-06 11:25:38'),('6','world',TIMESTAMP '2021-12-07 23:19:06'),('7','world',TIMESTAMP '2021-12-01 06:12:31'),('8','world',TIMESTAMP '2021-12-13 09:15:22')
+,('4','world',TIMESTAMP '2021-12-07 22:11:25'),('5','world',TIMESTAMP '2021-12-06 11:25:38'),('6','world',TIMESTAMP '2021-12-07 23:19:06'),('7','world',TIMESTAMP '2021-12-01 06:12:31'),('8','world',TIMESTAMP '2021-12-13 09:15:22')
+,('4','world',TIMESTAMP '2021-12-07 22:11:25'),('5','world',TIMESTAMP '2021-12-06 11:25:38'),('6','world',TIMESTAMP '2021-12-07 23:19:06'),('7','world',TIMESTAMP '2021-12-01 06:12:31'),('8','world',TIMESTAMP '2021-12-13 09:15:22')
+,('4','world',TIMESTAMP '2021-12-07 22:11:25'),('5','world',TIMESTAMP '2021-12-06 11:25:38'),('6','world',TIMESTAMP '2021-12-07 23:19:06'),('7','world',TIMESTAMP '2021-12-01 06:12:31'),('8','world',TIMESTAMP '2021-12-13 09:15:22');
+insert into hello_world values('4','world',TIMESTAMP '2021-12-20 22:11:25'),('5','world',TIMESTAMP '2021-12-20 11:25:38');
+
+select id,window_start,window_end,listagg(concat(name,'-helloworld')) concat_name
+from table(tumble(table hello_world,descriptor(update_time),interval '5' second))
+group by id,window_start,window_end;
+
+select id,agg_test(name) concat_name
+from hello_world
+group by id;
+
+create view test_view1(id,name,alias) as  select id,name,'unknown' alias from (values(1,'hello')) as t(id,name);
+create view test_view2 as  select id,'unknown' name,alias from (values(1,'hh'),(2,'ww')) as t(id,alias);
+
+select id,last_value(NULLIF(name,'unknown')),last_value(NULLIF(alias,'unknown')) from (
+select * from test_view1 t1
+union
+select * from test_view2 t2
+)
+group by id;
+
+create function test as 'com.mzq.hello.flink.sql.udf.scalar.AliasQuery';
+select id,name,test(1) as tt from hello_world;
+select id,name,update_time,UNIX_TIMESTAMP('2021-12-15 09:32:55')*1000 from hello_world;
+select UNIX_TIMESTAMP('2021-12-15 09:32:55'),TO_TIMESTAMP_LTZ(UNIX_TIMESTAMP('2021-12-15 09:32:55'),0);
+
+create function show_time as 'com.mzq.hello.flink.sql.udf.scalar.ShowTime';
+
+select show_time(to_timestamp('2021-10-31 10:32:30'));
+select UNIX_TIMESTAMP('2021-10-31 10:32:30');
+select show_time(current_timestamp);
+select FROM_UNIXTIME(UNIX_TIMESTAMP()),UNIX_TIMESTAMP();
+
+select * from (values(1,'hello'))
+union
+select * from (values(1,cast(null as string)));
+
+create table hello_world(id string,
+                        name string,
+                        update_time timestamp(3),
+                        watermark for update_time as update_time + interval '30' second)
+                        with('connector'='kafka','properties.bootstrap.servers'='kafka-1:9092'
+                            ,'topic'='hello_world'
+                            ,'scan.startup.mode'='earliest-offset'
+                            ,'key.format'='raw'
+                            ,'key.fields'='id'
+                            ,'value.format'='json');
+insert into hello_world values('10','world',TIMESTAMP '2021-11-08 11:21:37');
+
+select id,name,update_time,min(cast(id as int)) over (
+                                                   partition by name
+                                                   order by update_time
+                                               ) min_id  from hello_world;
+
+select cast('a123' as int) is null;
+
+select case when 1>0 then case when 2>3 then 'a' else 'b' end end;
+
+create table hello_world(doc raw)
+                        with('connector'='kafka','properties.bootstrap.servers'='kafka-1:9092'
+                            ,'topic'='hello_world'
+                            ,'scan.startup.mode'='earliest-offset'
+                            ,'key.format'='raw'
+                            ,'key.fields'='id'
+                            ,'value.format'='json');

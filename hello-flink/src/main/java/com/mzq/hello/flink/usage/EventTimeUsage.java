@@ -10,6 +10,7 @@ import com.mzq.hello.util.GenerateDomainUtils;
 import org.apache.commons.lang3.RandomUtils;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.accumulators.IntCounter;
+import org.apache.flink.api.common.eventtime.TimestampAssignerSupplier;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.Partitioner;
 import org.apache.flink.api.common.typeinfo.Types;
@@ -373,5 +374,12 @@ public class EventTimeUsage extends BaseFlinkUsage {
         }).setParallelism(2);
 
         DataStreamSink<String> printSink = stringStream.print().setParallelism(3);
+    }
+
+    public void test1(){
+        StreamExecutionEnvironment streamExecutionEnvironment = getStreamExecutionEnvironment();
+        DataStreamSource<Tuple2<String, Integer>> tuple2DataStreamSource = streamExecutionEnvironment.fromElements(Tuple2.of("A", 1000), Tuple2.of("B", 8000));
+        WatermarkStrategy<Tuple2<String, Integer>> watermarkStrategy = WatermarkStrategy.forMonotonousTimestamps();
+        watermarkStrategy.withTimestampAssigner(TimestampAssignerSupplier.of((element, recordTimestamp) -> element.f1));
     }
 }
