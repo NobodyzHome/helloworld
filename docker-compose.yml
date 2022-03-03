@@ -93,7 +93,7 @@ services:
     # 把宿主机的存储job jar包的目录挂载到虚拟机的一个目录上，这样就可以进入到jobManager中使用flink命令进行任务的提交了
     volumes:
       - "/Users/maziqiang/IdeaProjects/hello-root/hello-flink/target:/my-volume"
-      - "/Users/maziqiang/.m2/repository:/my-repository"
+      - "/Users/maziqiang/Documents/sqlCli-lib:/my-repository"
     networks:
       - my-network
     # 默认情况下，镜像flink的docker-file执行的command的是help，我们要通过覆盖这个命令，覆盖为jobManager，告诉flink镜像，应该执行创建jobManager的命令
@@ -151,7 +151,7 @@ services:
       - 6122
     volumes:
       - "/Users/maziqiang/Downloads:/my-files"
-      - "/Users/maziqiang/.m2/repository:/my-repository"
+      - "/Users/maziqiang/Documents/sqlCli-lib:/my-repository"
 
   # 配置第二个taskManager
   flink-taskmanager-2:
@@ -183,7 +183,7 @@ services:
     command: taskmanager
     volumes:
       - "/Users/maziqiang/Downloads:/my-files"
-      - "/Users/maziqiang/.m2/repository:/my-repository"
+      - "/Users/maziqiang/Documents/sqlCli-lib:/my-repository"
 
   my-redis:
     image: redis

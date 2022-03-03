@@ -544,7 +544,7 @@ select
 from table(tumble(table mysql_hello,descriptor(update_time),interval '5' minute))
 group by window_start,window_end;
 
-CREATE CATALOG myhive WITH ('type'='hive','default-database'='hello_world','hive-conf-dir'='/my-volume');
+CREATE CATALOG myhive WITH ('type'='hive','default-database'='hello_world','hive-conf-dir'='/my-repository');
 set table.sql-dialect=hive;
 
 create table kafka_test(id int,
