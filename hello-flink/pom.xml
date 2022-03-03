@@ -17,8 +17,6 @@
         <start-class>com.mzq.hello.flink.FlinkSqlUsage</start-class>
     </properties>
 
-    <packaging>war</packaging>
-
     <dependencies>
         <dependency>
             <groupId>org.apache.flink</groupId>
