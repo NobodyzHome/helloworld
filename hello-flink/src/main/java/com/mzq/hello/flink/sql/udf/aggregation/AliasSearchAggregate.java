@@ -3,7 +3,6 @@ package com.mzq.hello.flink.sql.udf.aggregation;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.api.StatefulRedisConnection;
 import org.apache.commons.lang3.RandomUtils;
-import org.apache.flink.dropwizard.metrics.DropwizardMeterWrapper;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.Gauge;
 import org.apache.flink.metrics.Meter;
@@ -32,7 +31,6 @@ public class AliasSearchAggregate extends AggregateFunction<String, List<String>
         redisConnection = redisClient.connect();
         MetricGroup udfGroup = context.getMetricGroup().addGroup("udf-metric");
         counter = udfGroup.counter("metric-count");
-        meter = udfGroup.meter("meter-test", new DropwizardMeterWrapper(new com.codahale.metrics.Meter()));
         gauge = context.getMetricGroup().gauge("gauge-test", () -> usage);
     }
 

@@ -1,7 +1,9 @@
 package com.mzq.hello.flink.usage.sql;
 
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableEnvironment;
+import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 
 public class UdfFunctionUsage extends BaseSqlUsage {
 
@@ -11,13 +13,14 @@ public class UdfFunctionUsage extends BaseSqlUsage {
 //        tableFunctionWithParam();
 //        innerJoinTableFunction();
 //        leftOuterJoinTableFunction();
-        scalarFunction();
+//        scalarFunction();
 //        scalarFunction1();
 //        aggregateFunction();
 //        aggregateFunction1();
 //        test1();
 //        test2();
 //        test3();
+        test5();
     }
 
     public void basicTableFunction() {
@@ -231,4 +234,14 @@ public class UdfFunctionUsage extends BaseSqlUsage {
                 ",('16','zhangsan',TIMESTAMP '2021-12-08 09:40:05'),('17','lisi',TIMESTAMP '2021-10-08 09:50:03')");
     }
 
+    public static void test5() {
+        Configuration configuration = new Configuration();
+        configuration.setString("table.exec.resource.default-parallelism", "1");
+
+        TableEnvironment tableEnvironment = TableEnvironment.create(configuration);
+        tableEnvironment.executeSql("create view view_1 as select id,name from (values(1,'zhangsan'),(2,'lisi')) as t(id,name)");
+        tableEnvironment.executeSql("create view view_2 as select id,alias from (values(1,'zs'),(1,'test'),(2,'lisi')) as t(id,alias)");
+        tableEnvironment.executeSql("create table print_table(id int,name string,alias string) with('connector'='print')");
+        tableEnvironment.executeSql("insert into print_table select t1.id,t1.name,t2.alias from view_1 t1 left join view_2 t2 on t1.id=t2.id");
+    }
 }

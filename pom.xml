@@ -8,7 +8,7 @@
         <!-- https://mvnrepository.com/artifact/org.springframework.boot/spring-boot-starter-parent -->
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>2.4.0</version>
+        <version>2.6.2</version>
     </parent>
 
     <groupId>com.mzq.excercise.hello</groupId>
@@ -31,7 +31,13 @@
     <properties>
         <maven.compiler.source>8</maven.compiler.source>
         <maven.compiler.target>8</maven.compiler.target>
-        <flink.version>1.14.0</flink.version>
+        <flink.version>1.14.3</flink.version>
+        <elasticsearch.version>7.5.1</elasticsearch.version>
+        <flink.mysql-cdc.version>2.0.2</flink.mysql-cdc.version>
+        <lettuce.version>6.0.2.RELEASE</lettuce.version>
+        <hadoop.version>2.7.2</hadoop.version>
+        <hive.version>2.3.6</hive.version>
+        <kafka.client.version>2.8.0</kafka.client.version>
     </properties>
 
     <dependencies>
@@ -73,6 +79,9 @@
 
     <dependencyManagement>
         <dependencies>
+            <!-- start: 以下构件是flink集群上自带的构件，不需要打包带到flink程序里。所以他们都是provided的，仅用于编译，在打包时不会带着 -->
+            <!-- start: 以下是api包，如果只需要开发程序，不需要在本地运行，则只使用他们就好了 -->
+            <!-- flink api所在的包（包含例如StreamExecutionEnvironment、MapFunction、FilterFunction等类） -->
             <!-- https://mvnrepository.com/artifact/org.apache.flink/flink-streaming-java -->
             <dependency>
                 <groupId>org.apache.flink</groupId>
@@ -81,34 +90,36 @@
                 <scope>provided</scope>
             </dependency>
 
-            <!-- https://mvnrepository.com/artifact/org.apache.flink/flink-clients -->
+            <!-- flinksql api所在的包（包含例如EnvironmentSettings、TableEnvironment等类） -->
             <dependency>
                 <groupId>org.apache.flink</groupId>
-                <artifactId>flink-clients_2.12</artifactId>
+                <artifactId>flink-table-api-java</artifactId>
                 <version>${flink.version}</version>
+                <scope>provided</scope>
             </dependency>
 
-            <!-- https://mvnrepository.com/artifact/org.apache.flink/flink-connector-kafka -->
-            <dependency>
-                <groupId>org.apache.flink</groupId>
-                <artifactId>flink-connector-kafka_2.12</artifactId>
-                <version>${flink.version}</version>
-            </dependency>
-
-            <!-- https://mvnrepository.com/artifact/org.apache.flink/flink-connector-elasticsearch7 -->
-            <dependency>
-                <groupId>org.apache.flink</groupId>
-                <artifactId>flink-connector-elasticsearch7_2.12</artifactId>
-                <version>${flink.version}</version>
-            </dependency>
-
+            <!-- 用于将flink DataStream转换为flinksql api的Table对象等所在的类，例如StreamTableEnvironment -->
             <dependency>
                 <groupId>org.apache.flink</groupId>
                 <artifactId>flink-table-api-java-bridge_2.12</artifactId>
                 <version>${flink.version}</version>
                 <scope>provided</scope>
             </dependency>
+            <!-- end: 上面是api包，如果只需要开发程序，不需要在本地运行，则只使用他们就好了 -->
 
+            <!-- start: 以下是flink、flinksql在本地执行所需要的构件，如果需要在本地运行flink，则需要依赖这些构件 -->
+            <!-- 这个构件是flink程序在本地执行所需要的构件，它包含flink程序的api（也就是flink-streaming-java_2.12构件）以及flink程序本地运行时需要的构件 -->
+            <!-- 不加这个构件时在本地运行，则会报异常：No ExecutorFactory found to execute the application. -->
+            <!-- https://mvnrepository.com/artifact/org.apache.flink/flink-clients -->
+            <dependency>
+                <groupId>org.apache.flink</groupId>
+                <artifactId>flink-clients_2.12</artifactId>
+                <version>${flink.version}</version>
+                <scope>provided</scope>
+            </dependency>
+
+            <!-- 这个构件是flinksql在本地执行的构件，它包含了flinksql对sql进行编译的构建以及flinksql的api（flink-table-api-java）、flink的api（flink-streaming-java_2.12）、sql和api的桥接（flink-table-api-java-bridge_2.12）等-->
+            <!-- 注意：该构件不包含本地执行flink程序的构件，也就是不包含flink-clients_2.12。如果想在本地执行flink程序，都需要增加对flink-clients_2.12的依赖 -->
             <!-- https://mvnrepository.com/artifact/org.apache.flink/flink-table-planner -->
             <dependency>
                 <groupId>org.apache.flink</groupId>
@@ -116,19 +127,63 @@
                 <version>${flink.version}</version>
                 <scope>provided</scope>
             </dependency>
+            <!-- end: 以上是flink、flinksql在本地执行所需要的构件，如果需要在本地运行flink，则需要依赖这些构件 -->
+            <!-- end: 以上构件是flink集群上自带的构件，不需要打包带到flink程序里。所以他们都是provided的，仅用于编译，在打包时不会带着 -->
 
-            <dependency>
-                <groupId>org.apache.flink</groupId>
-                <artifactId>flink-streaming-scala_2.12</artifactId>
-                <version>${flink.version}</version>
-                <scope>provided</scope>
-            </dependency>
-
+            <!-- start: 以下构件是flink集群里没有的构件，需要在程序打包时带上这些构件，所以它们的scope都是compile的。它们通常是flink用于连接各种外部设备的连接器 -->
+            <!-- flinksql的json format对应的构件 -->
             <dependency>
                 <groupId>org.apache.flink</groupId>
                 <artifactId>flink-json</artifactId>
                 <version>${flink.version}</version>
             </dependency>
+
+            <!-- flink连接kafka的连接器 -->
+            <!-- https://mvnrepository.com/artifact/org.apache.flink/flink-connector-kafka -->
+            <dependency>
+                <groupId>org.apache.flink</groupId>
+                <artifactId>flink-connector-kafka_2.12</artifactId>
+                <version>${flink.version}</version>
+            </dependency>
+
+            <!-- flink连接elasticsearch的连接器 -->
+            <!-- https://mvnrepository.com/artifact/org.apache.flink/flink-connector-elasticsearch7 -->
+            <dependency>
+                <groupId>org.apache.flink</groupId>
+                <artifactId>flink-connector-elasticsearch7_2.12</artifactId>
+                <version>${flink.version}</version>
+            </dependency>
+
+            <!-- flink连接jdbc的连接器 -->
+            <!-- https://mvnrepository.com/artifact/org.apache.flink/flink-connector-jdbc -->
+            <dependency>
+                <groupId>org.apache.flink</groupId>
+                <artifactId>flink-connector-jdbc_2.12</artifactId>
+                <version>${flink.version}</version>
+            </dependency>
+
+            <!-- flink连接hbase的连接器 -->
+            <dependency>
+                <groupId>org.apache.flink</groupId>
+                <artifactId>flink-connector-hbase-2.2_2.11</artifactId>
+                <version>${flink.version}</version>
+            </dependency>
+
+            <!-- flink连接hive的连接器 -->
+            <dependency>
+                <groupId>org.apache.flink</groupId>
+                <artifactId>flink-connector-hive_2.12</artifactId>
+                <version>${flink.version}</version>
+            </dependency>
+
+            <!-- flink使用mysql cdc的连接器 -->
+            <!-- https://mvnrepository.com/artifact/com.ververica/flink-connector-mysql-cdc -->
+            <dependency>
+                <groupId>com.ververica</groupId>
+                <artifactId>flink-connector-mysql-cdc</artifactId>
+                <version>${flink.mysql-cdc.version}</version>
+            </dependency>
+            <!-- end: 以上构件是flink集群里没有的构件，需要在程序打包时带上这些构件，所以它们的scope都是compile的。它们通常是flink用于连接各种外部设备的连接器 -->
 
             <dependency>
                 <groupId>org.springframework.boot</groupId>
@@ -147,18 +202,70 @@
                 <version>${version}</version>
             </dependency>
 
+            <!-- redis连接构件lettuce -->
             <!-- https://mvnrepository.com/artifact/io.lettuce/lettuce-core -->
             <dependency>
                 <groupId>io.lettuce</groupId>
                 <artifactId>lettuce-core</artifactId>
-                <version>6.0.2.RELEASE</version>
+                <version>${lettuce.version}</version>
             </dependency>
 
+            <!-- kafka连接构件 -->
             <dependency>
                 <groupId>org.apache.kafka</groupId>
                 <artifactId>kafka-clients</artifactId>
-                <version>2.8.0</version>
+                <version>${kafka.client.version}</version>
             </dependency>
+
+            <!-- hive的依赖 -->
+            <dependency>
+                <groupId>org.apache.hive</groupId>
+                <artifactId>hive-exec</artifactId>
+                <version>${hive.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <artifactId>janino</artifactId>
+                        <groupId>org.codehaus.janino</groupId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+
+            <!-- start: 以下是hadoop的依赖，包括hdfs和mapreduce -->
+            <!-- 由于hive对hadoop的依赖是optional的，所以需要手动添加hadoop的依赖-->
+            <dependency>
+                <groupId>org.apache.hadoop</groupId>
+                <artifactId>hadoop-common</artifactId>
+                <version>${hadoop.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <artifactId>commons-math3</artifactId>
+                        <groupId>org.apache.commons</groupId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+            <!-- hadoop hdfs的依赖 -->
+            <dependency>
+                <groupId>org.apache.hadoop</groupId>
+                <artifactId>hadoop-hdfs</artifactId>
+                <version>${hadoop.version}</version>
+            </dependency>
+            <!-- haddop mapreduce的依赖 -->
+            <dependency>
+                <groupId>org.apache.hadoop</groupId>
+                <artifactId>hadoop-mapreduce-client-core</artifactId>
+                <version>${hadoop.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.hadoop</groupId>
+                <artifactId>hadoop-mapreduce-client-common</artifactId>
+                <version>${hadoop.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.hadoop</groupId>
+                <artifactId>hadoop-mapreduce-client-jobclient</artifactId>
+                <version>${hadoop.version}</version>
+            </dependency>
+            <!-- end: 以上是hadoop的依赖，包括hdfs和mapreduce -->
         </dependencies>
     </dependencyManagement>
 

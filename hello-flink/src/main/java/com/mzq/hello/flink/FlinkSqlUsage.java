@@ -2,8 +2,10 @@ package com.mzq.hello.flink;
 
 import com.mzq.hello.flink.usage.sql.UdfFunctionUsage;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
+import org.apache.flink.table.catalog.hive.HiveCatalog;
 
 public class FlinkSqlUsage {
 
@@ -20,8 +22,22 @@ public class FlinkSqlUsage {
 //        AggregationUsage aggregationUsage = new AggregationUsage();
 //        aggregationUsage.execute();
 
-        UdfFunctionUsage udfFunctionUsage = new UdfFunctionUsage();
-        udfFunctionUsage.execute();
+//        UdfFunctionUsage udfFunctionUsage = new UdfFunctionUsage();
+//        udfFunctionUsage.execute();
+
+//        EnvironmentSettings settings = EnvironmentSettings.newInstance().useBlinkPlanner().build();
+//        TableEnvironment tableEnv = TableEnvironment.create(settings);
+//
+//        HiveCatalog hiveCatalog=new HiveCatalog("myhive","hello_world","/Users/maziqiang/IdeaProjects/hello-root/hello-flink/src/main/resources");
+//        tableEnv.registerCatalog("myhive",hiveCatalog);
+//        tableEnv.useCatalog("myhive");
+//
+//        String[] strings = tableEnv.listTables();
+//
+////        tableEnv.executeSql("create table flink_hive(id int,name string) with ('connector'='print')");
+//        tableEnv.executeSql("insert into print_sink select * from hello_t");
+
+        test4();
     }
 
     public static void test1() {

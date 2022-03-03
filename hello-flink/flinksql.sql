@@ -373,12 +373,12 @@ select * from (values(1,'hello'))
 union
 select * from (values(1,cast(null as string)));
 
-create table hello_world(id string,
+create table hello_world_1(id string,
                         name string,
                         update_time timestamp(3),
                         watermark for update_time as update_time + interval '30' second)
                         with('connector'='kafka','properties.bootstrap.servers'='kafka-1:9092'
-                            ,'topic'='hello_world'
+                            ,'topic'='hello_world_1'
                             ,'scan.startup.mode'='earliest-offset'
                             ,'key.format'='raw'
                             ,'key.fields'='id'
@@ -394,10 +394,171 @@ select cast('a123' as int) is null;
 
 select case when 1>0 then case when 2>3 then 'a' else 'b' end end;
 
-create table hello_world(doc raw)
+create table hello_world(doc)
                         with('connector'='kafka','properties.bootstrap.servers'='kafka-1:9092'
                             ,'topic'='hello_world'
                             ,'scan.startup.mode'='earliest-offset'
                             ,'key.format'='raw'
+                            ,'key.fields'='doc'
+                            ,'value.format'='raw');
+
+create function test123 as 'com.mzq.hello.flink.sql.udf.table.Test123';
+
+select * from hello_world join lateral table(test123(doc)) on true;
+
+select cast(array['1','2','3'] as array<int>);
+
+select * from hello_world_1 where id='15'
+union all
+select * from hello_world_2 where id='16';
+
+select id,last_value(name) from hello_world_2 group by id,tumble(update_time,interval '0.3' second);
+
+select id,max(test) is true
+from(
+    select id,test from (values(1,true),(1,false)) as t(id,test)
+)
+group by id;
+
+ select id,name,lag(update_time) over(partition by id order by update_time) lead_time from hello_world;
+
+create table hello_world_1(id string,
+                        name string,
+                        update_time as proctime())
+                        with('connector'='kafka','properties.bootstrap.servers'='kafka-1:9092'
+                            ,'topic'='hello_world_1'
+                            ,'scan.startup.mode'='earliest-offset'
+                            ,'key.format'='raw'
                             ,'key.fields'='id'
                             ,'value.format'='json');
+create table hello_world_2(id string,
+                        name string,
+                        update_time as proctime())
+                        with('connector'='kafka','properties.bootstrap.servers'='kafka-1:9092'
+                            ,'topic'='hello_world_2'
+                            ,'scan.startup.mode'='earliest-offset'
+                            ,'key.format'='raw'
+                            ,'key.fields'='id'
+                            ,'value.format'='json');
+
+insert into hello_world_1 values('16','hello',TIMESTAMP '2021-12-08 23:35:30'),('16','world',TIMESTAMP '2021-12-08 08:35:30');
+insert into hello_world_2 values('16','test',TIMESTAMP '2021-12-08 23:35:30');
+insert into hello_world_2 values('16','tt',TIMESTAMP '2021-12-08 23:35:30');
+select t1.id,t1.name,t2.name from hello_world_1 t1 left join hello_world_2 t2 on t1.id=t2.id;
+
+CREATE TABLE mysql_table (
+  id string,
+  name STRING,
+  PRIMARY KEY (id) NOT ENFORCED
+) WITH (
+   'connector' = 'jdbc',
+   'url' = 'jdbc:mysql://my-mysql:3306/my_database',
+   'table-name' = 'test_table',
+   'username' = 'root',
+   'password' = '123456'
+);
+
+select
+    t1.id,
+    t1.name,
+    mysql_table.name alias
+from hello_world_1 t1 left join mysql_table for SYSTEM_TIME as of t1.update_time
+on t1.id=mysql_table.id;
+
+select
+    t1.id,
+    t1.name,
+    t2.name alias,
+    t1.update_time ltime,
+    t2.update_time rtime
+from hello_world_1 t1
+left join hello_world_2 t2
+on t1.id=t2.id
+and t2.update_time between t1.update_time - interval '20' second and t1.update_time+ interval '20' second;
+
+insert into hello_world_2 values('222','dada'),('222','mama'),('222','fafa');
+insert into hello_world_1 values('222','yaya'),('222','rara');
+insert into hello_world_2 values('222','chacha');
+insert into hello_world_1 values('222','haha'),('222','lala');
+
+-- lookup join start
+create table jdbc_source(
+                id string,
+                name string,
+                version int,
+                alias string,
+                row_time as proctime())
+            with('connector'='jdbc'
+                ,'url'='jdbc:mysql://my-mysql:3306/my_database'
+                ,'table-name'='student_alias_version'
+                ,'username'='root'
+                ,'password'='123456'
+                ,'lookup.cache.max-rows'='1'
+                ,'lookup.cache.ttl'='30 second');
+
+create table hello_world_1(id string,
+                        name string,
+                        update_time as proctime())
+                        with('connector'='kafka','properties.bootstrap.servers'='kafka-1:9092'
+                            ,'topic'='hello_world_1'
+                            ,'scan.startup.mode'='earliest-offset'
+                            ,'key.format'='raw'
+                            ,'key.fields'='id'
+                            ,'value.format'='json');
+
+insert into hello_world_1 values('16','haha'),('13','nana'),('16','jiojio');
+insert into jdbc_source values('16','haha',1,'hh1'),('16','haha',2,'hh2'),('13','nana',1,'nn'),('16','jiojio',1,'jj');
+select
+    t1.id,
+    t1.name,
+    t2.alias
+from hello_world_1 t1 left join jdbc_source for system_time as of t1.update_time as t2
+on t1.id=t2.id
+and t1.name=t2.name
+and t2.version=2;
+
+with test_table as(
+    select id,age from
+    (values(1,18),(1,cast(null as int))) as t(id,age)
+)
+select
+    id,last_value(age)
+from test_table
+group by id;
+
+create table mysql_hello(
+    id int primary key,
+    name string,
+    update_time timestamp(3),
+    watermark for update_time as update_time - interval '5' second
+)with(
+    'connector'='jdbc',
+    'url'='jdbc:mysql://my-mysql:3306/my_database',
+    'table-name'='hello_world',
+    'username'='root',
+    'password'='123456'
+);
+
+select
+    window_start,window_end,count(name) count_num
+from table(tumble(table mysql_hello,descriptor(update_time),interval '5' minute))
+group by window_start,window_end;
+
+CREATE CATALOG myhive WITH ('type'='hive','default-database'='hello_world','hive-conf-dir'='/my-volume');
+set table.sql-dialect=hive;
+
+create table kafka_test(id int,
+                        name string,
+                        update_time as proctime())
+                        with('connector'='kafka','properties.bootstrap.servers'='kafka-1:9092'
+                            ,'topic'='kafka_test'
+                            ,'scan.startup.mode'='earliest-offset'
+                            ,'key.format'='raw'
+                            ,'key.fields'='id'
+                            ,'value.format'='json');
+
+select
+    t1.id,t1.name,t2.name alias
+from kafka_test t1
+left join hello_t for system_time as of t1.update_time as t2
+on t2.id=t1.id;

@@ -93,6 +93,7 @@ services:
     # 把宿主机的存储job jar包的目录挂载到虚拟机的一个目录上，这样就可以进入到jobManager中使用flink命令进行任务的提交了
     volumes:
       - "/Users/maziqiang/IdeaProjects/hello-root/hello-flink/target:/my-volume"
+      - "/Users/maziqiang/.m2/repository:/my-repository"
     networks:
       - my-network
     # 默认情况下，镜像flink的docker-file执行的command的是help，我们要通过覆盖这个命令，覆盖为jobManager，告诉flink镜像，应该执行创建jobManager的命令
@@ -150,6 +151,7 @@ services:
       - 6122
     volumes:
       - "/Users/maziqiang/Downloads:/my-files"
+      - "/Users/maziqiang/.m2/repository:/my-repository"
 
   # 配置第二个taskManager
   flink-taskmanager-2:
@@ -181,6 +183,7 @@ services:
     command: taskmanager
     volumes:
       - "/Users/maziqiang/Downloads:/my-files"
+      - "/Users/maziqiang/.m2/repository:/my-repository"
 
   my-redis:
     image: redis
@@ -264,9 +267,70 @@ services:
       # 总结：canal.mq.dynamicTopic决定了数据表的binlog写到哪些topic中，而当写入的topic是多个分区时，canal.mq.partitionHash决定了binlog数据写到哪个kafka分区的计算规则
       canal.mq.partitionHash: ".*\\..*:$$pk$$"
 
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop2.7.4-java8
+    volumes:
+      - namenode:/hadoop/dfs/name
+    environment:
+      - CLUSTER_NAME=test
+    env_file:
+      - ./hadoop-hive.env
+    ports:
+      - "50070:50070"
+    networks:
+      - my-network
+  datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop2.7.4-java8
+    volumes:
+      - datanode:/hadoop/dfs/data
+    env_file:
+      - ./hadoop-hive.env
+    environment:
+      SERVICE_PRECONDITION: "namenode:50070"
+    ports:
+      - "50075:50075"
+    networks:
+      - my-network
+  hive-server:
+    image: bde2020/hive:2.3.2-postgresql-metastore
+    env_file:
+      - ./hadoop-hive.env
+    environment:
+      SERVICE_PRECONDITION: "hive-metastore:9083"
+    ports:
+      - "10000:10000"
+    networks:
+      - my-network
+  hive-metastore:
+    image: bde2020/hive:2.3.2-postgresql-metastore
+    env_file:
+      - ./hadoop-hive.env
+    command: /opt/hive/bin/hive --service metastore
+    environment:
+      SERVICE_PRECONDITION: "namenode:50070 datanode:50075 hive-metastore-postgresql:5432"
+    ports:
+      - "9083:9083"
+    networks:
+      - my-network
+  hive-metastore-postgresql:
+    image: bde2020/hive-metastore-postgresql:2.3.0
+    ports:
+      - "5432:5432"
+    networks:
+      - my-network
+  presto-coordinator:
+    image: shawnzhu/prestodb:0.181
+    ports:
+      - "8080:8080"
+    networks:
+      - my-network
 # 配置自己的network，其实这里也可以不配置，因为本来就想让所有service走一个network，那么走默认的即可。这里只是为了展示networks的用法。
 networks:
   # 这个是配置的network的名称，service使用该名称来加入这个网络
   my-network:
     # 这个是这个network所使用的driver，目前基础的好像只有bridge和host这两个driver，一般本地连的话用bridge就可以了
     driver: bridge
+
+volumes:
+  namenode:
+  datanode:

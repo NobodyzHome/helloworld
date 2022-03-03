@@ -5,7 +5,6 @@ import com.mzq.hello.flink.MyApp;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.api.StatefulRedisConnection;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.flink.dropwizard.metrics.DropwizardMeterWrapper;
 import org.apache.flink.metrics.Meter;
 import org.apache.flink.table.functions.FunctionContext;
 import org.apache.flink.table.functions.ScalarFunction;
@@ -29,7 +28,6 @@ public class AliasQuery extends ScalarFunction {
 
         redisClient = RedisClient.create(context.getJobParameter("redis.url", null));
         stringStatefulRedisConnection = redisClient.connect();
-        meter = context.getMetricGroup().meter("meter123", new DropwizardMeterWrapper(new com.codahale.metrics.Meter()));
 
         ConfigurableApplicationContext run = new SpringApplicationBuilder(MyApp.class).bannerMode(Banner.Mode.OFF).web(WebApplicationType.NONE).run();
         JimdbConfig bean = run.getBean(JimdbConfig.class);
