@@ -557,8 +557,47 @@ create table kafka_test(id int,
                             ,'key.fields'='id'
                             ,'value.format'='json');
 
+-- 把hive表作为streaming数据源和kafka数据源进行join，此时hive表中数据有新增的话，也会从kafka数据源中找到可以匹配的数据
 select
     t1.id,t1.name,t2.name alias
 from kafka_test t1
-left join hello_t for system_time as of t1.update_time as t2
+-- 如果想把hive表作为streaming数据源使用，需要使用options，覆盖默认配置，默认streaming-source.enable=false
+left join hello_hive /*+ OPTIONS('streaming-source.enable'='true','streaming-source.partition.include'='all','streaming-source.monitor-interval'='5 s','streaming-source.partition-order'='partition-name') */ as t2
 on t2.id=t1.id;
+
+-- 把hive表作为维表来和kafka数据源进行join，此时hive表中有
+select
+    t1.id,
+    t1.name,
+    t2.name alias
+from kafka_test t1
+-- 此时把hive作为维表使用的话，就不需要为hello_hive表设置streaming-source.enable=false，因为默认就是。此时我们可以设置cache ttl，来增加内存缓存设置
+left join hello_hive /*+ options('lookup.join.cache.ttl'='10 min') */ for system_time as of t1.update_time as t2
+on t2.id=t1.id;
+
+--利用flinksql的options功能对hive的table进行修改。
+--streaming-source.enable=true，代表使用流的方式读取hive表，即先读全表，然后隔一段时间获取hive表中新增的数据并发送至下游。如果该属性为false，那么hive source算子在读取完hive table的全部数据后，则变成complete状态，不会再从hive读取新的数据了。
+--streaming-source.partition.include=all，代表在读取hive的分区表时，需要读取全部分区的数据。该属性的可选值为：all、latest。如果为latest，那么hive source会按照streaming-source.partition-order的配置决定哪个分区是最新的，并只读取最新分区的数据。
+--         注意：streaming-source.partition.include=latest只适用于把该hive表当作维表来查询时使用
+--streaming-source.monitor-interval=5 s，代表在使用stream方式读取hive数据时，定时拉取数据的频率。
+--streaming-source.partition-order=partition-name，代表hive source如何决定哪个分区是最新的。当使用stream方式读取hive数据时，在读取完全表数据后，只会定时读取最新分区的数据，该属性则代表了如何判断哪个分区是最新的分区。
+--         streaming-source.partition-order的选项为：create-time、partition-time、parition name，以下是他们比较的内容：
+--         create-time: compares partition/file creation time, this is not the partition create time in Hive metaStore,but the folder/file modification time in filesystem
+--         partition-time: compares the time extracted from partition name
+--         partition-name: compares partition name's alphabetical order
+--         以streaming-source.partition-order=partition-name举例：如果分区字段是一个数值型的字段age，那么在全表扫描后，如果已经读取了age=30分区的数据，那么此时再往该表写age=20的数据，hive source是不会把它发送到下游的，因为它认为该分区的数据是老的了。而如果往该表写age=40分区的数据，那么hive source则会从获取该分区的数据，并发送到下游，因为该分区在排序后认为是新的分区。
+--         该属性的默认值是create-time，并且如果读取的不是分区表的话，则只能使用create_time
+-- 以下是使用stream的方式读取hive分区表的方式
+select * from hello_hive
+/*+ OPTIONS('streaming-source.enable'='true','streaming-source.partition.include'='all','streaming-source.monitor-interval'='5 s','streaming-source.partition-order'='partition-name') */;
+
+-- 以下是使用stream的方式读取hive非分区表的方式
+select * from hello_hive_non_partitioned
+/*+ OPTIONS('streaming-source.enable'='true','streaming-source.partition.include'='all','streaming-source.monitor-interval'='5 s','streaming-source.partition-order'='create-time') */;
+
+-- 使用flinksql向分区表写入数据，需要为分区表配置sink.partition-commit.policy.kind属性，可选值为metastore或success-file，可多选，多个用逗号分割。
+-- 该属性就是flink告诉hive该分区的数据写完了。如果配置为metastore，那么flink会向hive metastore连接的数据库的PARTITIONS表里写入分区信息，如果配置为success-file，则会在向该分区写好数据文件后，产生一个_SUCCESS文件，代表这次写数据写完了。
+insert into  hello_hive /*+ options('sink.partition-commit.policy.kind'='metastore,success-file') */ values(1,'jaja',20);
+
+-- 如果写入的是非分区表，则不需要对hive table增加配置
+insert into hello_hive_non_partitioned values(1,'yoyo');
