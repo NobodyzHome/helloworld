@@ -118,7 +118,7 @@ services:
         execution.checkpointing.interval: 2 s
         classloader.resolve-order: child-first
         rest.flamegraph.enabled: true
-
+        execution.checkpointing.interval: 2 min
   # 配置第一个taskManager
   flink-taskmanager-1:
     image: flink
@@ -141,6 +141,7 @@ services:
         execution.checkpointing.interval: 2 s
         classloader.resolve-order: child-first
         rest.flamegraph.enabled: true
+        execution.checkpointing.interval: 2 min
     depends_on:
       - flink-jobmanager
     # 替换flink镜像的默认command，替换为taskManager，代表告诉flink镜像创建taskManager
@@ -175,6 +176,7 @@ services:
         execution.checkpointing.interval: 2 s
         classloader.resolve-order: child-first
         rest.flamegraph.enabled: true
+        execution.checkpointing.interval: 2 min
     expose:
       - 6121
       - 6122
@@ -324,6 +326,7 @@ services:
       - "8080:8080"
     networks:
       - my-network
+
 # 配置自己的network，其实这里也可以不配置，因为本来就想让所有service走一个network，那么走默认的即可。这里只是为了展示networks的用法。
 networks:
   # 这个是配置的network的名称，service使用该名称来加入这个网络
@@ -334,3 +337,6 @@ networks:
 volumes:
   namenode:
   datanode:
+
+# docker compose start zookeeper kafka-1 kafka-2 flink-jobmanager flink-taskmanager-1 flink-taskmanager-2 namenode datanode hive-server hive-metastore hive-metastore-postgresql presto-coordinator
+# docker compose up -d zookeeper kafka-1 kafka-2 flink-jobmanager flink-taskmanager-1 flink-taskmanager-2 namenode datanode hive-server hive-metastore hive-metastore-postgresql presto-coordinator

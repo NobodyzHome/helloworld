@@ -578,7 +578,7 @@ on t2.id=t1.id;
 --利用flinksql的options功能对hive的table进行修改。
 --streaming-source.enable=true，代表使用流的方式读取hive表，即先读全表，然后隔一段时间获取hive表中新增的数据并发送至下游。如果该属性为false，那么hive source算子在读取完hive table的全部数据后，则变成complete状态，不会再从hive读取新的数据了。
 --streaming-source.partition.include=all，代表在读取hive的分区表时，需要读取全部分区的数据。该属性的可选值为：all、latest。如果为latest，那么hive source会按照streaming-source.partition-order的配置决定哪个分区是最新的，并只读取最新分区的数据。
---         注意：streaming-source.partition.include=latest只适用于把该hive表当作维表来查询时使用
+--         注意：streaming-source.partition.include=latest只适用于把该hive表当作维表来查询时使用。在使用hive表进行维表join时，如果streaming-source.partition.include=latest，则代表从最新的分区获取数据。如果为all，则代表从整个table中获取数据。
 --streaming-source.monitor-interval=5 s，代表在使用stream方式读取hive数据时，定时拉取数据的频率。
 --streaming-source.partition-order=partition-name，代表hive source如何决定哪个分区是最新的。当使用stream方式读取hive数据时，在读取完全表数据后，只会定时读取最新分区的数据，该属性则代表了如何判断哪个分区是最新的分区。
 --         streaming-source.partition-order的选项为：create-time、partition-time、parition name，以下是他们比较的内容：
@@ -593,11 +593,58 @@ select * from hello_hive
 
 -- 以下是使用stream的方式读取hive非分区表的方式
 select * from hello_hive_non_partitioned
-/*+ OPTIONS('streaming-source.enable'='true','streaming-source.partition.include'='all','streaming-source.monitor-interval'='5 s','streaming-source.partition-order'='create-time') */;
+/*+ OPTIONS('streaming-source.enable'='true','streaming-source.partition.include'='alll','streaming-source.monitor-interval'='5 s','streaming-source.partition-order'='create-time') */;
 
 -- 使用flinksql向分区表写入数据，需要为分区表配置sink.partition-commit.policy.kind属性，可选值为metastore或success-file，可多选，多个用逗号分割。
--- 该属性就是flink告诉hive该分区的数据写完了。如果配置为metastore，那么flink会向hive metastore连接的数据库的PARTITIONS表里写入分区信息，如果配置为success-file，则会在向该分区写好数据文件后，产生一个_SUCCESS文件，代表这次写数据写完了。
+-- 该属性就是flink告诉hive本次需要向该分区写入的数据写完了。如果配置为metastore，那么flink会向hive metastore连接的数据库的PARTITIONS表里写入分区信息，如果配置为success-file，则会在向该分区写好数据文件后，产生一个_SUCCESS文件，代表这次写数据写完了。
 insert into  hello_hive /*+ options('sink.partition-commit.policy.kind'='metastore,success-file') */ values(1,'jaja',20);
 
 -- 如果写入的是非分区表，则不需要对hive table增加配置
 insert into hello_hive_non_partitioned values(1,'yoyo');
+
+-- flinksql可以把从hive中读取到的table当作bounded scan table source、unbounded scan table source、lookup table source、以及sink
+insert into hello_hive /*+ options('sink.partition-commit.policy.kind'='metastore,success-file') */ select id,name,12 from kafka_test;
+
+-- hive source在流方式读取数据时，采用的是全量查询 + 增量查询的方式监听hive表的数据。在全量查询阶段完成后，开启增量查询阶段。在增量查询阶段，hive source总是会根据分区字段的值来读取最新分区的数据，下面说的就是当他以【字典序】方式对分区字段值进行新旧判断时产生的问题。
+-- 如果hive表中有多个分区字段的话，那么在使用流读取时会造成的问题是，flink是将所有分区字段的值以字符串的形式拼起来，然后以【字典序】的方式比较分区哪个是最新的。因此，对于以下两个分区：'2022-03-02 11'和'2022-03-02 9'，
+-- 在以字典序比较时，前11个字符是相同的，在比较到第12个字符时，'2022-03-02 11'的第12个字符是1，'2022-03-02 9'的第12个字符是9，由于9比1大，flink就会认为分区'2022-03-02 9'，比分区'2022-03-02 11'大，
+-- 导致新产生的分区'2022-03-02 11'中的数据，hive source就不会再读该数据并往后发了。这就是字典序导致的坑，实际情况下'2022-03-02 11'肯定比'2022-03-02 9'大，'2022-03-02 11'分区来的数据还是要发送到hive source的下游的。
+select * from hello_hive_multi_partition /*+ options('streaming-source.enable'='true','streaming-source.partition.include'='all','streaming-source.monitor-interval'='5 s','streaming-source.partition-order'='partition-name')*/;
+
+-- 在hive source以流方式读取数据时，采用的是全量查询 + 增量查询的方式监听hive表的数据。在全量查询时，默认情况下hive source会从hive中读取数据，此时会读取该hive表的所有分区的数据。如果该表数据量过大，并且我们只需要处理指定分区之后的数据，
+-- 我们可以使用streaming-source.consume-start-offset属性来控制在全量查询时，从哪个分区开始读取数据，避免全表查询。
+select * from hive_test /*+ options('streaming-source.enable'='true','streaming-source.partition.include'='all','streaming-source.monitor-interval'='5 s','streaming-source.partition-order'='partition-time','streaming-source.consume-start-offset'='2022-03-01') */;
+
+-- 尽管hive_table在作为source以流方式读取数据时，仅读取最新分区的数据。但使用hive_table作为sink时，可以向任意历史分区写入数据，没有分区新旧的限制
+insert into hello_hive_multi_partition /*+ options('sink.partition-commit.policy.kind'='metastore,success-file') */ values(11,'test',date '2011-03-02',912),(12,'test_1',date '2011-03-01',100),(11,'test_2',date '2011-03-02',111);
+
+-- 可以使用sink.parallelism字段指定写hive表的算子的并发度
+-- 1.写入hdfs算子的并发度：
+--   sink.parallelism：Parallelism of writing files into external file system. The value should greater than zero otherwise exception will be thrown.
+-- 2.分区提交trigger：控制分区何时提交。
+--   sink.partition-commit.trigger：Trigger type for partition commit: 'process-time': based on the time of the machine, it neither requires partition time extraction nor watermark generation. Commit partition once the 'current system time' passes 'partition creation system time' plus 'delay'. 'partition-time': based on the time that extracted from partition values, it requires watermark generation. Commit partition once the 'watermark' passes 'time extracted from partition values' plus 'delay'.
+--   sink.partition-commit.delay：The partition will not commit until the delay time. If it is a daily partition, should be '1 d', if it is a hourly partition, should be '1 h'.
+-- 3.分区提交策略：分区提交就是在向指定分区写完数据后，会在metastore的partitions表中增加一条该分区的数据，或在该分区的文件夹中增加一个_SUCCESS文件，代表该分区的数据写完了。写metastore或文件，就是分区的提交策略。
+--   sink.partition-commit.policy.kind：Policy to commit a partition is to notify the downstream application that the partition has finished writing, the partition is ready to be read. metastore: add partition to metastore. Only hive table supports metastore policy, file system manages partitions through directory structure. success-file: add '_success' file to directory. Both can be configured at the same time: 'metastore,success-file'. custom: use policy class to create a commit policy. Support to configure multiple policies: 'metastore,success-file'.
+-- 注意：
+--   StreamingFileWriter总会在整个任务checkpoint完成(notifyCheckpointComplete方法被调用时)时，将需要写入的数据写入到hdfs。然后将可以提交的分区作为一个数据，发送给下游PartitionCommitter算子，告知PartitionCommitter该进行分区提交了。PartitionCommitter会根据配置向metastore写数据或向hdfs中该分区文件夹写_SUCCESS文件。
+--   分区是否可以提交是由StreamingFileWriter来判断的，它在proctime场景下的判断公式为：commitDelay == 0 || currentProcTime > predicateContext.createProcTime() + commitDelay。返回true则可以提交，否则不可以提交。其中predicateContext.createProcTime()为分区的创建时间。
+--   通过这个公式可以发现，如果sink.partition-commit.delay='0 s'，那么分区总是可以提交的。
+--   但是如果设置了sink.partition-commit.delay='5 s'，需要分区创建时间 + 5s < 当前时间才认为该分区是可以提交的。因此，本次checkpoint完成时，是不会提交分区的。
+insert into hello_hive_multi_partition /*+ options('sink.partition-commit.policy.kind'='metastore,success-file','sink.parallelism'='3','sink.rolling-policy.file-size'='100b','sink.partition-commit.trigger'='process-time','sink.partition-commit.delay'='5 s') */
+-- 我们可以使用catalog.database.table来访问其他catalog中的指定database的表，也就是在不切换catalog时，访问其他catalog下的database的表
+select id,name,date '2022-03-18',18 from kafka_test;
+
+set table.exec.hive.infer-source-parallelism=true;
+set table.exec.hive.infer-source-parallelism.max=3;
+set table.exec.resource.default-parallelism=2;
+-- 在以批方式读取hive表数据时（'streaming-source.enable'='false'）：
+--   可以通过配置任务的参数table.exec.hive.infer-source-parallelism=true来让flink根据hive中文件的多少来推算source需要多少个并发度。例如当hive_table中有6个文件时，那么如果启动该参数，则flink推断hive source的并发度是6
+--   同时可以通过任务参数table.exec.hive.infer-source-parallelism.max来配置自动推断算出来的并发度最大是多少，避免超过flink集群的slot数。
+--   如果table.exec.hive.infer-source-parallelism=false，那么flink会使用任务配置中的table.exec.resource.default-parallelism配置来配置hive source算子的并发度。
+-- 在以流方式读取hive表数据时（'streaming-source.enable'='true'）：
+--   table.exec.hive.infer-source-parallelism是不起作用的，flink只以table.exec.resource.default-parallelism配置来为hive source算子配置并发度
+select *,row_number() over(partition by id order by row_time) from hello_hive_multi_partition
+/*+ options('streaming-source.enable'='false') */;
+
+set execution.checkpointing.interval='5 s';
