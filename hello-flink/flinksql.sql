@@ -557,6 +557,20 @@ create table kafka_test(id int,
                             ,'key.fields'='id'
                             ,'value.format'='json');
 
+insert into kafka_test values(1,'zhangsan'),(1,'zhangsan');
+
+select
+    id,count(*)
+from(
+    select name,last_value(id) id
+    from kafka_test
+    group by name
+)
+group by  id;
+
+insert into kafka_test(name) values('kaikai');
+insert into kafka_test values(888,'kaikai');
+
 -- 把hive表作为streaming数据源和kafka数据源进行join，此时hive表中数据有新增的话，也会从kafka数据源中找到可以匹配的数据
 select
     t1.id,t1.name,t2.name alias
@@ -572,7 +586,7 @@ select
     t2.name alias
 from kafka_test t1
 -- 此时把hive作为维表使用的话，就不需要为hello_hive表设置streaming-source.enable=false，因为默认就是。此时我们可以设置cache ttl，来增加内存缓存设置
-left join hello_hive /*+ options('lookup.join.cache.ttl'='10 min') */ for system_time as of t1.update_time as t2
+left join hello_hive_multi_partition /*+ options('lookup.join.cache.ttl'='10 min') */ for system_time as of t1.update_time as t2
 on t2.id=t1.id;
 
 --利用flinksql的options功能对hive的table进行修改。
@@ -648,3 +662,33 @@ select *,row_number() over(partition by id order by row_time) from hello_hive_mu
 /*+ options('streaming-source.enable'='false') */;
 
 set execution.checkpointing.interval='5 s';
+
+with hello_hive_multi_partition_test as (
+    select *,proctime() pt
+    from hello_hive_multi_partition
+)
+select
+    *
+from(
+    select *,row_number() over(partition by id order by pt) row_num from hello_hive_multi_partition_test
+)
+where
+    row_num=1;
+
+-- 'streaming-source.partition-order'='partition-name'
+select
+    *
+from waybill_route_link
+/*+ options('streaming-source.enable'='true','streaming-source.monitor-interval'='10 s','streaming-source.partition-order'='partition-name','streaming-source.consume-start-offset'='dp=HISTORY') */;
+
+-- 'streaming-source.partition-order'='partition-time'
+select
+    *
+from package_state
+/*+ options('streaming-source.enable'='true','streaming-source.monitor-interval'='10 s','streaming-source.partition-order'='partition-time','partition.time-extractor.kind'='default','partition.time-extractor.timestamp-pattern'='$year-$month-$day','streaming-source.consume-start-offset'='2022-03-15')*/;
+
+-- 'streaming-source.partition-order'='create-time'
+select
+    *
+from package_state
+/*+ options('streaming-source.enable'='true','streaming-source.monitor-interval'='10 s','streaming-source.partition-order'='create-time','streaming-source.consume-start-offset'='2022-03-14')*/;

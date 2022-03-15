@@ -12,7 +12,42 @@ create table hello_hive_multi_partition(id int ,name string) partitioned by(row_
 
 insert into hive_test partition(row_date='2022-03-01') values(1,'zhangsan',20),(2,'lisi',10);
 
+-- 创建分区表
+create table package_state(waybill_code string,waybill_type int,vendor_id string) partitioned by(year int,month int,day int);
+-- 向指标分区写入数据
+insert into package_state partition(year=2022,month=3,day=15) values("JDA",12,"1001"),("JDB",13,"1002"),("JDC",12,"1003"),("JDD",211,"1004"),("JDA",11,"1002");
+insert into package_state partition(year=2022,month=3,day=16) values("JDA",13,"1001"),("JDB",15,"1009"),("JDC",16,"1004"),("JDE",122,"1003"),("JDF",20,"112");
+insert into package_state partition(year=2022,month=3,day=17) values("JDA",19,"1001"),("JDB",221,"100X");
+insert into package_state partition(year=2022,month=3,day=11) values("JDA",19,"100Y"),("JDB",221,"100Z");
+insert into package_state partition(year=2022,month=4,day=22) values("JDC",15,"1002"),("JDE",221,"10XX"),("JDA",11,"1099"),("JDM",1112,"1"),("JDB",192,"107"),("JDC",15,"1020");
+insert into package_state partition(year=2022,month=4,day=15) values("JDI",16,"11"),("JDK",12,"16"),("JDA",15,"1099");
+insert into package_state partition(year=2022,month=4,day=22) values("JDO",18,"13"),("JDB",13,"11"),("JDX",17,"12");
+insert into package_state partition(year=2022,month=4,day=26) values("JDI",15,"13"),("JDE",22,"18"),("JDT",17,"87");
+insert into package_state partition(year=2022,month=4,day=27) values("JDU",15,"17"),("JDR",22,"22"),("JDW",17,"31");
 
+create table waybill_route_link(
+    waybill_code string,
+    operate_type int,
+    operator string
+)
+partitioned by (dp string,dt string)
+row format delimited
+fields terminated by ',';
+
+insert into waybill_route_link partition(dp='ZACTIVE',dt='2022-03-05') values("JDA",10,"ZHANG_SAN"),("JDB",20,"LI_SI"),("JDC",30,"LAO_LIU"),("JDD",40,"ZHAO_WU");
+insert into waybill_route_link partition(dp='ZACTIVE',dt='2022-03-06') values("JDE",15,"XX"),("JDB",30,"YY"),("JDF",10,"LL"),("JDG",46,"QO_QO");
+insert into waybill_route_link partition(dp='ZACTIVE',dt='2022-04-11') values("JDI",20,"MM"),("JDC",40,"II"),("JDP",10,"ZZ"),("JDD",50,"UU");
+insert into waybill_route_link partition(dp='ZACTIVE',dt='2022-04-12') values("JDN",33,"EE"),("JDV",66,"PP");
+insert into waybill_route_link partition(dp='ZACTIVE',dt='2022-04-13') values("JDY",43,"KK"),("JDQ",90,"OO");
+
+insert into waybill_route_link partition(dp='HISTORY',dt='2022-03-05') values("JDA_H",10,"ZHANG_SAN"),("JDB_H",20,"LI_SI"),("JDC_H",30,"LAO_LIU"),("JDD_H",40,"ZHAO_WU");
+insert into waybill_route_link partition(dp='HISTORY',dt='2022-03-06') values("JDE_H",15,"XX"),("JDB_H",30,"YY"),("JDF_H",10,"LL"),("JDG_H",46,"QO_QO");
+insert into waybill_route_link partition(dp='HISTORY',dt='2022-04-11') values("JDI_H",20,"MM"),("JDC_H",40,"II"),("JDP_H",10,"ZZ"),("JDD_H",50,"UU");
+insert into waybill_route_link partition(dp='HISTORY',dt='2022-04-11') values("JDI_H",50,"ii"),("JDC_H",60,"vv");
+
+insert into waybill_route_link partition(dp='ACTIVE',dt='2022-03-05') values("JDA_A",10,"ZHANG_SAN"),("JDB_A",20,"LI_SI"),("JDC_A",30,"LAO_LIU"),("JDD_A",40,"ZHAO_WU");
+insert into waybill_route_link partition(dp='ACTIVE',dt='2022-03-06') values("JDE_A",15,"XX"),("JDB_A",30,"YY"),("JDF_A",10,"LL"),("JDG_A",46,"QO_QO");
+insert into waybill_route_link partition(dp='ACTIVE',dt='2022-04-11') values("JDI_A",20,"MM"),("JDC_A",40,"II"),("JDP_A",10,"ZZ"),("JDD_A",50,"UU");
 
 #!/usr/bin/env python3
 #===============================================================================
@@ -210,18 +245,19 @@ FROM
 			 ,operator_user_id last_exam_operr_id
 			 ,create_time  last_exam_tm
 	    FROM
-		(SELECT
-			waybill_code,
-			operator_site_id,
-			operator_user_id  ,ß
-			create_time,
-			row_number() over(partition by waybill_code order by create_time desc)	rn
-		FROM
-			fdm.fdm_bd_waybill_package_state
-		WHERE
-			SUBSTR(create_time, 1, 10) = '"""+now_bus_day_str+"""'
-			AND state = -460
-		) a where a.rn=1
+            (SELECT
+                waybill_code,
+                operator_site_id,
+                operator_user_id,
+                create_time,
+                row_number() over(partition by waybill_code order by create_time desc)	rn
+            FROM
+                fdm.fdm_bd_waybill_package_state
+            WHERE
+                SUBSTR(create_time, 1, 10) = '"""+now_bus_day_str+"""'
+                AND state = -460
+            ) a
+        where a.rn=1
 
 		) tmp1
 
@@ -232,18 +268,19 @@ FROM
 			 ,operator_user_id last_exam_operr_id
 			 ,create_time  last_exam_tm
 	    FROM
-		(SELECT
-			waybill_code,
-			operator_site_id,
-			operator_user_id  ,
-			create_time,
-			row_number() over(partition by waybill_code order by create_time desc)	rn
-		FROM
-			fdm.fdm_bd_waybill_package_state
-		WHERE
-			SUBSTR(create_time, 1, 10) = '"""+now_bus_day_str+"""'
-			AND state = 80
-		) a where a.rn=1
+            (SELECT
+                waybill_code,
+                operator_site_id,
+                operator_user_id  ,
+                create_time,
+                row_number() over(partition by waybill_code order by create_time desc)	rn
+            FROM
+                fdm.fdm_bd_waybill_package_state
+            WHERE
+                SUBSTR(create_time, 1, 10) = '"""+now_bus_day_str+"""'
+                AND state = 80
+            ) a
+        where a.rn=1
 		) tmp2
 	on tmp1.waybill_code=tmp2.waybill_code
 	)
@@ -308,7 +345,7 @@ LEFT JOIN
 			AND yn = 1
 		group by staff_no
 	)
-	t3
+	t3d
 ON
 	t0.last_exam_operr_id = t3.staff_no
 LEFT JOIN
@@ -331,6 +368,7 @@ LEFT JOIN
             order_level_type
         FROM cdm.cdm_dis_del_waybill_info
 	    WHERE DP='ACTIVE' --历史3天以上回算需删除此条件
+	    and ship_bill_type_cd<>'22'
     ) t5
 ON
     t0.waybill_code=t5.waybill_code
@@ -437,3 +475,6 @@ group by
 
     """
 ht.exec_sql(schema_name = db_app, table_name = tab_name, sql = sql1,merge_flag = True, merge_type='mr',merge_part_dir = partition_dir)
+
+
+select TIMESTAMPDIFF(DAY,to_date('2022-03-08 15:33:22.0','yyyy-MM-dd'),CURRENT_DATE);
