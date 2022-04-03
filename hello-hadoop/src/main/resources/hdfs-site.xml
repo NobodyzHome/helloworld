@@ -7,12 +7,28 @@
         <value>1m</value>
     </property>
 
-    <!-- 指定上传文件时，每个切块的副本数量 -->
+    <!-- 指定上传文件时，每个切块的默认副本数量 -->
     <property>
         <!-- Default block replication. The actual number of replications can be specified when the file is created. The default is used if replication is not specified in create time. -->
         <name>dfs.replication</name>
         <!-- default: 3-->
         <value>2</value>
+    </property>
+
+    <!-- 指定上传文件时，每个切换的最大副本数量 -->
+    <property>
+        <!-- Maximal block replication. -->
+        <name>dfs.replication.max</name>
+        <!-- default: 512 -->
+        <value>512</value>
+    </property>
+
+    <!-- 指定上传文件时，每个切换的最小副本数量 -->
+    <property>
+        <!-- Minimal block replication. -->
+        <name>dfs.namenode.replication.min</name>
+        <!-- default: 1 -->
+        <value>1</value>
     </property>
 
     <!-- 如果是在windows系统下想连接hdfs，需要启动该配置 -->
