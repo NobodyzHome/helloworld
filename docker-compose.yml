@@ -217,17 +217,17 @@ services:
       # 配连接kafka的地址。这个配置不起作用，需要在canal的docker中手动修改canal.properties
       kafka.bootstrap.servers: "kafka-1:9092"
       # 是否忽略dcl语句，例如创建database、trigger等
-      canal.instance.filter.query.dcl: true
+      canal.instance.filter.query.dcl: "true"
       # 是否忽略dms语句，例如insert、update等
-      canal.instance.filter.query.dml: false
+      canal.instance.filter.query.dml: "false"
       # 是否忽略ddl语句，例如create table等
-      canal.instance.filter.query.ddl: true
+      canal.instance.filter.query.ddl: "true"
       # 是否忽略dml中的insert语句
-      canal.instance.filter.dml.insert: false
+      canal.instance.filter.dml.insert: "false"
       # 是否忽略dml中的update语句
-      canal.instance.filter.dml.update: false
+      canal.instance.filter.dml.update: "false"
       # 是否忽略dml中的delete语句
-      canal.instance.filter.dml.delete: true
+      canal.instance.filter.dml.delete: "true"
 
       # instance.properties的配置
       # 配置连接的mysql的地址
@@ -279,6 +279,7 @@ services:
       - ./hadoop-hive.env
     ports:
       - "50070:50070"
+      - "8020:8020"
     networks:
       - my-network
   datanode:
@@ -291,6 +292,8 @@ services:
       SERVICE_PRECONDITION: "namenode:50070"
     ports:
       - "50075:50075"
+      # 这个端口用于客户端访问datanode进行数据的传输
+      - "50010:50010"
     networks:
       - my-network
   hive-server:
@@ -340,3 +343,4 @@ volumes:
 
 # docker compose start zookeeper kafka-1 kafka-2 flink-jobmanager flink-taskmanager-1 flink-taskmanager-2 namenode datanode hive-server hive-metastore hive-metastore-postgresql presto-coordinator
 # docker compose up -d zookeeper kafka-1 kafka-2 flink-jobmanager flink-taskmanager-1 flink-taskmanager-2 namenode datanode hive-server hive-metastore hive-metastore-postgresql presto-coordinator
+# docker-compose up -d namenode datanode hive-server hive-metastore hive-metastore-postgresql presto-coordinator

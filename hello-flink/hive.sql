@@ -47,7 +47,18 @@ insert into waybill_route_link partition(dp='HISTORY',dt='2022-04-11') values("J
 
 insert into waybill_route_link partition(dp='ACTIVE',dt='2022-03-05') values("JDA_A",10,"ZHANG_SAN"),("JDB_A",20,"LI_SI"),("JDC_A",30,"LAO_LIU"),("JDD_A",40,"ZHAO_WU");
 insert into waybill_route_link partition(dp='ACTIVE',dt='2022-03-06') values("JDE_A",15,"XX"),("JDB_A",30,"YY"),("JDF_A",10,"LL"),("JDG_A",46,"QO_QO");
+-- 以添加新文件的方式，将数据写入对应的分区
 insert into waybill_route_link partition(dp='ACTIVE',dt='2022-04-11') values("JDI_A",20,"MM"),("JDC_A",40,"II"),("JDP_A",10,"ZZ"),("JDD_A",50,"UU");
+-- 以覆盖方式写入数据，该分区之前的数据会被清除，不会影响到其他分区的数据
+insert overwrite table summary_test select name,count(*) from student group by name;
+
+create table teacher (id int,name string,sex int) partitioned by(dp string,dt date) row format delimited fields terminated by ',';
+insert into teacher partition(dp='active',dt='2022-03-15') values(1,'lisi',1),(2,'zhangliu',2),(3,'zhangsan',1),(4,'wangwu',2),(5,'lisi',2);
+
+create external table external_test (id int,name string) partitioned by (dp string,dt string) row format delimited fields terminated by ','  location '/test/partitioned/external';
+insert into external_test partition(dp='active',dt='2022-03-15') values(3,'coco'),(4,'lala');
+create external table external_table (id int,name string)  row format delimited fields terminated by ','  location '/test/external';
+
 
 #!/usr/bin/env python3
 #===============================================================================

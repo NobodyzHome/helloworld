@@ -25,6 +25,7 @@
         <module>hello-jackson</module>
         <module>hello-springboot</module>
         <module>hello-LeetCode</module>
+        <module>hello-hadoop</module>
     </modules>
     <packaging>pom</packaging>
 

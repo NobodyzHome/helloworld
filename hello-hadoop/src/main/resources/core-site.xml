@@ -1,0 +1,17 @@
+<configuration>
+    <!-- 指定文件系统的namenode在哪儿 -->
+    <property>
+        <!-- The name of the default file system. A URI whose scheme and authority determine the FileSystem implementation. The uri's scheme determines the config property (fs.SCHEME.impl) naming the FileSystem implementation class. The uri's authority is used to determine the host, port, etc. for a filesystem. -->
+        <name>fs.defaultFS</name>
+        <!-- default:无 -->
+        <value>hdfs://localhost:8020</value>
+    </property>
+
+    <!-- hadoop存储文件的路径，这个参数在hdfs-site配置中，用于配置默认的namenode和datanode存储数据的存放目录 -->
+    <property>
+        <!-- A base for other temporary directories. -->
+        <name>hadoop.tmp.dir</name>
+        <!-- default:/tmp/hadoop-${user.name} -->
+        <value>/tmp/hadoop-${user.name}</value>
+    </property>
+</configuration>
