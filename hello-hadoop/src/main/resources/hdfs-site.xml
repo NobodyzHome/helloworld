@@ -59,7 +59,7 @@
     <property>
         <!-- Minimum block size in bytes, enforced by the Namenode at create time. This prevents the accidental creation of files with tiny block sizes (and thus many blocks), which can degrade performance. Support multiple size unit suffix(case insensitive), as described in dfs.blocksize. -->
         <name>dfs.namenode.fs-limits.min-block-size</name>
-        <!-- default: file://${hadoop.tmp.dir}/dfs/data -->
+        <!-- default: 1048576 -->
         <value>1k</value>
     </property>
 
@@ -67,7 +67,7 @@
     <property>
         <!-- Maximum number of blocks per file, enforced by the Namenode on write. This prevents the creation of extremely large files which can degrade performance. -->
         <name>dfs.namenode.fs-limits.max-blocks-per-file</name>
-        <!-- 10000 -->
+        <!-- default：10000 -->
         <value>100</value>
     </property>
 
