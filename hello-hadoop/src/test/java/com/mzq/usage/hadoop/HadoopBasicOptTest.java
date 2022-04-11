@@ -151,6 +151,8 @@ public class HadoopBasicOptTest {
             FileOutputStream fileOutputStream = new FileOutputStream(file);
             // 当循环执行完后，我们就获取了从offset开始读，并且读了长度为blockLength大小的数据，也就是只读取了我们需要的切块的数据。
             // 这个功能的实现就是分布式计算的核心功能！！！
+            // 在这里我们要注意一个细节，在读取文件时，是需要向多个切块所在的datanode进行数据拉取的。但我们在编程时，根本没有要连接哪个datanode的概念，
+            // 我们完全是只使用FsDataInputStream进行数据的读取。因此是FsDataInputStream帮我们实现了分布式文件读取的细节，让我们感觉就像读本地文件一样。
             do {
                 long bufferSize = Math.min(blockLength, initialBufferSize);
                 buffer = new byte[(int) bufferSize];

@@ -271,35 +271,73 @@ services:
 
   namenode:
     image: bde2020/hadoop-namenode:2.0.0-hadoop2.7.4-java8
+    container_name: namenode
     volumes:
-      - namenode:/hadoop/dfs/name
+      - hadoop_namenode:/hadoop/dfs/name
+    ports:
+      - "50070:50070"
     environment:
       - CLUSTER_NAME=test
     env_file:
-      - ./hadoop-hive.env
-    ports:
-      - "50070:50070"
-      - "8020:8020"
+      - ./hadoop.env
     networks:
       - my-network
+
   datanode:
     image: bde2020/hadoop-datanode:2.0.0-hadoop2.7.4-java8
+    container_name: datanode
     volumes:
-      - datanode:/hadoop/dfs/data
-    env_file:
-      - ./hadoop-hive.env
-    environment:
-      SERVICE_PRECONDITION: "namenode:50070"
+      - hadoop_datanode:/hadoop/dfs/data
     ports:
       - "50075:50075"
-      # 这个端口用于客户端访问datanode进行数据的传输
-      - "50010:50010"
+    environment:
+      SERVICE_PRECONDITION: "namenode:50070"
+    env_file:
+      - ./hadoop.env
     networks:
       - my-network
+
+  resourcemanager:
+    image: bde2020/hadoop-resourcemanager:2.0.0-hadoop2.7.4-java8
+    container_name: resourcemanager
+    environment:
+      SERVICE_PRECONDITION: "namenode:50070 datanode:50075"
+    ports:
+      - "8088:8088"
+    depends_on:
+      - namenode
+      - datanode
+    env_file:
+      - ./hadoop.env
+    networks:
+      - my-network
+
+  nodemanager1:
+    image: bde2020/hadoop-nodemanager:2.0.0-hadoop2.7.4-java8
+    container_name: nodemanager
+    environment:
+      SERVICE_PRECONDITION: "namenode:50070 datanode:50075 resourcemanager:8088"
+    env_file:
+      - ./hadoop.env
+    networks:
+      - my-network
+
+  historyserver:
+    image: bde2020/hadoop-historyserver:2.0.0-hadoop2.7.4-java8
+    container_name: historyserver
+    environment:
+      SERVICE_PRECONDITION: "namenode:50070 datanode:50075 resourcemanager:8088"
+    volumes:
+      - hadoop_historyserver:/hadoop/yarn/timeline
+    env_file:
+      - ./hadoop.env
+    networks:
+      - my-network
+
   hive-server:
     image: bde2020/hive:2.3.2-postgresql-metastore
     env_file:
-      - ./hadoop-hive.env
+      - hadoop.env
     environment:
       SERVICE_PRECONDITION: "hive-metastore:9083"
     ports:
@@ -309,7 +347,7 @@ services:
   hive-metastore:
     image: bde2020/hive:2.3.2-postgresql-metastore
     env_file:
-      - ./hadoop-hive.env
+      - hadoop.env
     command: /opt/hive/bin/hive --service metastore
     environment:
       SERVICE_PRECONDITION: "namenode:50070 datanode:50075 hive-metastore-postgresql:5432"
@@ -338,9 +376,10 @@ networks:
     driver: bridge
 
 volumes:
-  namenode:
-  datanode:
+  hadoop_namenode:
+  hadoop_datanode:
+  hadoop_historyserver:
 
 # docker compose start zookeeper kafka-1 kafka-2 flink-jobmanager flink-taskmanager-1 flink-taskmanager-2 namenode datanode hive-server hive-metastore hive-metastore-postgresql presto-coordinator
 # docker compose up -d zookeeper kafka-1 kafka-2 flink-jobmanager flink-taskmanager-1 flink-taskmanager-2 namenode datanode hive-server hive-metastore hive-metastore-postgresql presto-coordinator
-# docker-compose up -d namenode datanode hive-server hive-metastore hive-metastore-postgresql presto-coordinator
+# docker-compose up -d namenode datanode resourcemanager nodemanager1 historyserver hive-server hive-metastore hive-metastore-postgresql presto-coordinator
