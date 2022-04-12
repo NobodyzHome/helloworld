@@ -17,7 +17,7 @@ public class HadoopBasicOptTest {
         // 入参true代表从本地classpath中寻找core-site.xml和hdfs-site.xml这两个文件，从里面寻找连接hdfs系统的属性
         Configuration configuration = new Configuration(true);
         FileSystem fileSystem = FileSystem.get(configuration);
-        RemoteIterator<LocatedFileStatus> locatedFileStatusRemoteIterator = fileSystem.listFiles(new Path("/test/external"), false);
+        RemoteIterator<LocatedFileStatus> locatedFileStatusRemoteIterator = fileSystem.listFiles(new Path("/upload/kafka.pdf"), false);
         while (locatedFileStatusRemoteIterator.hasNext()) {
             LocatedFileStatus next = locatedFileStatusRemoteIterator.next();
             Path path = next.getPath();

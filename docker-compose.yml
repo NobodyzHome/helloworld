@@ -275,7 +275,10 @@ services:
     volumes:
       - hadoop_namenode:/hadoop/dfs/name
     ports:
+      # 50070是namenode提供http服务的端口
       - "50070:50070"
+      # 9000是namenode对外提供服务的端口（通过core-site.xml里fs.defaultFS来配置的），需要暴露给宿主机
+      - "9000:9000"
     environment:
       - CLUSTER_NAME=test
     env_file:
@@ -289,7 +292,10 @@ services:
     volumes:
       - hadoop_datanode:/hadoop/dfs/data
     ports:
+      # 50075是datanode提供http服务的端口
       - "50075:50075"
+      # 50010是datanode对外提供读写服务的端口，需要暴露给宿主机
+      - "50010:50010"
     environment:
       SERVICE_PRECONDITION: "namenode:50070"
     env_file:
@@ -302,6 +308,7 @@ services:
     container_name: resourcemanager
     environment:
       SERVICE_PRECONDITION: "namenode:50070 datanode:50075"
+    # 8088是resourcemanager提供http服务的端口
     ports:
       - "8088:8088"
     depends_on:
@@ -383,3 +390,4 @@ volumes:
 # docker compose start zookeeper kafka-1 kafka-2 flink-jobmanager flink-taskmanager-1 flink-taskmanager-2 namenode datanode hive-server hive-metastore hive-metastore-postgresql presto-coordinator
 # docker compose up -d zookeeper kafka-1 kafka-2 flink-jobmanager flink-taskmanager-1 flink-taskmanager-2 namenode datanode hive-server hive-metastore hive-metastore-postgresql presto-coordinator
 # docker-compose up -d namenode datanode resourcemanager nodemanager1 historyserver hive-server hive-metastore hive-metastore-postgresql presto-coordinator
+# docker-compose start namenode datanode resourcemanager nodemanager1 historyserver hive-server hive-metastore hive-metastore-postgresql presto-coordinator
