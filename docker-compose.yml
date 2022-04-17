@@ -296,6 +296,7 @@ services:
       - "50075:50075"
       # 50010是datanode对外提供读写服务的端口，需要暴露给宿主机
       - "50010:50010"
+      - "19888:19888"
     environment:
       SERVICE_PRECONDITION: "namenode:50070"
     env_file:
@@ -308,14 +309,19 @@ services:
     container_name: resourcemanager
     environment:
       SERVICE_PRECONDITION: "namenode:50070 datanode:50075"
-    # 8088是resourcemanager提供http服务的端口
     ports:
+    # 8088是resourcemanager提供http服务的端口
       - "8088:8088"
+      - "8030:8030"
+      - "8032:8032"
+      - "8031:8031"
     depends_on:
       - namenode
       - datanode
     env_file:
       - ./hadoop.env
+    volumes:
+      - /Users/maziqiang/Documents/my-libs:/my-libs
     networks:
       - my-network
 
@@ -326,6 +332,10 @@ services:
       SERVICE_PRECONDITION: "namenode:50070 datanode:50075 resourcemanager:8088"
     env_file:
       - ./hadoop.env
+    ports:
+      - "19988:19888"
+    depends_on:
+      - resourcemanager
     networks:
       - my-network
 
@@ -338,6 +348,10 @@ services:
       - hadoop_historyserver:/hadoop/yarn/timeline
     env_file:
       - ./hadoop.env
+    ports:
+      - "8188:8188"
+    depends_on:
+      - resourcemanager
     networks:
       - my-network
 
