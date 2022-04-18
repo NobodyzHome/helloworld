@@ -69,7 +69,7 @@
 
         <!-- log4j1升级到log4j2需要的包：start-->
         <!-- 除了增加下面这个包外，还需要把项目中所有依赖log4j:log4j包的依赖排除掉，否则系统启动后还是用log4j1来实现 -->
-        <!-- log4j1桥接到log4j2的包。如果要把log4j升级到log4j2，就需要先排除log4j:log4j包，然后引入该包(The Apache Log4j 1.x Compatibility API) -->
+        <!-- log4j1桥接到log4j2的包。如果要把log4j升级到log4j2，就需要先排除log4j:log4j包，然后引入该包。这样如果有组件使用log4j的类进行日志打印时，实际底层是使用log4j2进行日志打印(The Apache Log4j 1.x Compatibility API) -->
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-1.2-api</artifactId>
@@ -78,7 +78,7 @@
         <!-- log4j1升级到log4j2需要的包：end-->
 
         <!-- log4j2对jul(Java Util Logging)的支持：start -->
-        <!-- log4j2对jul的实现(The Apache Log4j implementation of java.util.logging) -->
+        <!-- log4j2对jul的实现，增加以下构件后，项目中依赖的组件如果使用jul进行日志打印的话，实际底层是由log4j2来进行日志打印(The Apache Log4j implementation of java.util.logging) -->
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-jul</artifactId>
