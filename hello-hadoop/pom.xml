@@ -7,15 +7,6 @@
         <groupId>com.mzq.excercise.hello</groupId>
         <version>1.0-SNAPSHOT</version>
     </parent>
-    <modelVersion>4.0.0</modelVersion>
-
-    <artifactId>hello-hadoop</artifactId>
-
-    <properties>
-        <maven.compiler.source>8</maven.compiler.source>
-        <maven.compiler.target>8</maven.compiler.target>
-    </properties>
-
     <dependencies>
         <dependency>
             <groupId>org.apache.hadoop</groupId>
@@ -50,39 +41,66 @@
             </exclusions>
         </dependency>
 
-        <dependency>
-            <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-slf4j-impl</artifactId>
-            <version>2.11.2</version>
-            <scope>compile</scope>
-        </dependency>
+        <!-- log4j2需要的包：start -->
+        <!-- log4j2的包（The Apache Log4j Implementation） -->
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-core</artifactId>
             <version>2.11.2</version>
             <scope>compile</scope>
         </dependency>
+        <!-- log4j2异步日志需要的组件，没有该组件，异步logger打不出日志 -->
+        <dependency>
+            <groupId>com.lmax</groupId>
+            <artifactId>disruptor</artifactId>
+            <version>3.4.2</version>
+        </dependency>
+        <!-- log4j2需要的包：end -->
+
+        <!-- log4j2对slf4j的实现：start-->
+        <!-- log4j2对slf4j的实现，有了这个包后，项目中依赖的组件如果使用Slf4j来打印日志的话，底层都是由log4j2来实现(The Apache Log4j SLF4J API binding to Log4j 2 Core) -->
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-slf4j-impl</artifactId>
+            <version>2.11.2</version>
+            <scope>compile</scope>
+        </dependency>
+        <!-- log4j2对slf4j的实现：end-->
+
+        <!-- log4j1升级到log4j2需要的包：start-->
+        <!-- 除了增加下面这个包外，还需要把项目中所有依赖log4j:log4j包的依赖排除掉，否则系统启动后还是用log4j1来实现 -->
+        <!-- log4j1桥接到log4j2的包。如果要把log4j升级到log4j2，就需要先排除log4j:log4j包，然后引入该包(The Apache Log4j 1.x Compatibility API) -->
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-1.2-api</artifactId>
+            <version>2.11.2</version>
+        </dependency>
+        <!-- log4j1升级到log4j2需要的包：end-->
+
+        <!-- log4j2对jul(Java Util Logging)的支持：start -->
+        <!-- log4j2对jul的实现(The Apache Log4j implementation of java.util.logging) -->
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-jul</artifactId>
             <version>2.11.2</version>
             <scope>compile</scope>
         </dependency>
+        <!-- jul桥接到slf4j的包(JUL to SLF4J bridge) -->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>jul-to-slf4j</artifactId>
             <version>1.7.26</version>
             <scope>compile</scope>
         </dependency>
-        <dependency>
-            <groupId>com.lmax</groupId>
-            <artifactId>disruptor</artifactId>
-            <version>3.4.2</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-1.2-api</artifactId>
-            <version>2.11.2</version>
-        </dependency>
+        <!-- log4j2对jul(Java Util Logging)的支持：end -->
     </dependencies>
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>hello-hadoop</artifactId>
+
+    <properties>
+        <maven.compiler.source>8</maven.compiler.source>
+        <maven.compiler.target>8</maven.compiler.target>
+    </properties>
 </project>

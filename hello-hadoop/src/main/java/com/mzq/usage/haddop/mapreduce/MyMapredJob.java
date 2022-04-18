@@ -14,10 +14,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.logging.LogManager;
 
 public class MyMapredJob {
 
     private static final Logger logger= LoggerFactory.getLogger(MyMapredJob.class);
+
 
     public static void main(String[] args) throws IOException, InterruptedException, ClassNotFoundException {
         logger.info("test");
