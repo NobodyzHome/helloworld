@@ -20,7 +20,6 @@ public class MyMapper extends Mapper<Object, Text, Text, IntWritable> {
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
-                System.out.println(element);
             }
         }
     }

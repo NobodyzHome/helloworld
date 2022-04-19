@@ -1,25 +1,73 @@
 <configuration>
 
     <!-- Site specific YARN configuration properties -->
+    <!-- 配置nodemanager需要启动的辅助服务，如果在yarn上执行mapreduce程序时，需要配置mapreduce_shuffle服务 -->
     <property>
+        <!-- A comma separated list of services where service name should only contain a-zA-Z0-9_ and can not start with numbers -->
         <name>yarn.nodemanager.aux-services</name>
+        <!-- default:null -->
         <value>mapreduce_shuffle</value>
     </property>
+
+    <!-- 配置mapreduce客户端连接到resourcemanager的地址 -->
     <property>
         <name>yarn.resourcemanager.resource.tracker.address</name>
         <value>resourcemanager:8031</value>
     </property>
+
+    <!-- 配置resourcemanager的连接host，这个应该是ApplicationMaster连接resourcemanager时使用的host -->
     <property>
+        <!-- The hostname of the RM. -->
         <name>yarn.resourcemanager.hostname</name>
+        <!-- defualt:0.0.0.0 -->
         <value>resourcemanager</value>
     </property>
+
+    <!-- 配置是否检查container使用的虚拟内存数，如果为true，当container使用的虚拟内存数超过配额后，则强制kill该container -->
     <property>
+        <!-- Whether virtual memory limits will be enforced for containers. -->
         <name>yarn.nodemanager.vmem-check-enabled</name>
-        <value>false</value>
-    </property>
-    <property>
-        <name>yarn.nodemanager.pmem-check-enabled</name>
+        <!-- default:true -->
         <value>false</value>
     </property>
 
+    <!-- 配置是否检查container使用的物理内存数，如果为true，当container使用的物理内存数超过配额后，则强制kill该container -->
+    <property>
+        <!-- Whether physical memory limits will be enforced for containers. -->
+        <name>yarn.nodemanager.pmem-check-enabled</name>
+        <!-- default:true -->
+        <value>false</value>
+    </property>
+
+    <!-- 配置对每个container请求分配的最小内存数，如果container请求的内存数低于该配置，则把container请求的内存数修改为该配置的值 -->
+    <property>
+        <!-- The minimum allocation for every container request at the RM in MBs. Memory requests lower than this will be set to the value of this property. Additionally, a node manager that is configured to have less memory than this value will be shut down by the resource manager. -->
+        <name>yarn.scheduler.minimum-allocation-mb</name>
+        <!-- default:1024 -->
+        <value>500</value>
+    </property>
+
+    <!-- 配置对每个container请求分配的最大内存数，如果container请求的内存数高于该配置，则会抛出InvalidResourceRequestException异常 -->
+    <property>
+        <!-- The maximum allocation for every container request at the RM in MBs. Memory requests higher than this will throw an InvalidResourceRequestException. -->
+        <name>yarn.scheduler.maximum-allocation-mb</name>
+        <!-- default:8192 -->
+        <value>2048</value>
+    </property>
+
+    <!-- 配置对每个container请求分配的最小cpu核数，如果container请求的cpu核数低于该配置，则把container请求的cpu核数修改为该配置的值 -->
+    <property>
+        <!-- The minimum allocation for every container request at the RM in terms of virtual CPU cores. Requests lower than this will be set to the value of this property. Additionally, a node manager that is configured to have fewer virtual cores than this value will be shut down by the resource manager. -->
+        <name>yarn.scheduler.minimum-allocation-vcores</name>
+        <!-- default:1 -->
+        <value>1</value>
+    </property>
+
+    <!-- 配置对每个container请求分配的最大cpu核数，如果container请求的cpu核数高于该配置，则会抛出InvalidResourceRequestException异常 -->
+    <property>
+        <!-- The maximum allocation for every container request at the RM in terms of virtual CPU cores. Requests higher than this will throw an InvalidResourceRequestException. -->
+        <name>yarn.scheduler.maximum-allocation-vcores</name>
+        <!-- default:4 -->
+        <value>2</value>
+    </property>
 </configuration>
