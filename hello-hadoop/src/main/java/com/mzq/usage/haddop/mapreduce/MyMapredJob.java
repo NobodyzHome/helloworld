@@ -9,17 +9,12 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Paths;
 
 public class MyMapredJob {
-
-    private static final Logger logger = LoggerFactory.getLogger(MyMapredJob.class);
-
 
     public static void main(String[] args) throws IOException, InterruptedException, ClassNotFoundException {
         Configuration configuration = new Configuration();
@@ -37,6 +32,8 @@ public class MyMapredJob {
         job.setMapOutputValueClass(IntWritable.class);
         // 设置Reducer类
         job.setReducerClass(MyReducer.class);
+        // 设置Combiner类
+        job.setCombinerClass(MyCombiner.class);
         Path inputPath = new Path("/upload/data-center-web-info.log");
         // 设置读取文件时使用的格式以及输入的文件路径
         TextInputFormat.addInputPath(job, inputPath);
@@ -44,15 +41,14 @@ public class MyMapredJob {
         // 设置输出文件时使用的格式以及输出的文件路径
         TextOutputFormat.setOutputPath(job, outputPath);
 
-        int read = -9999;
         try (FileSystem fileSystem = outputPath.getFileSystem(configuration)) {
-            if (!fileSystem.exists(inputPath)) {
+            if (fileSystem.exists(inputPath)) {
                 try (FileInputStream fileInputStream = new FileInputStream(Paths.get("/Users/maziqiang/Downloads/data-center-web-info-2020-07-14-1.log").toFile());
                      FSDataOutputStream fsDataOutputStream = fileSystem.create(inputPath)) {
 
                     byte[] buffer = new byte[512];
 
-                    while ((read = fileInputStream.read(buffer)) != -1) {
+                    while ((fileInputStream.read(buffer)) != -1) {
                         fsDataOutputStream.write(buffer);
                     }
                     fsDataOutputStream.flush();
@@ -67,7 +63,5 @@ public class MyMapredJob {
 
         // 提交任务
         job.waitForCompletion(false);
-
     }
-
 }

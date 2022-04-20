@@ -395,7 +395,4 @@ volumes:
   hadoop_datanode:
   hadoop_historyserver:
 
-# docker compose start zookeeper kafka-1 kafka-2 flink-jobmanager flink-taskmanager-1 flink-taskmanager-2 namenode datanode hive-server hive-metastore hive-metastore-postgresql presto-coordinator
-# docker compose up -d zookeeper kafka-1 kafka-2 flink-jobmanager flink-taskmanager-1 flink-taskmanager-2 namenode datanode hive-server hive-metastore hive-metastore-postgresql presto-coordinator
-# docker compose up -d namenode datanode resourcemanager nodemanager1 historyserver hive-server hive-metastore hive-metastore-postgresql presto-coordinator
-# docker compose start namenode datanode resourcemanager nodemanager1 historyserver hive-server hive-metastore hive-metastore-postgresql presto-coordinator
+# docker compose up -d flink-jobmanager flink-taskmanager-1 namenode datanode resourcemanager nodemanager1 historyserver hive-server hive-metastore hive-metastore-postgresql presto-coordinator
