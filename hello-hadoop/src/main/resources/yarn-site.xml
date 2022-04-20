@@ -9,18 +9,20 @@
         <value>mapreduce_shuffle</value>
     </property>
 
-    <!-- 配置mapreduce客户端连接到resourcemanager的地址 -->
-    <property>
-        <name>yarn.resourcemanager.resource.tracker.address</name>
-        <value>resourcemanager:8031</value>
-    </property>
-
-    <!-- 配置resourcemanager的连接host，这个应该是ApplicationMaster连接resourcemanager时使用的host -->
+    <!-- 配置resourcemanager的连接host，MR程序会通过该配置知道要连的resourcemanager的host -->
     <property>
         <!-- The hostname of the RM. -->
         <name>yarn.resourcemanager.hostname</name>
         <!-- defualt:0.0.0.0 -->
         <value>resourcemanager</value>
+    </property>
+
+    <!-- 配置resourcemanager的连接地址，MR程序会通过该配置知道要连的resourcemanager的地址 -->
+    <property>
+        <!-- The hostname of the RM. -->
+        <name>yarn.resourcemanager.address</name>
+        <!-- defualt:0.0.0.0 -->
+        <value>resourcemanager:8032</value>
     </property>
 
     <!-- 配置是否检查container使用的虚拟内存数，如果为true，当container使用的虚拟内存数超过配额后，则强制kill该container -->

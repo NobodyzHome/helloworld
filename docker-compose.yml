@@ -277,7 +277,7 @@ services:
     ports:
       # 50070是namenode提供http服务的端口
       - "50070:50070"
-      # 9000是namenode对外提供服务的端口（通过core-site.xml里fs.defaultFS来配置的），需要暴露给宿主机
+      # 9000是namenode对外提供服务的端口（通过core-site.xml里fs.defaultFS来配置的），用于程序连接namenode，获取文件的信息
       - "9000:9000"
     environment:
       - CLUSTER_NAME=test
@@ -294,9 +294,8 @@ services:
     ports:
       # 50075是datanode提供http服务的端口
       - "50075:50075"
-      # 50010是datanode对外提供读写服务的端口，需要暴露给宿主机
+      # 50010是datanode对外提供读写服务的端口，用户程序连接datanode，获取文件的数据
       - "50010:50010"
-      - "19888:19888"
     environment:
       SERVICE_PRECONDITION: "namenode:50070"
     env_file:
@@ -310,11 +309,10 @@ services:
     environment:
       SERVICE_PRECONDITION: "namenode:50070 datanode:50075"
     ports:
-    # 8088是resourcemanager提供http服务的端口
+      # 8088是resourcemanager提供http服务的端口
       - "8088:8088"
-      - "8030:8030"
+      # 8032是程序向resourcemanager发布任务的端口，MR程序通过该端口连接ResourceManager，发布任务
       - "8032:8032"
-      - "8031:8031"
     depends_on:
       - namenode
       - datanode
@@ -332,8 +330,6 @@ services:
       SERVICE_PRECONDITION: "namenode:50070 datanode:50075 resourcemanager:8088"
     env_file:
       - ./hadoop.env
-    ports:
-      - "19988:19888"
     depends_on:
       - resourcemanager
     networks:
@@ -348,8 +344,6 @@ services:
       - hadoop_historyserver:/hadoop/yarn/timeline
     env_file:
       - ./hadoop.env
-    ports:
-      - "8188:8188"
     depends_on:
       - resourcemanager
     networks:
