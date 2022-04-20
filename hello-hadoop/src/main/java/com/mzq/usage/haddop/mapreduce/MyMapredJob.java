@@ -42,7 +42,7 @@ public class MyMapredJob {
         TextOutputFormat.setOutputPath(job, outputPath);
 
         try (FileSystem fileSystem = outputPath.getFileSystem(configuration)) {
-            if (fileSystem.exists(inputPath)) {
+            if (!fileSystem.exists(inputPath)) {
                 try (FileInputStream fileInputStream = new FileInputStream(Paths.get("/Users/maziqiang/Downloads/data-center-web-info-2020-07-14-1.log").toFile());
                      FSDataOutputStream fsDataOutputStream = fileSystem.create(inputPath)) {
 
