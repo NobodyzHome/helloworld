@@ -40,6 +40,7 @@ public class HadoopBasicOptTest {
                 fileSystem.delete(path, false);
             }
 
+            // 实际hdfs在上传文件时需要把文件切块，并把切块上传到不同的datanode中。但客户端在使用时，完全没有要发送给不同客户端的感觉，只认为是往OutputStream里发送数据。hdfs对客户端屏蔽了分布式文件系统的感觉。
             FSDataOutputStream fsDataOutputStream = fileSystem.create(path);
             byte[] buffer = new byte[1024];
             while (fileInputStream.read(buffer) != -1) {
