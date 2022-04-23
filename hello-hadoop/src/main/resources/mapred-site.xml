@@ -223,4 +223,21 @@
         <!-- default:1 -->
         <value>2</value>
     </property>
+
+    <!-- mapreduce客户端在根据【切块清单】生成【切片清单】时，切片的最小大小，单位是byte -->
+    <property>
+        <!-- The minimum size chunk that map input should be split into. Note that some file formats may have minimum split sizes that take priority over this setting. -->
+        <name>mapreduce.input.fileinputformat.split.minsize</name>
+        <!-- default:0 -->
+        <value>1</value>
+    </property>
+
+
+    <!-- mapreduce客户端在根据【切块清单】生成【切片清单】时，切片的最大大小，单位是byte -->
+    <property>
+        <!-- The maximum size chunk that map input should be split into. Note that some file formats may have maximum split sizes that take priority over this setting. -->
+        <name>mapreduce.input.fileinputformat.split.maxsize</name>
+        <!-- default:Long.MAX_VALU -->
+        <value>2048</value>
+    </property>
 </configuration>
