@@ -232,12 +232,12 @@
         <value>1</value>
     </property>
 
-
     <!-- mapreduce客户端在根据【切块清单】生成【切片清单】时，切片的最大大小，单位是byte -->
     <property>
         <!-- The maximum size chunk that map input should be split into. Note that some file formats may have maximum split sizes that take priority over this setting. -->
         <name>mapreduce.input.fileinputformat.split.maxsize</name>
         <!-- default:Long.MAX_VALU -->
-        <value>2048</value>
+        <!-- 现在设置的500kb，也就是说每个切片最多500kb。在切割一个4.3mb的文件时，最终会生成9个split，也就是9个MapTask -->
+        <value>500000</value>
     </property>
 </configuration>
