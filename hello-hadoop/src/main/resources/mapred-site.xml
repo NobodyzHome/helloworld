@@ -229,6 +229,7 @@
         <!-- The minimum size chunk that map input should be split into. Note that some file formats may have minimum split sizes that take priority over this setting. -->
         <name>mapreduce.input.fileinputformat.split.minsize</name>
         <!-- default:0 -->
+        <!-- 如果设置成2mb，也就是说每个切片最少2mb。在切割一个4.3mb大小、有5个block、每个block1mb（最后一个block300kb）的文件时，最终会生成3个split，前2个split2mb（每个split对应2个block），最后一个split300kb。 -->
         <value>1</value>
     </property>
 
@@ -237,7 +238,7 @@
         <!-- The maximum size chunk that map input should be split into. Note that some file formats may have maximum split sizes that take priority over this setting. -->
         <name>mapreduce.input.fileinputformat.split.maxsize</name>
         <!-- default:Long.MAX_VALU -->
-        <!-- 现在设置的500kb，也就是说每个切片最多500kb。在切割一个4.3mb大小、有5个block、每个block1mb（最后一个block300kb）的文件时，最终会生成9个split，每个split500kb，最后一个split300kb。 -->
+        <!-- 如果设置成500kb，也就是说每个切片最多500kb。在切割一个4.3mb大小、有5个block、每个block1mb（最后一个block300kb）的文件时，最终会生成9个split，前8个split500kb，最后一个split300kb。 -->
         <value>500000</value>
     </property>
 </configuration>
