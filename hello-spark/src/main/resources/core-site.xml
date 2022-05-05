@@ -14,5 +14,4 @@
         <!-- default:/tmp/hadoop-${user.name} -->
         <value>/tmp/hadoop-${user.name}</value>
     </property>
-
 </configuration>

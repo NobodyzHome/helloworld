@@ -1,8 +1,10 @@
 package com.mzq.usage.hadoop.spark;
 
 import org.apache.spark.SparkConf;
-import org.apache.spark.SparkContext;
-import org.apache.spark.rdd.RDD;
+import org.apache.spark.api.java.JavaRDD;
+import org.apache.spark.api.java.JavaSparkContext;
+
+import java.util.Arrays;
 
 public class HelloSpark {
 
@@ -10,9 +12,8 @@ public class HelloSpark {
         SparkConf sparkConf = new SparkConf();
         sparkConf.setMaster("spark://spark-master:7077");
         sparkConf.setAppName("hello_world");
-        SparkContext sparkContext = new SparkContext(sparkConf);
-        RDD<String> stringRDD1 = sparkContext.textFile("/Users/maziqiang/IdeaProjects/helloworld/.gitignore", 3);
-        Object collect = stringRDD1.collect();
-        System.out.println(collect);
+        JavaSparkContext sp = new JavaSparkContext(sparkConf);
+        JavaRDD<Integer> rDD = sp.parallelize(Arrays.asList(1, 2, 3, 4));
+        Object collect = rDD.collect();
     }
 }

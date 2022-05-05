@@ -36,7 +36,7 @@
         <elasticsearch.version>7.5.1</elasticsearch.version>
         <flink.mysql-cdc.version>2.0.2</flink.mysql-cdc.version>
         <lettuce.version>6.0.2.RELEASE</lettuce.version>
-        <hadoop.version>2.7.2</hadoop.version>
+        <hadoop.version>2.7.4</hadoop.version>
         <hive.version>2.3.6</hive.version>
         <kafka.client.version>2.8.0</kafka.client.version>
     </properties>

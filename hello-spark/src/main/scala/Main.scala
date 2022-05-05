@@ -4,12 +4,12 @@ import org.apache.spark.{SparkConf, SparkContext}
 object Main {
   def main(args: Array[String]): Unit = {
     println("Hello world!")
-    val conf = new SparkConf().setMaster("spark://spark-master:7077").setAppName("hello-spark")
+    val conf = new SparkConf().setMaster("yarn").setAppName("hello-spark").setJars(Seq("out/artifacts/hello_spark_jar/hello-spark.jar"))
     val sp =  SparkContext.getOrCreate(conf)
     val strings = {
-      sp.textFile("/Users/maziqiang/Documents/data-center-web-info-part.log", 5).flatMap(_.split(" "))
-        .map(Tuple2(_, 1)).reduceByKey(_+_).collect();
+      sp.makeRDD(Seq(1,2,3,4)).map(_+1).filter(_>3)
     }
-    strings.foreach(t=>printf("words=%s,count=%d%n",t._1,t._2))
+    val strings1 = strings.collect()
+    strings1.foreach(println)
   }
 }

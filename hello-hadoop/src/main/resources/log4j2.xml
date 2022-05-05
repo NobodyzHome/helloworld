@@ -79,7 +79,7 @@
     </appenders>
 
     <loggers>
-        <asyncRoot level="debug" includeLocation="true">
+        <asyncRoot level="info" includeLocation="true">
             <appender-ref ref="consoleAppender"/>
         </asyncRoot>
     </loggers>

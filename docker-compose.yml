@@ -407,6 +407,10 @@ services:
       - INIT_DAEMON_STEP=setup_spark
       # 配置spark web的端口，默认8080，总是会被占用，因此换一个不冲突的端口
       - SPARK_MASTER_WEBUI_PORT=8090
+      # spark on yarn的关键配置
+      - YARN_CONF_DIR=/my-libs
+    volumes:
+      - /Users/maziqiang/Documents/my-libs:/my-libs
     networks:
       - my-network
 
@@ -451,3 +455,4 @@ volumes:
   hadoop_historyserver:
 
 # docker compose up -d flink-jobmanager flink-taskmanager-1 namenode datanode resourcemanager nodemanager1 nodemanager2 historyserver hive-server hive-metastore hive-metastore-postgresql presto-coordinator spark-master spark-worker-1 spark-worker-2
+# docker compose up -d namenode datanode resourcemanager nodemanager1 historyserver hive-server hive-metastore hive-metastore-postgresql presto-coordinator spark-master spark-worker-1

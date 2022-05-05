@@ -1,0 +1,244 @@
+<configuration>
+    <!-- mapreduce任务的执行框架。设置为yarn代表要把任务提交到yarn上来执行，设置为local代表要在本地执行。 -->
+    <property>
+        <!-- The runtime framework for executing MapReduce jobs. Can be one of local, classic or yarn.  -->
+        <name>mapreduce.framework.name</name>
+        <!-- default:local  -->
+        <value>yarn</value>
+    </property>
+
+    <!-- 配置mapreduce任务的classpath -->
+    <property>
+        <!-- CLASSPATH for MR applications. A comma-separated list of CLASSPATH entries. If mapreduce.application.framework is set then this must specify the appropriate classpath for that archive, and the name of the archive must be present in the classpath. If mapreduce.app-submission.cross-platform is false, platform-specific environment vairable expansion syntax would be used to construct the default CLASSPATH entries. For Linux: $HADOOP_MAPRED_HOME/share/hadoop/mapreduce/*, $HADOOP_MAPRED_HOME/share/hadoop/mapreduce/lib/*. For Windows: %HADOOP_MAPRED_HOME%/share/hadoop/mapreduce/*, %HADOOP_MAPRED_HOME%/share/hadoop/mapreduce/lib/*. If mapreduce.app-submission.cross-platform is true, platform-agnostic default CLASSPATH for MR applications would be used: {{HADOOP_MAPRED_HOME}}/share/hadoop/mapreduce/*, {{HADOOP_MAPRED_HOME}}/share/hadoop/mapreduce/lib/* Parameter expansion marker will be replaced by NodeManager on container launch based on the underlying OS accordingly.  -->
+        <name>mapreduce.application.classpath</name>
+        <!-- default:null  -->
+        <value>$HADOOP_MAPRED_HOME/share/hadoop/mapreduce/*:$HADOOP_MAPRED_HOME/share/hadoop/mapreduce/lib/*</value>
+    </property>
+
+    <!-- 配置mapreduce任务是否允许跨平台提交。例如在windows平台上向linux服务器提交任务。 -->
+    <property>
+        <!-- If enabled, user can submit an application cross-platform i.e. submit an application from a Windows client to a Linux/Unix server or vice versa. -->
+        <name>mapreduce.app-submission.cross-platform</name>
+        <!-- default:false -->
+        <value>false</value>
+    </property>
+
+    <!-- 配置切片清单中，每一个切片对应的block的locations数量。例如每个切片我只想要这个切片对应的block的5个location，则把该参数设置为5 -->
+    <property>
+        <!-- The max number of block locations to store for each split for locality calculation. -->
+        <name>mapreduce.job.max.split.locations</name>
+        <!-- default:15 -->
+        <value>5</value>
+    </property>
+
+    <!-- 当前任务的split元数据文件的最大值，以byte为单位。在任务提交后，当AM发现hdfs上split元数据文件大小超过该配置，AM就是abort这个任务的提交。通常如果输入文件过多或block过多，会导致产生大量的切片，有可能导致切片元数据过大。
+         任务会变为fail状态，报错：Job init failed : org.apache.hadoop.yarn.exceptions.YarnRuntimeException: java.io.IOException: Split metadata size exceeded 10. Aborting job job_1650339735540_0013 -->
+    <property>
+        <!-- The maximum permissible size of the split metainfo file. The MapReduce ApplicationMaster won't attempt to read submitted split metainfo files bigger than this configured value. No limits if set to -1. -->
+        <name>mapreduce.job.split.metainfo.maxsize</name>
+        <!-- default:10000000 -->
+        <value>10000000</value>
+    </property>
+
+    <!-- mapreduce客户端会把程序jar包、split清单、任务配置文件上传到hdfs上，这个参数控制jar包、split清单上传到hdfs中时，每个block的replication数量。设置的越多，就可以同时为多个MapTask或ReduceTask提供下载。 -->
+    <property>
+        <!-- The replication level for submitted job files. This should be around the square root of the number of nodes. -->
+        <name>mapreduce.client.submit.file.replication</name>
+        <!-- default:10 -->
+        <value>30</value>
+    </property>
+
+    <!-- 配置每个任务默认的MapTask数量 -->
+    <property>
+        <!-- The default number of map tasks per job. Ignored when mapreduce.framework.name is "local". -->
+        <name>mapreduce.job.maps</name>
+        <!-- default:2 -->
+        <value>2</value>
+    </property>
+
+    <!-- 配置每个任务默认的ReduceTask数量 -->
+    <property>
+        <!-- The default number of reduce tasks per job. Typically set to 99% of the cluster's reduce capacity, so that if a node fails the reduces can still be executed in a single wave. Ignored when mapreduce.framework.name is "local". -->
+        <name>mapreduce.job.reduces</name>
+        <!-- default:1 -->
+        <value>3</value>
+    </property>
+
+    <!-- 配置每个任务最大的MapTask数量 -->
+    <property>
+        <!-- Limit on the number of map tasks allowed per job. There is no limit if this value is negative. -->
+        <name>mapreduce.job.max.map</name>
+        <!-- default:-1 -->
+        <value>7</value>
+    </property>
+
+    <!-- 配置每个任务能同时（也就是并行）执行的MapTask的数量 -->
+    <property>
+        <!-- The maximum number of simultaneous map tasks per job. There is no limit if this value is 0 or negative. -->
+        <name>mapreduce.job.running.map.limit</name>
+        <!-- default:0 -->
+        <value>2</value>
+    </property>
+
+    <!-- 配置每个任务能同时执行的ReduceTask的数量 -->
+    <property>
+        <!-- The maximum number of simultaneous reduce tasks per job. There is no limit if this value is 0 or negative. -->
+        <name>mapreduce.job.running.reduce.limit</name>
+        <!-- default:0 -->
+        <value>1</value>
+    </property>
+
+    <!-- 配置ApplicationMaster的日志级别 -->
+    <property>
+        <!-- The logging level for the MR ApplicationMaster. The allowed levels are: OFF, FATAL, ERROR, WARN, INFO, DEBUG, TRACE and ALL. The setting here could be overriden if "mapreduce.job.log4j-properties-file" is set. -->
+        <name>yarn.app.mapreduce.am.log.level</name>
+        <!-- default:INFO -->
+        <value>INFO</value>
+    </property>
+
+    <!-- 配置MapTask的日志级别 -->
+    <property>
+        <!-- The logging level for the map task. The allowed levels are: OFF, FATAL, ERROR, WARN, INFO, DEBUG, TRACE and ALL. The setting here could be overridden if "mapreduce.job.log4j-properties-file" is set. -->
+        <name>mapreduce.map.log.level</name>
+        <!-- default:INFO -->
+        <value>INFO</value>
+    </property>
+
+    <!-- 配置ReduceTask的日志级别 -->
+    <property>
+        <!-- The logging level for the reduce task. The allowed levels are: OFF, FATAL, ERROR, WARN, INFO, DEBUG, TRACE and ALL. The setting here could be overridden if "mapreduce.job.log4j-properties-file" is set. -->
+        <name>mapreduce.reduce.log.level</name>
+        <!-- default:INFO -->
+        <value>INFO</value>
+    </property>
+
+    <!-- 配置ReduceTask是否启动shuffle重试 -->
+    <property>
+        <!-- Set to enable fetch retry during host restart. -->
+        <name>mapreduce.reduce.shuffle.fetch.retry.enabled</name>
+        <!-- default:${yarn.nodemanager.recovery.enabled} -->
+        <value>true</value>
+    </property>
+
+    <!-- 配置发生shuffle重试时，从本地shuffle失败到下一次shuffle开始的间隔 -->
+    <property>
+        <!-- Time of interval that fetcher retry to fetch again when some non-fatal failure happens because of some events like NM restart. -->
+        <name>mapreduce.reduce.shuffle.fetch.retry.interval-ms</name>
+        <!-- default:1000 -->
+        <value>1000</value>
+    </property>
+
+    <!-- 配置shuffle重试的超时时长，如果在该时间内，还没有完成shuffle，则认为shuffle超时了 -->
+    <property>
+        <!-- Timeout value for fetcher to retry to fetch again when some non-fatal failure happens because of some events like NM restart. -->
+        <name>mapreduce.reduce.shuffle.fetch.retry.timeout-ms</name>
+        <!-- default:30000 -->
+        <value>30000</value>
+    </property>
+
+    <!-- 配置从shuffle失败到开始shuffle重试之间的最大延迟时长 -->
+    <property>
+        <!-- The maximum number of ms the reducer will delay before retrying to download map data. -->
+        <name>mapreduce.reduce.shuffle.retry-delay.max.ms</name>
+        <!-- default:60000 -->
+        <value>60000</value>
+    </property>
+
+    <!-- 配置ReduceTask读取MapTask的shuffle文件时，使用多少并发线程来读取 -->
+    <property>
+        <!-- The default number of parallel transfers run by reduce during the copy(shuffle) phase. -->
+        <name>mapreduce.reduce.shuffle.parallelcopies</name>
+        <!-- default:5 -->
+        <value>5</value>
+    </property>
+
+    <!-- ReduceTask连接MapTask时，最大的连接用时。超过该时间未连接到MapTask，则认为shuffle超时 -->
+    <property>
+        <!-- Expert: The maximum amount of time (in milli seconds) reduce task spends in trying to connect to a remote node for getting map output. -->
+        <name>mapreduce.reduce.shuffle.connect.timeout</name>
+        <!-- default:180000 -->
+        <value>180000</value>
+    </property>
+
+    <!-- ReduceTask连接上MapTask以后，多长时间后没有读取到MapTask的shuffle文件数据，则认为shuffle超时 -->
+    <property>
+        <!-- Expert: The maximum amount of time (in milli seconds) reduce task waits for map output data to be available for reading after obtaining connection. -->
+        <name>mapreduce.reduce.shuffle.read.timeout</name>
+        <!-- default:180000 -->
+        <value>180000</value>
+    </property>
+
+    <!-- 配置每个MapTask失败后的最大重试次数 -->
+    <property>
+        <!-- Expert: The maximum number of attempts per map task. In other words, framework will try to execute a map task these many number of times before giving up on it. -->
+        <name>mapreduce.map.maxattempts</name>
+        <!-- default:4 -->
+        <value>3</value>
+    </property>
+
+    <!-- 配置每个ReduceTask失败后的最大重试次数 -->
+    <property>
+        <!-- Expert: The maximum number of attempts per reduce task. In other words, framework will try to execute a reduce task these many number of times before giving up on it. -->
+        <name>mapreduce.reduce.maxattempts</name>
+        <!-- default:4 -->
+        <value>3</value>
+    </property>
+
+    <!-- 配置每个Task在多长时间后都没有数据读取、数据输出，则认为这个Task卡住了，就终止这个Task。如果还允许重试的话，会进行Task重试 -->
+    <property>
+        <!-- The number of milliseconds before a task will be terminated if it neither reads an input, writes an output, nor updates its status string. A value of 0 disables the timeout. -->
+        <name>mapreduce.task.timeout</name>
+        <!-- default:600000 -->
+        <value>3</value>
+    </property>
+
+    <!-- 配置每个MapTask申请的虚拟内存数 -->
+    <property>
+        <!-- The amount of memory to request from the scheduler for each map task. If this is not specified or is non-positive, it is inferred from mapreduce.map.java.opts and mapreduce.job.heap.memory-mb.ratio. If java-opts are also not specified, we set it to 1024. -->
+        <name>mapreduce.map.memory.mb</name>
+        <!-- default:-1 -->
+        <value>1024</value>
+    </property>
+
+    <!-- 配置每个MapTask申请的虚拟cpu核数 -->
+    <property>
+        <!-- The number of virtual cores to request from the scheduler for each map task. -->
+        <name>mapreduce.map.cpu.vcores</name>
+        <!-- default:1 -->
+        <value>2</value>
+    </property>
+
+    <!-- 配置每个ReduceTask申请的虚拟内存数 -->
+    <property>
+        <!-- The amount of memory to request from the scheduler for each reduce task. If this is not specified or is non-positive, it is inferred from mapreduce.reduce.java.opts and mapreduce.job.heap.memory-mb.ratio. If java-opts are also not specified, we set it to 1024. -->
+        <name>mapreduce.reduce.memory.mb</name>
+        <!-- default:-1 -->
+        <value>1024</value>
+    </property>
+
+    <!-- 配置每个ReduceTask申请的虚拟cpu核数 -->
+    <property>
+        <!-- The number of virtual cores to request from the scheduler for each reduce task. -->
+        <name>mapreduce.reduce.cpu.vcores</name>
+        <!-- default:1 -->
+        <value>2</value>
+    </property>
+
+    <!-- mapreduce客户端在根据【切块清单】生成【切片清单】时，切片的最小大小，单位是byte -->
+    <property>
+        <!-- The minimum size chunk that map input should be split into. Note that some file formats may have minimum split sizes that take priority over this setting. -->
+        <name>mapreduce.input.fileinputformat.split.minsize</name>
+        <!-- default:0 -->
+        <!-- 如果设置成2mb，也就是说每个切片最少2mb。在切割一个4.3mb大小、有5个block、每个block1mb（最后一个block300kb）的文件时，最终会生成3个split，前2个split2mb（每个split对应2个block），最后一个split300kb。 -->
+        <value>1</value>
+    </property>
+
+    <!-- mapreduce客户端在根据【切块清单】生成【切片清单】时，切片的最大大小，单位是byte -->
+    <property>
+        <!-- The maximum size chunk that map input should be split into. Note that some file formats may have maximum split sizes that take priority over this setting. -->
+        <name>mapreduce.input.fileinputformat.split.maxsize</name>
+        <!-- default:Long.MAX_VALU -->
+        <!-- 如果设置成500kb，也就是说每个切片最多500kb。在切割一个4.3mb大小、有5个block、每个block1mb（最后一个block300kb）的文件时，最终会生成9个split，前8个split500kb，最后一个split300kb。 -->
+        <value>500000</value>
+    </property>
+</configuration>
