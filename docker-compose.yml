@@ -92,8 +92,8 @@ services:
       - 8081:8081
     # 把宿主机的存储job jar包的目录挂载到虚拟机的一个目录上，这样就可以进入到jobManager中使用flink命令进行任务的提交了
     volumes:
-      - "/Users/maziqiang/IdeaProjects/hello-root/hello-flink/target:/my-volume"
-      - "/Users/maziqiang/Documents/sqlCli-lib:/my-repository"
+      - "/Users/maziqiang/IdeaProjects/helloworld/hello-hadoop/target:/my-volume"
+      - "/Users/maziqiang/Documents/my-libs:/my-repository"
     networks:
       - my-network
     # 默认情况下，镜像flink的docker-file执行的command的是help，我们要通过覆盖这个命令，覆盖为jobManager，告诉flink镜像，应该执行创建jobManager的命令
@@ -105,7 +105,9 @@ services:
       # 具体配置内容参见flink官网：https://nightlies.apache.org/flink/flink-docs-release-1.14/docs/deployment/config/
       - |
         FLINK_PROPERTIES=
-        jobmanager.rpc.address: flink-jobmanager
+        high-availability: ZOOKEEPER
+        high-availability.zookeeper.quorum: zookeeper:2181
+        high-availability.storageDir: file:///flink/high-available
         taskmanager.numberOfTaskSlots: 10
         parallelism.default: 2
         state.backend: hashmap
@@ -119,6 +121,40 @@ services:
         classloader.resolve-order: child-first
         rest.flamegraph.enabled: true
         execution.checkpointing.interval: 2 min
+
+  flink-jobmanager2:
+    image: flink
+    container_name: my-flink-jobmanager2
+    ports:
+      - 8082:8082
+    volumes:
+      - "/Users/maziqiang/IdeaProjects/helloworld/hello-hadoop/target:/my-volume"
+      - "/Users/maziqiang/Documents/my-libs:/my-repository"
+    networks:
+      - my-network
+    command: jobmanager
+    expose:
+      - 6123
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        high-availability: ZOOKEEPER
+        high-availability.zookeeper.quorum: zookeeper:2181
+        high-availability.storageDir: file:///flink/high-available
+        taskmanager.numberOfTaskSlots: 10
+        parallelism.default: 2
+        state.backend: hashmap
+        state.checkpoint-storage: jobmanager
+        restart-strategy: fixed-delay
+        restart-strategy.fixed-delay.attempts: 3
+        restart-strategy.fixed-delay.delay: 5 s
+        execution.checkpointing.mode: EXACTLY_ONCE
+        execution.checkpointing.timeout: 10 s
+        execution.checkpointing.interval: 2 s
+        classloader.resolve-order: child-first
+        rest.flamegraph.enabled: true
+        execution.checkpointing.interval: 2 min
+
   # 配置第一个taskManager
   flink-taskmanager-1:
     image: flink
@@ -128,7 +164,9 @@ services:
     environment:
       - |
         FLINK_PROPERTIES=
-        jobmanager.rpc.address: flink-jobmanager
+        high-availability: ZOOKEEPER
+        high-availability.zookeeper.quorum: zookeeper:2181
+        high-availability.storageDir: file:///flink/high-available
         taskmanager.numberOfTaskSlots: 10
         parallelism.default: 2
         state.backend: hashmap
@@ -151,8 +189,8 @@ services:
       - 6121
       - 6122
     volumes:
-      - "/Users/maziqiang/Downloads:/my-files"
-      - "/Users/maziqiang/Documents/sqlCli-lib:/my-repository"
+      - "/Users/maziqiang/IdeaProjects/helloworld/hello-hadoop/target:/my-volume"
+      - "/Users/maziqiang/Documents/my-libs:/my-repository"
 
   # 配置第二个taskManager
   flink-taskmanager-2:
@@ -163,7 +201,9 @@ services:
     environment:
       - |
         FLINK_PROPERTIES=
-        jobmanager.rpc.address: flink-jobmanager
+        high-availability: ZOOKEEPER
+        high-availability.zookeeper.quorum: zookeeper:2181
+        high-availability.storageDir: file:///flink/high-available
         taskmanager.numberOfTaskSlots: 10
         parallelism.default: 2
         state.backend: hashmap
@@ -184,8 +224,8 @@ services:
       - flink-jobmanager
     command: taskmanager
     volumes:
-      - "/Users/maziqiang/Downloads:/my-files"
-      - "/Users/maziqiang/Documents/sqlCli-lib:/my-repository"
+      - "/Users/maziqiang/IdeaProjects/helloworld/hello-hadoop/target:/my-volume"
+      - "/Users/maziqiang/Documents/my-libs:/my-repository"
 
   my-redis:
     image: redis
@@ -456,3 +496,4 @@ volumes:
 
 # docker compose up -d flink-jobmanager flink-taskmanager-1 namenode datanode resourcemanager nodemanager1 nodemanager2 historyserver hive-server hive-metastore hive-metastore-postgresql presto-coordinator spark-master spark-worker-1 spark-worker-2
 # docker compose up -d namenode datanode resourcemanager nodemanager1 historyserver hive-server hive-metastore hive-metastore-postgresql presto-coordinator spark-master spark-worker-1
+# docker compose up -d namenode datanode zookeeper flink-jobmanager flink-jobmanager2 flink-taskmanager-1 flink-taskmanager-2
