@@ -692,3 +692,43 @@ select
     *
 from package_state
 /*+ options('streaming-source.enable'='true','streaming-source.monitor-interval'='10 s','streaming-source.partition-order'='create-time','streaming-source.consume-start-offset'='2022-03-14')*/;
+
+
+select w,a,row_time,last_value(a) over(partition by w order by row_time) from(select w,a,proctime() row_time from (values('JDA',true),('JDA',false),('JDA',cast(null as boolean))) as t1(w,a));
+select
+    w,last_value(coalesce(a,b))
+from(
+        select w,a,row_time,last_value(a) over(partition by w order by row_time) b from(select w,a,proctime() row_time from (values('JDA',cast(null as boolean)),('JDA',false),('JDA',cast(null as boolean))) as t1(w,a))
+    )
+group by w,tumble(row_time,interval '0.1' second);
+
+create table starflow_waybill(waybill_code string
+                             ,order_id string
+                             ,row_time as proctime() )
+    with('connector'='kafka'
+        ,'properties.bootstrap.servers'='kafka-1:9092'
+        ,'topic'='starflow_waybill'
+        ,'properties.group.id'='flinksql-group'
+        ,'properties.client.id'='flinksql-client'
+        ,'scan.startup.mode'='earliest-offset'
+        ,'key.format'='raw'
+        ,'key.fields'='waybill_code'
+        ,'value.format'='json');
+
+select * from starflow_waybill;
+
+insert into starflow_waybill values('JD1',cast(null as string)),('JD1','OD1'),('JD1',cast(null as string))
+insert into starflow_waybill values('JD1',cast(null as string));
+insert into starflow_waybill values('JD5','OD5');
+insert into starflow_waybill values('JD5',cast(null as string)),('JD5',cast(null as string));
+insert into starflow_waybill values('JD5','OD6');
+insert into starflow_waybill values('JD8',cast(null as string));
+insert into starflow_waybill values('JD8','OD8');
+insert into starflow_waybill values('JD8',cast(null as string));
+insert into starflow_waybill values('JD9','1');
+
+select waybill_code,order_id,last_value(order_id) over(partition by waybill_code order by row_time) history_order_id from starflow_waybill;
+
+select waybill_code,last_value(coalesce(order_id,history_order_id)) from (
+    select waybill_code,order_id,last_value(order_id) over(partition by waybill_code order by row_time) history_order_id,row_time from starflow_waybill
+) group by waybill_code,tumble(row_time,interval '80' second);
