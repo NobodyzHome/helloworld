@@ -1,8 +1,11 @@
 package com.mzq.hello.flink.usage;
 
+import org.apache.flink.streaming.api.datastream.DataStreamSink;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
+import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.sink.SinkFunction;
+import org.apache.flink.streaming.api.functions.source.SourceFunction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,7 +28,7 @@ public class CommonUsage extends BaseFlinkUsage {
 
     @Override
     protected void setupStream() throws Exception {
-        testReadFile();
+        testParallelism();
     }
 
     private void testReadFile() {
@@ -41,5 +44,27 @@ public class CommonUsage extends BaseFlinkUsage {
                 logger.info("file url is:{},properties is:{}", resource, properties);
             }
         });
+    }
+
+    private void testParallelism() throws Exception {
+        DataStreamSource<Integer> integerDataStreamSource = getStreamExecutionEnvironment().addSource(new SourceFunction<Integer>() {
+            private int num = 0;
+
+            @Override
+            public void run(SourceContext<Integer> ctx) throws Exception {
+                while (true) {
+                    ctx.collect(++num);
+                    Thread.sleep(2000);
+                }
+            }
+
+            @Override
+            public void cancel() {
+
+            }
+        });
+        SingleOutputStreamOperator<Integer> mapStream = integerDataStreamSource.map(val -> val + 10).setParallelism(5);
+        SingleOutputStreamOperator<Integer> filterStream = mapStream.filter(value -> value >= 12).setParallelism(3);
+        DataStreamSink<Integer> integerDataStreamSink = filterStream.print().setParallelism(4);
     }
 }

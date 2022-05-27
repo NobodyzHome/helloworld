@@ -1,7 +1,6 @@
 package com.mzq.hello.flink;
 
 import com.mzq.hello.domain.WaybillRouteLink;
-import com.mzq.hello.flink.func.source.WaybillCSource;
 import com.mzq.hello.flink.func.source.WaybillRouteLinkSource;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
@@ -59,7 +58,7 @@ public class HelloWorldFlinkSql {
     }
 
     public static void testBase() throws Exception {
-        EnvironmentSettings environmentSettings = EnvironmentSettings.newInstance().useBlinkPlanner().build();
+        EnvironmentSettings environmentSettings = EnvironmentSettings.newInstance().build();
 
         StreamExecutionEnvironment streamExecutionEnvironment = StreamExecutionEnvironment.getExecutionEnvironment();
         streamExecutionEnvironment.setParallelism(1);
@@ -98,7 +97,7 @@ public class HelloWorldFlinkSql {
     }
 
     public static void testWithEs() {
-        EnvironmentSettings environmentSettings = EnvironmentSettings.newInstance().useBlinkPlanner().build();
+        EnvironmentSettings environmentSettings = EnvironmentSettings.newInstance().build();
 
         StreamExecutionEnvironment streamExecutionEnvironment = StreamExecutionEnvironment.getExecutionEnvironment();
         streamExecutionEnvironment.setParallelism(1);
@@ -157,7 +156,7 @@ public class HelloWorldFlinkSql {
 
     public static void testFlinkSqlWithDataStream() {
         StreamExecutionEnvironment streamExecutionEnvironment = StreamExecutionEnvironment.getExecutionEnvironment();
-        EnvironmentSettings environmentSettings = EnvironmentSettings.newInstance().useBlinkPlanner().inStreamingMode().build();
+        EnvironmentSettings environmentSettings = EnvironmentSettings.newInstance().inStreamingMode().build();
         StreamTableEnvironment streamTableEnvironment = StreamTableEnvironment.create(streamExecutionEnvironment, environmentSettings);
 
         DataStreamSource<WaybillRouteLink> waybillRouteLinkDataStreamSource = streamExecutionEnvironment.addSource(new WaybillRouteLinkSource());

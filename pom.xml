@@ -32,7 +32,7 @@
     <properties>
         <maven.compiler.source>8</maven.compiler.source>
         <maven.compiler.target>8</maven.compiler.target>
-        <flink.version>1.14.0</flink.version>
+        <flink.version>1.15.0</flink.version>
         <elasticsearch.version>7.5.1</elasticsearch.version>
         <flink.mysql-cdc.version>2.0.2</flink.mysql-cdc.version>
         <lettuce.version>6.0.2.RELEASE</lettuce.version>
@@ -124,7 +124,7 @@
             <!-- https://mvnrepository.com/artifact/org.apache.flink/flink-streaming-java -->
             <dependency>
                 <groupId>org.apache.flink</groupId>
-                <artifactId>flink-streaming-java_2.12</artifactId>
+                <artifactId>flink-streaming-java</artifactId>
                 <version>${flink.version}</version>
                 <scope>provided</scope>
             </dependency>
@@ -140,7 +140,7 @@
             <!-- 用于将flink DataStream转换为flinksql api的Table对象等所在的类，例如StreamTableEnvironment -->
             <dependency>
                 <groupId>org.apache.flink</groupId>
-                <artifactId>flink-table-api-java-bridge_2.12</artifactId>
+                <artifactId>flink-table-api-java-bridge</artifactId>
                 <version>${flink.version}</version>
                 <scope>provided</scope>
             </dependency>
@@ -152,7 +152,7 @@
             <!-- https://mvnrepository.com/artifact/org.apache.flink/flink-clients -->
             <dependency>
                 <groupId>org.apache.flink</groupId>
-                <artifactId>flink-clients_2.12</artifactId>
+                <artifactId>flink-clients</artifactId>
                 <version>${flink.version}</version>
                 <scope>provided</scope>
             </dependency>
@@ -181,7 +181,7 @@
             <!-- https://mvnrepository.com/artifact/org.apache.flink/flink-connector-kafka -->
             <dependency>
                 <groupId>org.apache.flink</groupId>
-                <artifactId>flink-connector-kafka_2.12</artifactId>
+                <artifactId>flink-connector-kafka</artifactId>
                 <version>${flink.version}</version>
             </dependency>
 
@@ -189,7 +189,7 @@
             <!-- https://mvnrepository.com/artifact/org.apache.flink/flink-connector-elasticsearch7 -->
             <dependency>
                 <groupId>org.apache.flink</groupId>
-                <artifactId>flink-connector-elasticsearch7_2.12</artifactId>
+                <artifactId>flink-connector-elasticsearch7</artifactId>
                 <version>${flink.version}</version>
             </dependency>
 
@@ -197,14 +197,14 @@
             <!-- https://mvnrepository.com/artifact/org.apache.flink/flink-connector-jdbc -->
             <dependency>
                 <groupId>org.apache.flink</groupId>
-                <artifactId>flink-connector-jdbc_2.12</artifactId>
+                <artifactId>flink-connector-jdbc</artifactId>
                 <version>${flink.version}</version>
             </dependency>
 
             <!-- flink连接hbase的连接器 -->
             <dependency>
                 <groupId>org.apache.flink</groupId>
-                <artifactId>flink-connector-hbase-2.2_2.11</artifactId>
+                <artifactId>flink-connector-hbase-2.2</artifactId>
                 <version>${flink.version}</version>
             </dependency>
 

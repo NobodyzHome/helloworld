@@ -85,14 +85,14 @@ services:
   # 配置jobManager
   flink-jobmanager:
     # 使用镜像flink，注意：该镜像的dockerfile默认执行的command是help，在实际使用这个镜像时，应根据需要使用command命令覆盖为：jobmanager、taskmanager等命令
-    image: flink:1.12.7-scala_2.12-java8
+    image: flink
     container_name: my-flink-jobmanager
     # 8081应该暴露给宿主机，供宿主机访问flink ui页面
     ports:
       - 8081:8081
     # 把宿主机的存储job jar包的目录挂载到虚拟机的一个目录上，这样就可以进入到jobManager中使用flink命令进行任务的提交了
     volumes:
-      - "/Users/maziqiang/IdeaProjects/helloworld/hello-hadoop/target:/my-volume"
+      - "/Users/maziqiang/IdeaProjects/helloworld/hello-flink/target:/my-volume"
       - "/Users/maziqiang/Documents/my-libs:/my-repository"
     networks:
       - my-network
@@ -121,7 +121,7 @@ services:
 
   # 配置第一个taskManager
   flink-taskmanager-1:
-    image: flink:1.12.7-scala_2.12-java8
+    image: flink
     container_name: my-flink-taskmanager-1
     networks:
       - my-network
@@ -155,7 +155,7 @@ services:
 
   # 配置第二个taskManager
   flink-taskmanager-2:
-    image: flink:1.12.7-scala_2.12-java8
+    image: flink
     container_name: my-flink-taskmanager-2
     networks:
       - my-network

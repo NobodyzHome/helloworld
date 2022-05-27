@@ -25,7 +25,7 @@ public class FlinkSqlUsage {
 //        UdfFunctionUsage udfFunctionUsage = new UdfFunctionUsage();
 //        udfFunctionUsage.execute();
 
-        EnvironmentSettings settings = EnvironmentSettings.newInstance().useBlinkPlanner().build();
+        EnvironmentSettings settings = EnvironmentSettings.newInstance().build();
         TableEnvironment tableEnv = TableEnvironment.create(settings);
         tableEnv.getConfig().setSqlDialect(SqlDialect.HIVE);
 
