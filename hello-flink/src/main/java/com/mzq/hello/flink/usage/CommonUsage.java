@@ -47,7 +47,7 @@ public class CommonUsage extends BaseFlinkUsage {
     }
 
     private void testParallelism() throws Exception {
-        DataStreamSource<Integer> integerDataStreamSource = getStreamExecutionEnvironment().addSource(new SourceFunction<Integer>() {
+        SingleOutputStreamOperator<Integer> integerDataStreamSource = getStreamExecutionEnvironment().addSource(new SourceFunction<Integer>() {
             private int num = 0;
 
             @Override
@@ -62,9 +62,9 @@ public class CommonUsage extends BaseFlinkUsage {
             public void cancel() {
 
             }
-        });
-        SingleOutputStreamOperator<Integer> mapStream = integerDataStreamSource.map(val -> val + 10).setParallelism(5);
-        SingleOutputStreamOperator<Integer> filterStream = mapStream.filter(value -> value >= 12).setParallelism(3);
-        DataStreamSink<Integer> integerDataStreamSink = filterStream.print().setParallelism(4);
+        }).slotSharingGroup("slot1");
+        SingleOutputStreamOperator<Integer> mapStream = integerDataStreamSource.map(val -> val + 10).setParallelism(2).slotSharingGroup("slot1");
+        SingleOutputStreamOperator<Integer> filterStream = mapStream.filter(value -> value >= 12).setParallelism(3).slotSharingGroup("slot2");
+        DataStreamSink<Integer> integerDataStreamSink = filterStream.print().setParallelism(4).slotSharingGroup("slot2");
     }
 }

@@ -106,7 +106,7 @@ services:
       - |
         FLINK_PROPERTIES=
         jobmanager.rpc.address: flink-jobmanager
-        taskmanager.numberOfTaskSlots: 10
+        taskmanager.numberOfTaskSlots: 3
         parallelism.default: 2
         state.checkpoint-storage: jobmanager
         restart-strategy: fixed-delay
@@ -129,7 +129,7 @@ services:
       - |
         FLINK_PROPERTIES=
         jobmanager.rpc.address: flink-jobmanager
-        taskmanager.numberOfTaskSlots: 10
+        taskmanager.numberOfTaskSlots: 3
         parallelism.default: 2
         state.checkpoint-storage: jobmanager
         restart-strategy: fixed-delay
@@ -163,7 +163,7 @@ services:
       - |
         FLINK_PROPERTIES=
         jobmanager.rpc.address: flink-jobmanager
-        taskmanager.numberOfTaskSlots: 10
+        taskmanager.numberOfTaskSlots: 3
         parallelism.default: 2
         state.backend: hashmap
         state.checkpoint-storage: jobmanager
@@ -455,4 +455,4 @@ volumes:
 
 # docker compose up -d flink-jobmanager flink-taskmanager-1 namenode datanode resourcemanager nodemanager1 nodemanager2 historyserver hive-server hive-metastore hive-metastore-postgresql presto-coordinator spark-master spark-worker-1 spark-worker-2
 # docker compose up -d namenode datanode resourcemanager nodemanager1 historyserver hive-server hive-metastore hive-metastore-postgresql presto-coordinator spark-master spark-worker-1
-# docker compose up -d flink-jobmanager flink-taskmanager-1
+# docker compose up -d flink-jobmanager flink-taskmanager-1 flink-taskmanager-2
