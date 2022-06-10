@@ -402,6 +402,7 @@ services:
     ports:
       - "8090:8090"
       - "7077:7077"
+      - "4040:4040"
     environment:
       - INIT_DAEMON_STEP=setup_spark
       # 配置spark web的端口，默认8080，总是会被占用，因此换一个不冲突的端口
@@ -424,6 +425,8 @@ services:
       - "SPARK_MASTER=spark://spark-master:7077"
       # 配置spark worker web的端口，默认8081，总是会被占用，因此换一个不冲突的端口
       - SPARK_WORKER_WEBUI_PORT=8091
+    volumes:
+      - /Users/maziqiang/Documents/my-libs:/my-libs
     networks:
       - my-network
 
@@ -438,6 +441,8 @@ services:
       - "SPARK_MASTER=spark://spark-master:7077"
       # 配置spark worker web的端口，默认8081，总是会被占用，因此换一个不冲突的端口
       - SPARK_WORKER_WEBUI_PORT=8092
+    volumes:
+      - /Users/maziqiang/Documents/my-libs:/my-libs
     networks:
       - my-network
 
@@ -456,3 +461,4 @@ volumes:
 # docker compose up -d flink-jobmanager flink-taskmanager-1 namenode datanode resourcemanager nodemanager1 nodemanager2 historyserver hive-server hive-metastore hive-metastore-postgresql presto-coordinator spark-master spark-worker-1 spark-worker-2
 # docker compose up -d namenode datanode resourcemanager nodemanager1 historyserver hive-server hive-metastore hive-metastore-postgresql presto-coordinator spark-master spark-worker-1
 # docker compose up -d flink-jobmanager flink-taskmanager-1 flink-taskmanager-2
+# docker compose up -d spark-master spark-worker-1 namenode datanode

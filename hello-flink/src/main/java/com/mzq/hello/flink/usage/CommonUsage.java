@@ -1,5 +1,6 @@
 package com.mzq.hello.flink.usage;
 
+import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSink;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
@@ -63,8 +64,9 @@ public class CommonUsage extends BaseFlinkUsage {
 
             }
         }).slotSharingGroup("slot1");
+
         SingleOutputStreamOperator<Integer> mapStream = integerDataStreamSource.map(val -> val + 10).setParallelism(2).slotSharingGroup("slot1");
-        SingleOutputStreamOperator<Integer> filterStream = mapStream.filter(value -> value >= 12).setParallelism(3).slotSharingGroup("slot2");
+        DataStream<Integer> filterStream = mapStream.filter(value -> value >= 12).setParallelism(3).slotSharingGroup("slot2").rescale();
         DataStreamSink<Integer> integerDataStreamSink = filterStream.print().setParallelism(4).slotSharingGroup("slot2");
     }
 }
