@@ -232,7 +232,7 @@ public class HelloSparkExcercise {
             if (fileSystem.exists(path)) {
                 fileSystem.delete(path, false);
             }
-            try (FileInputStream fileInputStream = new FileInputStream("/Users/maziqiang/Downloads/testdata");
+            try (FileInputStream fileInputStream = new FileInputStream("/Users/maziqiang/Downloads/testData.txt");
                  InputStreamReader inputStreamReader = new InputStreamReader(fileInputStream);
                  BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
                  FSDataOutputStream fsDataOutputStream = fileSystem.create(path)) {
@@ -248,9 +248,14 @@ public class HelloSparkExcercise {
         }
 
         SparkConf sparkConf = new SparkConf().setMaster("spark://spark-master:7077").setAppName("hello-world").setJars(new String[]{"hello-hadoop/target/hello-hadoop-1.0-SNAPSHOT.jar"});
+//        sparkConf.set("spark.executor.memory", "1g").set("spark.executor.instances", "1").set("spark.executor.cores","2");
         try (JavaSparkContext sparkContext = new JavaSparkContext(sparkConf)) {
-            JavaRDD<String> fileRDD = sparkContext.textFile("hdfs:///upload/testData.txt", 10);
+            JavaRDD<String> fileRDD = sparkContext.textFile("hdfs:///upload/testData.txt", 1);
             JavaPairRDD<Integer, String> mapToPairRDD = fileRDD.flatMapToPair(s -> {
+                if (StringUtils.isBlank(s)) {
+                    return Collections.emptyIterator();
+                }
+
                 s = StringUtils.trim(s);
                 String[] split = s.split(",");
                 BigDecimal bigDecimal = new BigDecimal(split[1]).setScale(0, RoundingMode.HALF_UP);

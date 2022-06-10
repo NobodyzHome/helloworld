@@ -36,7 +36,8 @@
         <elasticsearch.version>7.5.1</elasticsearch.version>
         <flink.mysql-cdc.version>2.0.2</flink.mysql-cdc.version>
         <lettuce.version>6.0.2.RELEASE</lettuce.version>
-        <hadoop.version>2.7.4</hadoop.version>
+        <hadoop.version>3.2.1</hadoop.version>
+        <spark.version>3.2.0</spark.version>
         <hive.version>2.3.6</hive.version>
         <kafka.client.version>2.8.0</kafka.client.version>
     </properties>
@@ -260,6 +261,20 @@
             </dependency>
             <!-- end: 以上是hadoop的依赖，包括hdfs和mapreduce -->
             <!-- end: 以上构件是flink集群里没有的构件，需要在程序打包时带上这些构件，所以它们的scope都是compile的。它们通常是flink用于连接各种外部设备的连接器 -->
+
+            <!-- spark基础构件，提供了了SparkContext、RDD等类-->
+            <dependency>
+                <groupId>org.apache.spark</groupId>
+                <artifactId>spark-core_2.12</artifactId>
+                <version>${spark.version}</version>
+            </dependency>
+
+            <!-- spark向yarn提交任务时需要的构件 -->
+            <dependency>
+                <groupId>org.apache.spark</groupId>
+                <artifactId>spark-yarn_2.12</artifactId>
+                <version>${spark.version}</version>
+            </dependency>
 
             <dependency>
                 <groupId>org.springframework.boot</groupId>

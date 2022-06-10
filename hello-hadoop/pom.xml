@@ -16,6 +16,10 @@
                     <artifactId>log4j</artifactId>
                     <groupId>log4j</groupId>
                 </exclusion>
+                <exclusion>
+                    <artifactId>paranamer</artifactId>
+                    <groupId>com.thoughtworks.paranamer</groupId>
+                </exclusion>
             </exclusions>
         </dependency>
 
@@ -47,8 +51,7 @@
         <!-- spark基础构件，提供了了SparkContext、RDD等类-->
         <dependency>
             <groupId>org.apache.spark</groupId>
-            <artifactId>spark-core_2.11</artifactId>
-            <version>2.4.5</version>
+            <artifactId>spark-core_2.12</artifactId>
             <exclusions>
                 <exclusion>
                     <artifactId>log4j</artifactId>
@@ -60,21 +63,13 @@
         <!-- spark向yarn提交任务时需要的构件 -->
         <dependency>
             <groupId>org.apache.spark</groupId>
-            <artifactId>spark-yarn_2.11</artifactId>
-            <version>2.4.5</version>
+            <artifactId>spark-yarn_2.12</artifactId>
             <exclusions>
                 <exclusion>
                     <artifactId>log4j</artifactId>
                     <groupId>log4j</groupId>
                 </exclusion>
             </exclusions>
-        </dependency>
-
-        <!-- 增加scala-reflect的依赖，这个依赖在spark客户端向yarn提交任务时需要使用，但是spark-core没有依赖该构件，因此需要手动加上该构件 -->
-        <dependency>
-            <groupId>org.scala-lang</groupId>
-            <artifactId>scala-reflect</artifactId>
-            <version>2.11.12</version>
         </dependency>
     </dependencies>
 

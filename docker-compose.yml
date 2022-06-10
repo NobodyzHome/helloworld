@@ -269,13 +269,13 @@ services:
       canal.mq.partitionHash: ".*\\..*:$$pk$$"
 
   namenode:
-    image: bde2020/hadoop-namenode:2.0.0-hadoop2.7.4-java8
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
     container_name: namenode
     volumes:
       - hadoop_namenode:/hadoop/dfs/name
     ports:
-      # 50070是namenode提供http服务的端口
-      - "50070:50070"
+      # 9870是namenode提供http服务的端口
+      - "9870:9870"
       # 9000是namenode对外提供服务的端口（通过core-site.xml里fs.defaultFS来配置的），用于程序连接namenode，获取文件的信息
       - "9000:9000"
     environment:
@@ -286,24 +286,24 @@ services:
       - my-network
 
   datanode:
-    image: bde2020/hadoop-datanode:2.0.0-hadoop2.7.4-java8
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
     container_name: datanode
     volumes:
       - hadoop_datanode:/hadoop/dfs/data
     ports:
-      # 50075是datanode提供http服务的端口
-      - "50075:50075"
+      # 9864是datanode提供http服务的端口
+      - "9864:9864"
       # 50010是datanode对外提供读写服务的端口，用户程序连接datanode，获取文件的数据
-      - "50010:50010"
+      - "9866:9866"
     environment:
-      SERVICE_PRECONDITION: "namenode:50070"
+      SERVICE_PRECONDITION: "namenode:9870"
     env_file:
       - ./hadoop.env
     networks:
       - my-network
 
   resourcemanager:
-    image: bde2020/hadoop-resourcemanager:2.0.0-hadoop2.7.4-java8
+    image: bde2020/hadoop-resourcemanager:2.0.0-hadoop3.2.1-java8
     container_name: resourcemanager
     environment:
       SERVICE_PRECONDITION: "namenode:50070 datanode:50075"
@@ -323,7 +323,7 @@ services:
       - my-network
 
   nodemanager1:
-    image: bde2020/hadoop-nodemanager:2.0.0-hadoop2.7.4-java8
+    image: bde2020/hadoop-nodemanager:2.0.0-hadoop3.2.1-java8
     container_name: nodemanager1
     environment:
       SERVICE_PRECONDITION: "namenode:50070 datanode:50075 resourcemanager:8088"
@@ -335,7 +335,7 @@ services:
       - my-network
 
   nodemanager2:
-    image: bde2020/hadoop-nodemanager:2.0.0-hadoop2.7.4-java8
+    image: bde2020/hadoop-nodemanager:2.0.0-hadoop3.2.1-java8
     container_name: nodemanager2
     environment:
       SERVICE_PRECONDITION: "namenode:50070 datanode:50075 resourcemanager:8088"
@@ -347,7 +347,7 @@ services:
       - my-network
 
   historyserver:
-    image: bde2020/hadoop-historyserver:2.0.0-hadoop2.7.4-java8
+    image: bde2020/hadoop-historyserver:2.0.0-hadoop3.2.1-java8
     container_name: historyserver
     environment:
       SERVICE_PRECONDITION: "namenode:50070 datanode:50075 resourcemanager:8088"
@@ -397,7 +397,7 @@ services:
       - my-network
 
   spark-master:
-    image: bde2020/spark-master:2.4.5-hadoop2.7
+    image: bde2020/spark-master:3.2.0-hadoop3.2
     container_name: spark-master
     ports:
       - "8090:8090"
@@ -415,7 +415,7 @@ services:
       - my-network
 
   spark-worker-1:
-    image: bde2020/spark-worker:2.4.5-hadoop2.7
+    image: bde2020/spark-worker:3.2.0-hadoop3.2
     container_name: spark-worker-1
     depends_on:
       - spark-master
@@ -431,7 +431,7 @@ services:
       - my-network
 
   spark-worker-2:
-    image: bde2020/spark-worker:2.4.5-hadoop2.7
+    image: bde2020/spark-worker:3.2.0-hadoop3.2
     container_name: spark-worker-2
     depends_on:
       - spark-master
