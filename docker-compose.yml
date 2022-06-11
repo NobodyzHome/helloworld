@@ -312,6 +312,8 @@ services:
       - "8088:8088"
       # 8032是程序向resourcemanager发布任务的端口，MR程序通过该端口连接ResourceManager，发布任务
       - "8032:8032"
+      - "8030:8030"
+      - "8031:8031"
     depends_on:
       - namenode
       - datanode

@@ -47,9 +47,13 @@ public class HelloSpark {
         // 当创建SparkConf对象时，如果loadDefaults设置为true时，会将java系统参数中（使用-D配置）所有以"spark."开头的参数，都认为是spark的参数，设置到SparkConf对象中。
         SparkConf sparkConf = new SparkConf(true);
         // 设置master，可以是local、spark集群、yarn-client、yarn-cluster(设置为yarn的这两个的话，需要增加org.apache.spark.spark-yarn_2.11的依赖)
-        sparkConf.setMaster("spark://localhost:7077");
+        sparkConf.setMaster("yarn");
         // 设置任务的名称
         sparkConf.setAppName("hello_world");
+        sparkConf.set("spark.hadoop.yarn.resourcemanager.hostname", "resourcemanager")
+                .set("spark.hadoop.yarn.resourcemanager.address", "resourcemanager:8032")
+                .set("spark.hadoop.fs.defaultFS", "hdfs://namenode:9000");
+
         // 设置程序包的位置，和mapreduce一样，为了在nodemanager上执行程序，因此需要把打好包的程序包
         sparkConf.setJars(new String[]{"hello-hadoop/target/hello-hadoop-1.0-SNAPSHOT.jar"});
         /*
