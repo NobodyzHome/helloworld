@@ -232,7 +232,7 @@ public class HelloSparkExcercise {
             if (fileSystem.exists(path)) {
                 fileSystem.delete(path, false);
             }
-            try (FileInputStream fileInputStream = new FileInputStream("/Users/maziqiang/Downloads/testdata");
+            try (FileInputStream fileInputStream = new FileInputStream("/Users/maziqiang/Downloads/testData.txt");
                  InputStreamReader inputStreamReader = new InputStreamReader(fileInputStream);
                  BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
                  FSDataOutputStream fsDataOutputStream = fileSystem.create(path)) {
@@ -247,7 +247,7 @@ public class HelloSparkExcercise {
             throw new RuntimeException(e);
         }
 
-        SparkConf sparkConf = new SparkConf().setMaster("spark://spark-master:7077").setAppName("hello-world").setJars(new String[]{"hello-hadoop/target/hello-hadoop-1.0-SNAPSHOT.jar"});
+        SparkConf sparkConf = new SparkConf().setMaster("yarn").setAppName("hello-world").setJars(new String[]{"hello-hadoop/target/hello-hadoop-1.0-SNAPSHOT.jar"});
         try (JavaSparkContext sparkContext = new JavaSparkContext(sparkConf)) {
             JavaRDD<String> fileRDD = sparkContext.textFile("hdfs:///upload/testData.txt", 10);
             JavaPairRDD<Integer, String> mapToPairRDD = fileRDD.flatMapToPair(s -> {
