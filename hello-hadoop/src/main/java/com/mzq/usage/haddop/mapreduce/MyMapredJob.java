@@ -11,6 +11,7 @@ import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
 import org.apache.hadoop.util.GenericOptionsParser;
 
+import java.io.BufferedInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Paths;
@@ -21,6 +22,28 @@ public class MyMapredJob {
     public static void main(String[] args) throws IOException, InterruptedException, ClassNotFoundException {
         System.setProperty("HADOOP_USER_NAME", "supergroup");
         Configuration configuration = new Configuration();
+
+        Path path = new Path("/upload/data-center-web-info-part.log");
+        try (FileSystem fileSystem = FileSystem.get(configuration)) {
+            if (fileSystem.exists(path)) {
+                fileSystem.delete(path, false);
+            }
+
+            try (FileInputStream fileInputStream = new FileInputStream("/Users/maziqiang/Documents/my-libs/data-center-web-info-part.log");
+                 BufferedInputStream bufferedInputStream = new BufferedInputStream(fileInputStream);
+                 FSDataOutputStream fsDataOutputStream = fileSystem.create(path)) {
+
+                byte[] buffer = new byte[2048];
+                while (bufferedInputStream.read(buffer) != -1) {
+                    fsDataOutputStream.write(buffer);
+                }
+            } catch (Exception e) {
+                throw e;
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
          /*
             通常情况下hadoop的命令都是由bin/hadoop command [genericOptions] [commandOptions]这几部分组成。
             其中genericOptions可以是hadoop的core-site、hdfs-site、mapred-site、yarn-site里配置，这代表着：我们可以在配置文件中给出默认配置，然后我们还可以通过在运行时给出genericOptions，来覆盖默认的配置。
@@ -70,26 +93,6 @@ public class MyMapredJob {
         Path outputPath = new Path(customParams.getProperty("output"));
         // 设置输出文件时使用的格式以及输出的文件路径
         TextOutputFormat.setOutputPath(job, outputPath);
-
-        try (FileSystem fileSystem = outputPath.getFileSystem(configuration)) {
-            if (!fileSystem.exists(inputPath)) {
-                try (FileInputStream fileInputStream = new FileInputStream(Paths.get("/Users/maziqiang/Downloads/data-center-web-info-2020-07-14-1.log").toFile());
-                     FSDataOutputStream fsDataOutputStream = fileSystem.create(inputPath)) {
-
-                    byte[] buffer = new byte[512];
-
-                    while ((fileInputStream.read(buffer)) != -1) {
-                        fsDataOutputStream.write(buffer);
-                    }
-                    fsDataOutputStream.flush();
-                }
-            }
-            if (fileSystem.exists(outputPath)) {
-                fileSystem.delete(outputPath, true);
-            }
-        } catch (Exception e) {
-            throw e;
-        }
 
         // 提交任务
         job.waitForCompletion(false);

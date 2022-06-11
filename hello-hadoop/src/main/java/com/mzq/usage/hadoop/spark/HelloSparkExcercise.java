@@ -248,7 +248,7 @@ public class HelloSparkExcercise {
         }
 
         SparkConf sparkConf = new SparkConf().setMaster("spark://spark-master:7077").setAppName("hello-world").setJars(new String[]{"hello-hadoop/target/hello-hadoop-1.0-SNAPSHOT.jar"});
-//        sparkConf.set("spark.executor.memory", "1g").set("spark.executor.instances", "1").set("spark.executor.cores","2");
+        sparkConf.set("spark.executor.memory", "1g").set("spark.executor.instances", "1").set("spark.executor.cores","2");
         try (JavaSparkContext sparkContext = new JavaSparkContext(sparkConf)) {
             JavaRDD<String> fileRDD = sparkContext.textFile("hdfs:///upload/testData.txt", 1);
             JavaPairRDD<Integer, String> mapToPairRDD = fileRDD.flatMapToPair(s -> {

@@ -25,6 +25,14 @@
         <value>resourcemanager:8032</value>
     </property>
 
+    <!-- 配置给yarn应用程序创建的container的classpath，如果不配置的话，默认会带有hadoop集群中common/lib、hdfs/lib、yarn/lib，也就是说，默认情况下，yarn的application执行环境中会带着hdfs、yarn的jar包，所以yarn的application打包时，可以不用带着这些构件 -->
+    <property>
+        <!-- CLASSPATH for YARN applications. A comma-separated list of CLASSPATH entries. When this value is empty, the following default CLASSPATH for YARN applications would be used. For Linux: $HADOOP_CONF_DIR, $HADOOP_COMMON_HOME/share/hadoop/common/*, $HADOOP_COMMON_HOME/share/hadoop/common/lib/*, $HADOOP_HDFS_HOME/share/hadoop/hdfs/*, $HADOOP_HDFS_HOME/share/hadoop/hdfs/lib/*, $HADOOP_YARN_HOME/share/hadoop/yarn/*, $HADOOP_YARN_HOME/share/hadoop/yarn/lib/* For Windows: %HADOOP_CONF_DIR%, %HADOOP_COMMON_HOME%/share/hadoop/common/*, %HADOOP_COMMON_HOME%/share/hadoop/common/lib/*, %HADOOP_HDFS_HOME%/share/hadoop/hdfs/*, %HADOOP_HDFS_HOME%/share/hadoop/hdfs/lib/*, %HADOOP_YARN_HOME%/share/hadoop/yarn/*, %HADOOP_YARN_HOME%/share/hadoop/yarn/lib/* -->
+        <name>yarn.application.classpath</name>
+        <!-- default: $HADOOP_CONF_DIR, $HADOOP_COMMON_HOME/share/hadoop/common/*, $HADOOP_COMMON_HOME/share/hadoop/common/lib/*, $HADOOP_HDFS_HOME/share/hadoop/hdfs/*, $HADOOP_HDFS_HOME/share/hadoop/hdfs/lib/*, $HADOOP_YARN_HOME/share/hadoop/yarn/*, $HADOOP_YARN_HOME/share/hadoop/yarn/lib/* -->
+        <value>$HADOOP_CONF_DIR, $HADOOP_COMMON_HOME/share/hadoop/common/*, $HADOOP_COMMON_HOME/share/hadoop/common/lib/*, $HADOOP_HDFS_HOME/share/hadoop/hdfs/*, $HADOOP_HDFS_HOME/share/hadoop/hdfs/lib/*, $HADOOP_YARN_HOME/share/hadoop/yarn/*, $HADOOP_YARN_HOME/share/hadoop/yarn/lib/*</value>
+    </property>
+
     <!-- 配置是否检查container使用的虚拟内存数，如果为true，当container使用的虚拟内存数超过配额后，则强制kill该container -->
     <property>
         <!-- Whether virtual memory limits will be enforced for containers. -->

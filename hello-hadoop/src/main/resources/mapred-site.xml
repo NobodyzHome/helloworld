@@ -7,12 +7,34 @@
         <value>yarn</value>
     </property>
 
-    <!-- 配置mapreduce任务的classpath -->
+    <!-- 配置mapreduce任务的classpath，这个功能用于设置yarn的container的classpath，实际给container赋值的classpath是mapreduce.application.classpath再拼接上yarn.application.classpath。也就是说，默认情况下，mapreduce任务在yarn上跑时，会配有hdfs、yarn、common、mapreduce的jar。客户端打包时，可以不带这些构件 -->
     <property>
         <!-- CLASSPATH for MR applications. A comma-separated list of CLASSPATH entries. If mapreduce.application.framework is set then this must specify the appropriate classpath for that archive, and the name of the archive must be present in the classpath. If mapreduce.app-submission.cross-platform is false, platform-specific environment vairable expansion syntax would be used to construct the default CLASSPATH entries. For Linux: $HADOOP_MAPRED_HOME/share/hadoop/mapreduce/*, $HADOOP_MAPRED_HOME/share/hadoop/mapreduce/lib/*. For Windows: %HADOOP_MAPRED_HOME%/share/hadoop/mapreduce/*, %HADOOP_MAPRED_HOME%/share/hadoop/mapreduce/lib/*. If mapreduce.app-submission.cross-platform is true, platform-agnostic default CLASSPATH for MR applications would be used: {{HADOOP_MAPRED_HOME}}/share/hadoop/mapreduce/*, {{HADOOP_MAPRED_HOME}}/share/hadoop/mapreduce/lib/* Parameter expansion marker will be replaced by NodeManager on container launch based on the underlying OS accordingly.  -->
         <name>mapreduce.application.classpath</name>
-        <!-- default:null  -->
+        <!-- default:$HADOOP_MAPRED_HOME/share/hadoop/mapreduce/*:$HADOOP_MAPRED_HOME/share/hadoop/mapreduce/lib/*  -->
         <value>$HADOOP_MAPRED_HOME/share/hadoop/mapreduce/*:$HADOOP_MAPRED_HOME/share/hadoop/mapreduce/lib/*</value>
+    </property>
+
+    <!-- 给AM的container注册的环境变量env -->
+    <property>
+        <!-- User added environment variables for the MR App Master processes, specified as a comma separated list. Example : 1) A=foo This will set the env variable A to foo 2) B=$B:c This is inherit tasktracker's B env variable. To define environment variables individually, you can specify multiple properties of the form yarn.app.mapreduce.am.env.VARNAME, where VARNAME is the name of the environment variable. This is the only way to add a variable when its value contains commas. -->
+        <name>yarn.app.mapreduce.am.env</name>
+        <!-- default:null  -->
+        <value>HADOOP_MAPRED_HOME=/opt/hadoop-3.2.1/</value>
+    </property>
+
+    <!-- 给MapTask的container注册的环境变量env -->
+    <property>
+        <name>mapreduce.map.env</name>
+        <!-- default:null  -->
+        <value>HADOOP_MAPRED_HOME=/opt/hadoop-3.2.1/</value>
+    </property>
+
+    <!-- 给ReduceTask的container注册的环境变量env -->
+    <property>
+        <name>mapreduce.reduce.env</name>
+        <!-- default:null  -->
+        <value>HADOOP_MAPRED_HOME=/opt/hadoop-3.2.1/</value>
     </property>
 
     <!-- 配置mapreduce任务是否允许跨平台提交。例如在windows平台上向linux服务器提交任务。 -->
