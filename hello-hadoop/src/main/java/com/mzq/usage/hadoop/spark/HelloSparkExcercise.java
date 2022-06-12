@@ -29,7 +29,8 @@ public class HelloSparkExcercise {
 //        test3();
 //        test4();
 //        test5();
-        test6();
+//        test6();
+        test7();
     }
 
     public static void test1() {
@@ -269,6 +270,50 @@ public class HelloSparkExcercise {
             });
             List<Tuple2<Integer, String>> collect = mapRDD.top(3, new TupleComparator2());
             System.out.println(collect);
+        }
+    }
+
+    public static void test7() {
+        SparkConf sparkConf = new SparkConf().setMaster("spark://spark-master:7077").setAppName("hello-spark").setJars(new String[]{"hello-hadoop/target/hello-hadoop-1.0-SNAPSHOT.jar"});
+
+        try (JavaSparkContext sparkContext = new JavaSparkContext(sparkConf)) {
+            JavaRDD<String> fileRDD = sparkContext.textFile("hdfs:///upload/testData.txt", 2);
+            JavaRDD<String> repartitionRDD = fileRDD.repartition(10);
+            JavaRDD<String> filterRDD = repartitionRDD.filter(StringUtils::isNotBlank);
+            JavaPairRDD<String, String> flatMapToPairRDD = filterRDD.flatMapToPair(s -> {
+                s = StringUtils.trim(s);
+                String[] split = s.split(",");
+                if (split.length < 2) {
+                    return Collections.emptyIterator();
+                } else {
+                    int value = new BigDecimal(split[1]).setScale(0, RoundingMode.HALF_UP).intValue();
+                    String level;
+                    if (value < 0) {
+                        level = "-";
+                    } else if (value <= 3) {
+                        level = "F";
+                    } else if (value <= 6) {
+                        level = "E";
+                    } else if (value <= 9) {
+                        level = "D";
+                    } else if (value <= 12) {
+                        level = "C";
+                    } else if (value <= 15) {
+                        level = "B";
+                    } else if (value <= 18) {
+                        level = "A";
+                    } else {
+                        level = "S";
+                    }
+                    return Collections.singleton(new Tuple2<>(level, split[0])).iterator();
+                }
+            });
+            JavaPairRDD<String, Iterable<String>> groupRDD = flatMapToPairRDD.groupByKey(5);
+            JavaPairRDD<String, String> mapRDD = groupRDD.mapToPair(tuple -> new Tuple2<>(tuple._1(), String.join(",", tuple._2)));
+            Map<String, String> collectAsMap = mapRDD.collectAsMap();
+            System.out.println(collectAsMap);
+            System.out.println(mapRDD.toDebugString());
+
         }
     }
 }
