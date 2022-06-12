@@ -73,7 +73,7 @@ public class MyMapredJob {
 
         try (FileSystem fileSystem = outputPath.getFileSystem(configuration)) {
             if (!fileSystem.exists(inputPath)) {
-                try (FileInputStream fileInputStream = new FileInputStream(Paths.get("/Users/maziqiang/Downloads/data-center-web-info-2020-07-14-1.log").toFile());
+                try (FileInputStream fileInputStream = new FileInputStream(Paths.get("/Users/maziqiang/Documents/data-center-web-info-part.log").toFile());
                      FSDataOutputStream fsDataOutputStream = fileSystem.create(inputPath)) {
 
                     byte[] buffer = new byte[512];
