@@ -30,7 +30,8 @@ public class HelloSparkExcercise {
 //        test4();
 //        test5();
 //        test6();
-        test7();
+//        test7();
+        test8();
     }
 
     public static void test1() {
@@ -233,7 +234,7 @@ public class HelloSparkExcercise {
             if (fileSystem.exists(path)) {
                 fileSystem.delete(path, false);
             }
-            try (FileInputStream fileInputStream = new FileInputStream("/Users/maziqiang/Downloads/testData.txt");
+            try (FileInputStream fileInputStream = new FileInputStream("datas/testData.txt");
                  InputStreamReader inputStreamReader = new InputStreamReader(fileInputStream);
                  BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
                  FSDataOutputStream fsDataOutputStream = fileSystem.create(path)) {
@@ -314,6 +315,60 @@ public class HelloSparkExcercise {
             System.out.println(collectAsMap);
             System.out.println(mapRDD.toDebugString());
 
+        }
+    }
+
+
+    public static void test8() {
+        Configuration configuration = new Configuration();
+        try (FileSystem fileSystem = FileSystem.get(configuration)) {
+            Path path = new Path("/upload/staff");
+            if (fileSystem.exists(path)) {
+                fileSystem.delete(path, false);
+            }
+
+            try (FileReader fileReader = new FileReader("datas/staff.txt");
+                 BufferedReader bufferedReader = new BufferedReader(fileReader);
+                 FSDataOutputStream fsDataOutputStream = fileSystem.create(path);
+                 OutputStreamWriter outputStreamWriter = new OutputStreamWriter(fsDataOutputStream);
+                 BufferedWriter bufferedWriter = new BufferedWriter(outputStreamWriter)) {
+
+                String line;
+                while (Objects.nonNull(line = bufferedReader.readLine())) {
+                    bufferedWriter.write(line);
+                    bufferedWriter.newLine();
+                }
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        SparkConf sparkConf = new SparkConf();
+        sparkConf.setMaster("yarn").setAppName("staff-statistic").setJars(new String[]{"hello-hadoop/target/hello-hadoop-1.0-SNAPSHOT.jar"});
+
+        try (JavaSparkContext sparkContext = new JavaSparkContext(sparkConf)) {
+            JavaRDD<String> fileRDD = sparkContext.textFile("hdfs:///upload/staff");
+            JavaRDD<String> repartitionRDD = fileRDD.repartition(6);
+            JavaRDD<String> filterRDD = repartitionRDD.filter(StringUtils::isNotBlank);
+            JavaRDD<StaffInfo> mapRDD = filterRDD.map(s -> {
+                String[] split = s.split(",");
+                StaffInfo staffInfo = new StaffInfo();
+                staffInfo.setName(split[0]);
+                staffInfo.setAge(Integer.parseInt(split[1]));
+                staffInfo.setSex(split[2]);
+                staffInfo.setEducation(split[3]);
+                staffInfo.setPolicy(split[4]);
+                return staffInfo;
+            });
+
+            JavaPairRDD<String, Integer> mapToPairRDD = mapRDD.mapToPair(staffInfo -> new Tuple2<>(staffInfo.getEducation() + "-" + staffInfo.getAge(), 1));
+            JavaPairRDD<String, Integer> reduceByKeyRDD = mapToPairRDD.reduceByKey(Integer::sum, 3);
+            JavaPairRDD<String, Integer> mapToPairEdRDD = reduceByKeyRDD.mapToPair(tuple -> new Tuple2<>(tuple._1.split("-")[0], tuple._2));
+            JavaPairRDD<String, Integer> reduceByKeyEdRdd = mapToPairEdRDD.reduceByKey(Integer::sum, 8);
+            JavaPairRDD<String, Integer> filter1RDD = reduceByKeyEdRdd.filter(tuple -> Arrays.asList("专科", "本科", "硕士").contains(tuple._1));
+            Map<String, Integer> collectAsMap = filter1RDD.collectAsMap();
+            System.out.println(collectAsMap);
+            System.out.println(filter1RDD.toDebugString());
         }
     }
 }
