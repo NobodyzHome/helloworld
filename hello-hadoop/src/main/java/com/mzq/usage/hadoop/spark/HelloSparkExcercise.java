@@ -31,7 +31,10 @@ public class HelloSparkExcercise {
 //        test5();
 //        test6();
 //        test7();
-        test8();
+//        test8();
+//        test9();
+//        test10();
+        test11();
     }
 
     public static void test1() {
@@ -338,13 +341,19 @@ public class HelloSparkExcercise {
                     bufferedWriter.write(line);
                     bufferedWriter.newLine();
                 }
+                bufferedWriter.flush();
+            }
+
+            Path resultPath = new Path("/upload/staff_result");
+            if (fileSystem.exists(resultPath)) {
+                fileSystem.delete(resultPath, true);
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
 
         SparkConf sparkConf = new SparkConf();
-        sparkConf.setMaster("yarn").setAppName("staff-statistic").setJars(new String[]{"hello-hadoop/target/hello-hadoop-1.0-SNAPSHOT.jar"});
+        sparkConf.setMaster("spark://spark-master:7077").setAppName("staff-statistic").setJars(new String[]{"hello-hadoop/target/hello-hadoop-1.0-SNAPSHOT.jar"});
 
         try (JavaSparkContext sparkContext = new JavaSparkContext(sparkConf)) {
             JavaRDD<String> fileRDD = sparkContext.textFile("hdfs:///upload/staff");
@@ -365,10 +374,104 @@ public class HelloSparkExcercise {
             JavaPairRDD<String, Integer> reduceByKeyRDD = mapToPairRDD.reduceByKey(Integer::sum, 3);
             JavaPairRDD<String, Integer> mapToPairEdRDD = reduceByKeyRDD.mapToPair(tuple -> new Tuple2<>(tuple._1.split("-")[0], tuple._2));
             JavaPairRDD<String, Integer> reduceByKeyEdRdd = mapToPairEdRDD.reduceByKey(Integer::sum, 8);
-            JavaPairRDD<String, Integer> filter1RDD = reduceByKeyEdRdd.filter(tuple -> Arrays.asList("专科", "本科", "硕士").contains(tuple._1));
-            Map<String, Integer> collectAsMap = filter1RDD.collectAsMap();
+            reduceByKeyEdRdd.saveAsTextFile("hdfs:///upload/staff_result");
+            System.out.println(reduceByKeyEdRdd.toDebugString());
+        }
+    }
+
+    public static void test9() {
+        Configuration configuration = new Configuration();
+        try (FileSystem fileSystem = FileSystem.get(configuration)) {
+            Path path = new Path("/upload/staff-repartition");
+            if (fileSystem.exists(path)) {
+                fileSystem.delete(path, true);
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        SparkConf sparkConf = new SparkConf();
+        sparkConf.setMaster("yarn").setAppName("staff-statistic").setJars(new String[]{"hello-hadoop/target/hello-hadoop-1.0-SNAPSHOT.jar"});
+        try (JavaSparkContext sparkContext = new JavaSparkContext(sparkConf)) {
+            JavaRDD<String> fileRDD = sparkContext.textFile("hdfs:///upload/staff", 3);
+            JavaRDD<String> repartitionRDD = fileRDD.repartition(10);
+            JavaRDD<String> filterRDD = repartitionRDD.filter(StringUtils::isNotBlank);
+            JavaRDD<StaffInfo> mapRDD = filterRDD.map(str -> {
+                String[] split = str.split(",");
+                StaffInfo staffInfo = new StaffInfo();
+                staffInfo.setName(split[0]);
+                staffInfo.setAge(Integer.parseInt(split[1]));
+                staffInfo.setSex(split[2]);
+                staffInfo.setEducation(split[3]);
+                staffInfo.setPolicy(split[4]);
+                return staffInfo;
+            });
+            JavaPairRDD<String, Integer> mapToPairRDD = mapRDD.mapToPair(staffInfo -> new Tuple2<>(String.format("%s-%s", staffInfo.getEducation(), staffInfo.getSex()), 1));
+            JavaPairRDD<String, Integer> reduceByKeyRDD = mapToPairRDD.reduceByKey(Integer::sum);
+            JavaPairRDD<String, String> mapToPairRDD1 = reduceByKeyRDD.mapToPair(tuple -> new Tuple2<>(tuple._1.split("-")[0], String.format("%s-%d", tuple._1.split("-")[1], tuple._2)));
+            JavaPairRDD<String, Iterable<String>> groupByKeyRDD = mapToPairRDD1.groupByKey();
+            JavaPairRDD<String, String> mapValuesRDD = groupByKeyRDD.mapValues(it -> String.join(",", it));
+            Map<String, String> collectAsMap = mapValuesRDD.collectAsMap();
             System.out.println(collectAsMap);
-            System.out.println(filter1RDD.toDebugString());
+            System.out.println(mapValuesRDD.toDebugString());
+        }
+    }
+
+    public static void test10() {
+        SparkConf sparkConf = new SparkConf();
+        sparkConf.setMaster("spark://spark-master:7077").setAppName("staff-statistic").setJars(new String[]{"hello-hadoop/target/hello-hadoop-1.0-SNAPSHOT.jar"});
+        try (JavaSparkContext sparkContext = new JavaSparkContext(sparkConf)) {
+            JavaRDD<String> fileRDD = sparkContext.textFile("hdfs:///upload/staff", 5);
+            JavaRDD<StaffInfo> staffInfoRDD = fileRDD.map(str -> {
+                String[] split = str.split(",");
+                StaffInfo staffInfo = new StaffInfo();
+                staffInfo.setName(split[0]);
+                staffInfo.setAge(Integer.parseInt(split[1]));
+                staffInfo.setSex(split[2]);
+                staffInfo.setEducation(split[3]);
+                staffInfo.setPolicy(split[4]);
+                return staffInfo;
+            });
+            JavaPairRDD<String, Integer> mapToPairRDD = staffInfoRDD.mapToPair(staffInfo -> new Tuple2<>(String.format("%s-%s-%s", staffInfo.getEducation(), staffInfo.getSex(), staffInfo.getPolicy()), 1));
+            JavaPairRDD<String, Integer> reduceByKeyRDD = mapToPairRDD.reduceByKey(Integer::sum, 8);
+            JavaPairRDD<String, String> mapToPairRDD1 = reduceByKeyRDD.mapToPair(tuple -> {
+                String[] split = tuple._1.split("-");
+                String education = split[0];
+                String sex = split[1];
+                String policy = split[2];
+                return new Tuple2<>(policy, String.format("%s-%s-%d", education, sex, tuple._2));
+            });
+            JavaPairRDD<String, Iterable<String>> groupByKeyRDD = mapToPairRDD1.groupByKey(2);
+            JavaPairRDD<String, String> mapValuesRDD = groupByKeyRDD.mapValues(it -> String.join(",", it));
+            Map<String, String> collectAsMap = mapValuesRDD.collectAsMap();
+            System.out.println(collectAsMap);
+            System.out.println(mapValuesRDD.toDebugString());
+        }
+    }
+
+    public static void test11() {
+        SparkConf sparkConf = new SparkConf();
+        sparkConf.setMaster("yarn").setAppName("staff-statistic").setJars(new String[]{"hello-hadoop/target/hello-hadoop-1.0-SNAPSHOT.jar"});
+
+        try (JavaSparkContext sparkContext = new JavaSparkContext(sparkConf)) {
+            JavaRDD<String> fileRDD = sparkContext.textFile("hdfs:///upload/staff", 2);
+            JavaRDD<String> repartitionRDD = fileRDD.repartition(10);
+            JavaRDD<StaffInfo> mapRDD = repartitionRDD.map(str -> {
+                String[] split = str.split(",");
+                StaffInfo staffInfo = new StaffInfo();
+                staffInfo.setName(split[0]);
+                staffInfo.setAge(Integer.parseInt(split[1]));
+                staffInfo.setSex(split[2]);
+                staffInfo.setEducation(split[3]);
+                staffInfo.setPolicy(split[4]);
+                return staffInfo;
+            });
+            JavaPairRDD<String, Integer> mapToPairRDD = mapRDD.mapToPair(staffInfo -> new Tuple2<>(String.format("%s-%s", staffInfo.getEducation(), staffInfo.getSex()), 1));
+            JavaPairRDD<String, Integer> reduceByKeyRDD = mapToPairRDD.reduceByKey(Integer::sum, 7);
+            JavaPairRDD<String, String> mapToPairRDD1 = reduceByKeyRDD.mapToPair(tuple -> new Tuple2<>(tuple._1.split("-")[0], String.format("%s-%d", tuple._1.split("-")[1], tuple._2)));
+            JavaPairRDD<String, String> reduceByKey1RDD = mapToPairRDD1.reduceByKey((v1, v2) -> String.format("%s,%s", v1, v2), 15);
+            Map<String, String> collectAsMap = reduceByKey1RDD.collectAsMap();
+            System.out.println(collectAsMap);
         }
     }
 }
