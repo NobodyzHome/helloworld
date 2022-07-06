@@ -10,7 +10,7 @@ import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.storage.StorageLevel;
+import org.apache.spark.broadcast.Broadcast;
 import scala.Tuple2;
 
 import java.io.*;
@@ -36,7 +36,8 @@ public class HelloSparkExcercise {
 //        test9();
 //        test10();
 //        test11();
-        test12();
+//        test12();
+        test13();
     }
 
     public static void test1() {
@@ -485,7 +486,7 @@ public class HelloSparkExcercise {
             sparkContext.setCheckpointDir("checkpoints");
             JavaRDD<String> fileRDD = sparkContext.textFile("hdfs:///upload/staff", 2);
             JavaRDD<String> fileFilterRDD = fileRDD.filter(s -> {
-                System.out.println("$$$$$$$$$$$$$"+s.split(",")[0]);
+                System.out.println("$$$$$$$$$$$$$" + s.split(",")[0]);
                 return s.length() <= 100;
             });
             JavaRDD<String> repartitionRDD = fileFilterRDD.repartition(10);
@@ -497,11 +498,11 @@ public class HelloSparkExcercise {
                 staffInfo.setSex(split[2]);
                 staffInfo.setEducation(split[3]);
                 staffInfo.setPolicy(split[4]);
-                System.out.println("@@@@@@@@@@@@@"+staffInfo.getName());
+                System.out.println("@@@@@@@@@@@@@" + staffInfo.getName());
                 return staffInfo;
             });
             JavaRDD<StaffInfo> filterRDD = mapRDD.filter(staffInfo -> {
-                System.out.println("#############"+staffInfo.getName());
+                System.out.println("#############" + staffInfo.getName());
                 return staffInfo.getAge() >= 30;
             });
             fileFilterRDD.cache();
@@ -519,6 +520,37 @@ public class HelloSparkExcercise {
 
             System.out.println(reduceByKey1.toDebugString());
             System.out.println(reduceByKey2.toDebugString());
+        }
+    }
+
+    public static void test13() {
+        SparkConf sparkConf = new SparkConf();
+        sparkConf.setMaster("spark://spark-master:7077").setAppName("staff-statistic").setJars(new String[]{"hello-hadoop/target/hello-hadoop-1.0-SNAPSHOT.jar"});
+
+        try (JavaSparkContext sparkContext = new JavaSparkContext(sparkConf)) {
+            sparkContext.setCheckpointDir("checkpoints");
+            Map<String, String> rule = new HashMap<>(2);
+            rule.put("男", "male");
+            rule.put("女", "female");
+            Broadcast<Map<String, String>> broadcast = sparkContext.broadcast(rule);
+
+            JavaRDD<String> fileRDD = sparkContext.textFile("hdfs:///upload/staff", 2);
+            JavaRDD<String> fileFilterRDD = fileRDD.filter(s -> {
+                return s.length() <= 100;
+            });
+            JavaRDD<String> repartitionRDD = fileFilterRDD.repartition(10);
+            JavaRDD<StaffInfo> mapRDD = repartitionRDD.map(str -> {
+                String[] split = str.split(",");
+                StaffInfo staffInfo = new StaffInfo();
+                staffInfo.setName(split[0]);
+                staffInfo.setAge(Integer.parseInt(split[1]));
+                staffInfo.setSex(broadcast.getValue().get(split[2]));
+                staffInfo.setEducation(split[3]);
+                staffInfo.setPolicy(split[4]);
+                return staffInfo;
+            });
+            List<StaffInfo> collect = mapRDD.collect();
+            System.out.println(collect);
         }
     }
 }
