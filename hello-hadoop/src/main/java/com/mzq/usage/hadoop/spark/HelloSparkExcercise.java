@@ -10,6 +10,7 @@ import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.storage.StorageLevel;
 import scala.Tuple2;
 
 import java.io.*;
@@ -34,7 +35,8 @@ public class HelloSparkExcercise {
 //        test8();
 //        test9();
 //        test10();
-        test11();
+//        test11();
+        test12();
     }
 
     public static void test1() {
@@ -472,6 +474,51 @@ public class HelloSparkExcercise {
             JavaPairRDD<String, String> reduceByKey1RDD = mapToPairRDD1.reduceByKey((v1, v2) -> String.format("%s,%s", v1, v2), 15);
             Map<String, String> collectAsMap = reduceByKey1RDD.collectAsMap();
             System.out.println(collectAsMap);
+        }
+    }
+
+    public static void test12() {
+        SparkConf sparkConf = new SparkConf();
+        sparkConf.setMaster("spark://spark-master:7077").setAppName("staff-statistic").setJars(new String[]{"hello-hadoop/target/hello-hadoop-1.0-SNAPSHOT.jar"});
+
+        try (JavaSparkContext sparkContext = new JavaSparkContext(sparkConf)) {
+            sparkContext.setCheckpointDir("checkpoints");
+            JavaRDD<String> fileRDD = sparkContext.textFile("hdfs:///upload/staff", 2);
+            JavaRDD<String> fileFilterRDD = fileRDD.filter(s -> {
+                System.out.println("$$$$$$$$$$$$$"+s.split(",")[0]);
+                return s.length() <= 100;
+            });
+            JavaRDD<String> repartitionRDD = fileFilterRDD.repartition(10);
+            JavaRDD<StaffInfo> mapRDD = repartitionRDD.map(str -> {
+                String[] split = str.split(",");
+                StaffInfo staffInfo = new StaffInfo();
+                staffInfo.setName(split[0]);
+                staffInfo.setAge(Integer.parseInt(split[1]));
+                staffInfo.setSex(split[2]);
+                staffInfo.setEducation(split[3]);
+                staffInfo.setPolicy(split[4]);
+                System.out.println("@@@@@@@@@@@@@"+staffInfo.getName());
+                return staffInfo;
+            });
+            JavaRDD<StaffInfo> filterRDD = mapRDD.filter(staffInfo -> {
+                System.out.println("#############"+staffInfo.getName());
+                return staffInfo.getAge() >= 30;
+            });
+            fileFilterRDD.cache();
+
+            JavaPairRDD<String, Integer> mapToPair1 = filterRDD.mapToPair(staffInfo -> new Tuple2<>(staffInfo.getEducation(), 1));
+            JavaPairRDD<String, Integer> reduceByKey1 = mapToPair1.reduceByKey(Integer::sum);
+            Map<String, Integer> collectAsMap1 = reduceByKey1.collectAsMap();
+
+            JavaPairRDD<String, Integer> mapToPair2 = filterRDD.mapToPair(staffInfo -> new Tuple2<>(staffInfo.getPolicy(), 1));
+            JavaPairRDD<String, Integer> reduceByKey2 = mapToPair2.reduceByKey(Integer::sum);
+            Map<String, Integer> collectAsMap2 = reduceByKey2.collectAsMap();
+
+            System.out.println(collectAsMap1);
+            System.out.println(collectAsMap2);
+
+            System.out.println(reduceByKey1.toDebugString());
+            System.out.println(reduceByKey2.toDebugString());
         }
     }
 }
