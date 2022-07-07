@@ -6,11 +6,13 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.spark.Accumulator;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
+import org.codehaus.jackson.map.ObjectMapper;
 import scala.Tuple2;
 
 import java.io.*;
@@ -37,7 +39,8 @@ public class HelloSparkExcercise {
 //        test10();
 //        test11();
 //        test12();
-        test13();
+//        test13();
+        test14();
     }
 
     public static void test1() {
@@ -551,6 +554,23 @@ public class HelloSparkExcercise {
             });
             List<StaffInfo> collect = mapRDD.collect();
             System.out.println(collect);
+        }
+    }
+
+    public static void test14() {
+        SparkConf sparkConf = new SparkConf();
+        sparkConf.setMaster("spark://spark-master:7077").setAppName("staff-statistic").setJars(new String[]{"hello-hadoop/target/hello-hadoop-1.0-SNAPSHOT.jar"});
+
+        try (JavaSparkContext sparkContext = new JavaSparkContext(sparkConf)) {
+            JavaRDD<String> fileRDD = sparkContext.textFile("hdfs:///upload/output/part-00000", 2);
+            Accumulator<Integer> integerAccumulator = sparkContext.intAccumulator(0);
+            JavaRDD<StaffInfo> staffInfoRDD = fileRDD.map(str -> {
+                integerAccumulator.add(1);
+                return new ObjectMapper().readValue(str, StaffInfo.class);
+            });
+
+            List<StaffInfo> take = staffInfoRDD.collect();
+            System.out.println(integerAccumulator.value());
         }
     }
 }
