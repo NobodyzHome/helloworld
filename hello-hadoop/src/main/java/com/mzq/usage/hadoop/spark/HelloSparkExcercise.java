@@ -11,6 +11,7 @@ import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.api.java.Optional;
 import org.apache.spark.broadcast.Broadcast;
 import org.codehaus.jackson.map.ObjectMapper;
 import scala.Tuple2;
@@ -40,7 +41,8 @@ public class HelloSparkExcercise {
 //        test11();
 //        test12();
 //        test13();
-        test14();
+//        test14();
+        test15();
     }
 
     public static void test1() {
@@ -562,15 +564,51 @@ public class HelloSparkExcercise {
         sparkConf.setMaster("spark://spark-master:7077").setAppName("staff-statistic").setJars(new String[]{"hello-hadoop/target/hello-hadoop-1.0-SNAPSHOT.jar"});
 
         try (JavaSparkContext sparkContext = new JavaSparkContext(sparkConf)) {
-            JavaRDD<String> fileRDD = sparkContext.textFile("hdfs:///upload/output/part-00000", 2);
+            JavaRDD<String> fileRDD = sparkContext.textFile("hdfs:///upload/output/part-00000", 10);
             Accumulator<Integer> integerAccumulator = sparkContext.intAccumulator(0);
             JavaRDD<StaffInfo> staffInfoRDD = fileRDD.map(str -> {
                 integerAccumulator.add(1);
                 return new ObjectMapper().readValue(str, StaffInfo.class);
             });
+            JavaPairRDD<String, Iterable<StaffInfo>> groupByRDD = staffInfoRDD.groupBy(StaffInfo::getEducation, 5);
+            JavaPairRDD<String, String> mapValuesRDD = groupByRDD.mapValues(it -> {
+                StringJoiner stringJoiner = new StringJoiner(",");
+                it.forEach(staffInfo -> stringJoiner.add(staffInfo.getName()));
+                return stringJoiner.toString();
+            });
 
-            List<StaffInfo> take = staffInfoRDD.collect();
+            mapValuesRDD.saveAsTextFile("hdfs:///upload/output/test2");
             System.out.println(integerAccumulator.value());
+        }
+    }
+
+    public static void test15() {
+        SparkConf sparkConf = new SparkConf();
+        sparkConf.setMaster("local").setAppName("staff-statistic").setJars(new String[]{"hello-hadoop/target/hello-hadoop-1.0-SNAPSHOT.jar"});
+
+        try (JavaSparkContext sparkContext = new JavaSparkContext(sparkConf)) {
+            JavaRDD<String> fileRDD = sparkContext.textFile("hdfs:///upload/output/part-00000", 1);
+            JavaRDD<StaffInfo> staffInfoRDD = fileRDD.map(str -> new ObjectMapper().readValue(str, StaffInfo.class));
+            staffInfoRDD.cache();
+            JavaPairRDD<String, Iterable<StaffInfo>> groupByRDD = staffInfoRDD.groupBy(StaffInfo::getEducation, 1);
+            JavaPairRDD<String, String> mapValuesRDD = groupByRDD.mapValues(it -> {
+                StringJoiner stringJoiner = new StringJoiner(",");
+                it.forEach(staffInfo -> {
+                    stringJoiner.add(staffInfo.getName());
+                });
+                return stringJoiner.toString();
+            });
+            JavaPairRDD<String, Integer> mapValuesRDD1 = groupByRDD.mapValues(it -> {
+                Integer i = 0;
+                for (StaffInfo staffInfo : it) {
+                    i++;
+                }
+                return i;
+            });
+
+            JavaPairRDD<String, Tuple2<String, Optional<Integer>>> joinRDD = mapValuesRDD.leftOuterJoin(mapValuesRDD1);
+            System.out.println(joinRDD.collectAsMap());
+            System.out.println(joinRDD.toDebugString());
         }
     }
 }
