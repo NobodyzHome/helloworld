@@ -11,7 +11,10 @@ import org.apache.flink.table.api.Expressions;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.TableResult;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
+import org.apache.flink.table.catalog.hive.HiveCatalog;
 import org.apache.flink.table.data.RowData;
+
+import java.util.concurrent.TimeUnit;
 
 /**
  * 我们知道flink是一种ETL pipeline的实现。我们flink程序的整体流程是从source中拉取数据，然后提取数据中的字段并进行一些转换，最后把这些字段存储到数据库中。这是一个最简单的flink程序的步骤，涉及到三个算子：source -> map -> sink。
@@ -54,7 +57,8 @@ import org.apache.flink.table.data.RowData;
 public class HelloWorldFlinkSql {
 
     public static void main(String[] args) throws Exception {
-        testFlinkSqlWithDataStream();
+//        testFlinkSqlWithDataStream();
+        testHive();
     }
 
     public static void testBase() throws Exception {
@@ -166,5 +170,32 @@ public class HelloWorldFlinkSql {
                 "with('connector'='filesystem','path'='file:///my-files','format'='json','json.map-null-key.mode'='DROP')");
 
         streamTableEnvironment.executeSql("insert into waybill_route_linke_fs select waybillCode,packageCode,TO_TIMESTAMP(FROM_UNIXTIME(staticDeliveryTime)) from " + waybillRouteLinkTable);
+    }
+
+    public static void testHive() {
+        StreamExecutionEnvironment streamExecutionEnvironment = StreamExecutionEnvironment.getExecutionEnvironment();
+        streamExecutionEnvironment.setParallelism(1);
+        streamExecutionEnvironment.setMaxParallelism(1);
+        streamExecutionEnvironment.enableCheckpointing(TimeUnit.MINUTES.toMillis(5));
+
+        StreamTableEnvironment tableEnvironment = StreamTableEnvironment.create(streamExecutionEnvironment);
+        HiveCatalog hiveCatalog = new HiveCatalog("myhive", "hello_world", "/my-repository/sql-cli/");
+        tableEnvironment.registerCatalog("myhive", hiveCatalog);
+        tableEnvironment.useCatalog("myhive");
+
+        tableEnvironment.executeSql("CREATE TABLE IF NOT EXISTS kafka_source (\n" +
+                "  id int,\n" +
+                "  name string\n" +
+                ") WITH (\n" +
+                " 'connector' = 'kafka',\n" +
+                " 'topic' = 'hello_world',\n" +
+                " 'properties.bootstrap.servers' = 'kafka-1:9092',\n" +
+                " 'properties.group.id' = 'testGroup',\n" +
+                " 'scan.startup.mode' = 'latest',\n" +
+                " 'format' = 'json',\n" +
+                " 'sink.parallelism' = '1'\n" +
+                ")");
+
+        tableEnvironment.executeSql("insert into hive_test/*+ options('sink.partition-commit.policy.kind'='metastore,success-file')*/ select id,name from kafka_source");
     }
 }

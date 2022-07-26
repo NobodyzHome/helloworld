@@ -85,7 +85,7 @@ services:
   # 配置jobManager
   flink-jobmanager:
     # 使用镜像flink，注意：该镜像的dockerfile默认执行的command是help，在实际使用这个镜像时，应根据需要使用command命令覆盖为：jobmanager、taskmanager等命令
-    image: flink
+    image: flink:1.15-java8
     container_name: my-flink-jobmanager
     # 8081应该暴露给宿主机，供宿主机访问flink ui页面
     ports:
@@ -121,7 +121,7 @@ services:
 
   # 配置第一个taskManager
   flink-taskmanager-1:
-    image: flink
+    image: flink:1.15-java8
     container_name: my-flink-taskmanager-1
     networks:
       - my-network
@@ -155,7 +155,7 @@ services:
 
   # 配置第二个taskManager
   flink-taskmanager-2:
-    image: flink
+    image: flink:1.15-java8
     container_name: my-flink-taskmanager-2
     networks:
       - my-network
@@ -458,7 +458,7 @@ volumes:
   hadoop_datanode:
   hadoop_historyserver:
 
-# docker compose up -d flink-jobmanager flink-taskmanager-1 namenode datanode resourcemanager nodemanager1 nodemanager2 historyserver hive-server hive-metastore hive-metastore-postgresql presto-coordinator spark-master spark-worker-1 spark-worker-2
+# docker compose up -d flink-jobmanager flink-taskmanager-1 namenode datanode resourcemanager nodemanager1 historyserver hive-server hive-metastore hive-metastore-postgresql presto-coordinator spark-master spark-worker-1 spark-worker-2
 # docker compose up -d namenode datanode resourcemanager nodemanager1 historyserver hive-server hive-metastore hive-metastore-postgresql presto-coordinator spark-master spark-worker-1
 # docker compose up -d flink-jobmanager flink-taskmanager-1 flink-taskmanager-2
 # docker compose up -d spark-master spark-worker-1 namenode datanode

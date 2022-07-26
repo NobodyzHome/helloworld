@@ -736,3 +736,17 @@ select waybill_code,last_value(coalesce(order_id,history_order_id)) from (
 select waybill_code,last_value(coalesce(order_id,history_order_id)) from (
     select waybill_code,order_id,last_value(order_id) over(partition by waybill_code order by row_time) history_order_id,row_time from starflow_waybill
 ) group by waybill_code,tumble(row_time,interval '80' second);
+
+
+CREATE TABLE IF NOT EXISTS kafka_source (
+                                            id int,
+                                            name string
+) WITH (
+      'connector' = 'kafka',
+      'topic' = 'hello_world',
+      'properties.bootstrap.servers' = 'kafka-1:9092',
+      'properties.group.id' = 'testGroup',
+      'properties.auto.offset.reset' = 'latest',
+      'format' = 'json',
+      'sink.parallelism' = '1'
+      )
