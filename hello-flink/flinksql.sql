@@ -746,7 +746,10 @@ CREATE TABLE IF NOT EXISTS kafka_source (
       'topic' = 'hello_world',
       'properties.bootstrap.servers' = 'kafka-1:9092',
       'properties.group.id' = 'testGroup',
-      'properties.auto.offset.reset' = 'latest',
+      'properties.auto.offset.reset' = 'earliest',
       'format' = 'json',
       'sink.parallelism' = '1'
-      )
+      );
+
+
+select id,name,count(*) cnt from kafka_source/*+options('properties.auto.offset.reset'='earliest')*/ group by grouping sets((id,name),(name))

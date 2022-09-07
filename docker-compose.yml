@@ -445,6 +445,33 @@ services:
       - /Users/maziqiang/Documents/my-libs:/my-libs
     networks:
       - my-network
+        
+  hbase-master:
+    image: bde2020/hbase-master:1.0.0-hbase1.2.6
+    container_name: hbase-master
+    hostname: hbase-master
+    env_file:
+      - ./hbase-distributed-local.env
+    environment:
+      SERVICE_PRECONDITION: "namenode:50070 datanode:50075 zookeeper:2181"
+    ports:
+      - 16010:16010
+    networks:
+      - my-network
+
+  hbase-region:
+    image: bde2020/hbase-regionserver:1.0.0-hbase1.2.6
+    container_name: hbase-regionserver
+    hostname: hbase-regionserver
+    env_file:
+      - ./hbase-distributed-local.env
+    environment:
+      HBASE_CONF_hbase_regionserver_hostname: hbase-region
+      SERVICE_PRECONDITION: "namenode:50070 datanode:50075 zookeeper:2181 hbase-master:16010"
+    ports:
+      - 16030:16030
+    networks:
+      - my-network
 
 # 配置自己的network，其实这里也可以不配置，因为本来就想让所有service走一个network，那么走默认的即可。这里只是为了展示networks的用法。
 networks:
@@ -462,3 +489,4 @@ volumes:
 # docker compose up -d namenode datanode resourcemanager nodemanager1 historyserver hive-server hive-metastore hive-metastore-postgresql presto-coordinator spark-master spark-worker-1
 # docker compose up -d flink-jobmanager flink-taskmanager-1 flink-taskmanager-2
 # docker compose up -d spark-master spark-worker-1 namenode datanode
+# docker compose up -d zookeeper namenode datanode resourcemanager nodemanager1 historyserver hive-server hive-metastore hive-metastore-postgresql presto-coordinator hbase-master hbase-region
