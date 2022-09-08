@@ -223,6 +223,12 @@
                 <version>${flink.mysql-cdc.version}</version>
             </dependency>
 
+            <dependency>
+                <groupId>org.apache.flink</groupId>
+                <artifactId>flink-connector-hbase-1.4</artifactId>
+                <version>${flink.version}</version>
+            </dependency>
+
             <!-- start: 以下是hadoop的依赖，包括hdfs和mapreduce -->
             <!-- 由于hive对hadoop的依赖是optional的，所以需要手动添加hadoop的依赖-->
             <dependency>

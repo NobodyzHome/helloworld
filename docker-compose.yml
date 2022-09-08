@@ -489,4 +489,4 @@ volumes:
 # docker compose up -d namenode datanode resourcemanager nodemanager1 historyserver hive-server hive-metastore hive-metastore-postgresql presto-coordinator spark-master spark-worker-1
 # docker compose up -d flink-jobmanager flink-taskmanager-1 flink-taskmanager-2
 # docker compose up -d spark-master spark-worker-1 namenode datanode
-# docker compose up -d zookeeper namenode datanode resourcemanager nodemanager1 historyserver hive-server hive-metastore hive-metastore-postgresql presto-coordinator hbase-master hbase-region
+# docker compose up -d flink-jobmanager flink-taskmanager-1 zookeeper namenode datanode resourcemanager nodemanager1 historyserver hive-server hive-metastore hive-metastore-postgresql presto-coordinator hbase-master hbase-region

@@ -753,3 +753,14 @@ CREATE TABLE IF NOT EXISTS kafka_source (
 
 
 select id,name,count(*) cnt from kafka_source/*+options('properties.auto.offset.reset'='earliest')*/ group by grouping sets((id,name),(name))
+
+CREATE TABLE hTable (
+                        rowkey string,
+                        info ROW<name string,age string>,
+                        extra ROW<tel string>,
+                        PRIMARY KEY (rowkey) NOT ENFORCED
+) WITH (
+      'connector' = 'hbase-1.4',
+      'table-name' = 'stu',
+      'zookeeper.quorum' = 'zookeeper:2181'
+      );
