@@ -4,7 +4,7 @@
         <!-- The default block size for new files, in bytes. You can use the following suffix (case insensitive): k(kilo), m(mega), g(giga), t(tera), p(peta), e(exa) to specify the size (such as 128k, 512m, 1g, etc.), Or provide complete size in bytes (such as 134217728 for 128 MB). -->
         <name>dfs.blocksize</name>
         <!-- default: 128MB -->
-        <value>1m</value>
+        <value>5m</value>
     </property>
 
     <!-- 指定上传文件时，每个切块的默认副本数量 -->

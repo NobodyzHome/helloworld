@@ -544,7 +544,7 @@ select
 from table(tumble(table mysql_hello,descriptor(update_time),interval '5' minute))
 group by window_start,window_end;
 
-CREATE CATALOG myhive WITH ('type'='hive','default-database'='hello_world','hive-conf-dir'='/my-repository');
+CREATE CATALOG myhive WITH ('type'='hive','default-database'='default','hive-conf-dir'='/my-repository');
 set table.sql-dialect=hive;
 
 create table kafka_test(id int,
@@ -764,3 +764,25 @@ CREATE TABLE hTable (
       'table-name' = 'stu',
       'zookeeper.quorum' = 'zookeeper:2181'
       );
+
+set execution.runtime-mode=batch;
+select
+    waybill_code,
+    route_site,
+    lead(route_site) over(partition by waybill_code) downstream,
+    lag(route_site) over(partition by waybill_code) upstream
+from(
+    select
+        t.*,
+        route_table.route_site
+    from waybill_route_link t
+    left join lateral table(explode(route)) as route_table(route_site) on true
+);
+
+create function explode as 'com.mzq.hello.flink.sql.udf.table.Explode';
+select a from table(explode('1,2,3')) as t(a);
+
+select
+    t.*,
+    route_site
+from waybill_route_link t left join lateral table(explode(route)) as route_table(route_site) on true;

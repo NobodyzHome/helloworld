@@ -1,5 +1,6 @@
 package com.mzq.usage.hadoop;
 
+import com.mzq.usage.Employee;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.*;
 import org.junit.Test;
@@ -167,6 +168,25 @@ public class HadoopBasicOptTest {
             fsDataInputStream.close();
         } catch (Exception e) {
             e.printStackTrace();
+        }
+    }
+
+    @Test
+    public void testUploadFile() {
+        Configuration configuration = new Configuration();
+        try (FileSystem fileSystem = FileSystem.get(configuration)) {
+            Path path = new Path("/upload/emp_data.txt");
+            if (fileSystem.exists(path)) {
+                fileSystem.delete(path, false);
+            }
+            FSDataOutputStream fsDataOutputStream = fileSystem.create(path);
+            for (int i = 1; i <= 20; i++) {
+                fsDataOutputStream.write(Employee.generate().toString().getBytes());
+            }
+            fsDataOutputStream.flush();
+            fsDataOutputStream.close();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 }

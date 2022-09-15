@@ -59,433 +59,121 @@ create external table external_test (id int,name string) partitioned by (dp stri
 insert into external_test partition(dp='active',dt='2022-03-15') values(3,'coco'),(4,'lala');
 create external table external_table (id int,name string)  row format delimited fields terminated by ','  location '/test/external';
 
-
-#!/usr/bin/env python3
-#===============================================================================
-# 程序名: app_zw_del_arrival_sum_5min.py
-# 项目名: 智网-离线指标历史数据
-# 业务方: 张丽()
-# 产  品: 高峰()
-# 背  景: 。
-# 目  标:
-# 输  出: 历史每天每5分钟的到货单量。
-# 说  明: 每日的数据封装到相应的dt分区。
-# 参  数:
-# 规  则: 封装每日的到货汇总数据到 dt分区
-# 周  期: 日-5分钟
-# 源  表:
-#
-# 临时表:
-#
-# 目标表: app.app_zw_del_arrival_sum_5min   --营业部应到货数据5分汇总表
-#
-# 版  本: v1.0    2020-10-16     闫大建                     初稿
-#
-#===============================================================================
-import sys
-import os
-import time
-from datetime import datetime,date,timedelta
-from HiveTask import HiveTask
-
-
-ht = HiveTask()
-
-#定义获取日期列表的函数
-def getDay(begin_date, end_date):
-    date_list = []
-    start_date = datetime.strptime(begin_date, "%Y-%m-%d")
-    end_date = datetime.strptime(end_date, "%Y-%m-%d")
-    while start_date <= end_date:
-        date_str = start_date.strftime("%Y-%m-%d")
-        date_list.append(date_str)
-        start_date += timedelta(days=1)
-    return date_list
-
-#设置日期
-now_bus_day_str = ht.oneday(0,' - ')
-last26_bus_day_str = ht.oneday(-26,' - ')
-last365_bus_day_str = ht.oneday(-365,' - ')
-last2_bus_day_str = ht.oneday(-2,' - ')
-last1_bus_day_str = ht.oneday(-1,' - ')
-last30_bus_day_str = ht.oneday(-30,' - ')
-
-#定义需要合并小文件的分区范围，在最后的ht.exec_sql的传入参数中使用
-#多分区目录合并
-partition_dir = []
-
-for date in getDay(now_bus_day_str, now_bus_day_str):
-    partition_dir.append('dt='+date)
-
-db_app='app'
-tab_name='app_zw_del_arrival_sum_5min'
-
-#SQL逻辑体
-sql1="""
---设置hive执行参数
-set hive.default.fileformat=Orc;
-set hive.input.format=org.apache.hadoop.hive.ql.io.CombineHiveInputFormat;
-set hive.hadoop.supports.splittable.combineinputformat=true;
-set mapred.max.split.size=512000000;
-set mapred.min.split.size.per.node=512000000;
-set mapred.min.split.size.per.rack=512000000;
-set hive.merge.size.per.task =512000000;
-set hive.merge.mapfiles=true;
-set hive.merge.mapredfiles = true;
-set hive.merge.smallfiles.avgsize=512000000;
-SET hive.exec.dynamic.partition.mode = nonstrict;
-set hive.auto.convert.join = true ;
-set hive.exec.parallel=true;
-set hive.exec.parallel.thread.number=8;
-
-INSERT overwrite TABLE """+db_app+"""."""+tab_name+""" partition (dt = '"""+now_bus_day_str+"""')
-SELECT
-	SUBSTR(T0.last_exam_tm, 1, 10) last_exam_dt, --到货日期
-	concat(SUBSTR(T0.last_exam_tm, 12, 2), ':', lpad(floor(SUBSTR(T0.last_exam_tm, 15, 2) / 5) * 5, 2, '0')) AS data_min, --五分钟汇总粒度
-	concat(SUBSTR(T0.last_exam_tm, 1, 13), ':', lpad(floor(SUBSTR(T0.last_exam_tm, 15, 2) / 5) * 5, 2, '0')) AS virtual_time, --虚拟时间
-	T2.org_id, --区域ID
-	T2.region_name, --区域名称
-	T2.zhanqv_code, --战区ID
-	T2.zhanqv_name, --战区名称
-	T2.area_id, --片区ID
-	T2.area_name, --片区名称
-	T2.partition_id, --分区ID
-	T2.partition_name, --分区名称
-	T0.site_code, --站点ID
-	T2.SITE_NAME, --站点名称
-	case when t5.order_level_type in ('wy028-001-001','wy028-001-002')
-	     then 1
-		 when t5.order_level_type in ('wy028-002-001','wy028-002-002')
-		 then 2
-		 when t5.order_level_type = 'wy028-003-001'
-		 then 3
-	else 100 end way_bill_source, --运单来源：1自营 2商家 3商业 100其他
-	CASE
-		WHEN SUBSTR(t1.waybill_sign, 55, 1) = '0'
-			AND SUBSTR(t1.waybill_sign, 31, 1) IN('0', 'B', 'C', '5')
-			AND SUBSTR(t1.waybill_sign, 40, 1) = '0'
-		THEN 1 --特惠送
-		WHEN SUBSTR(t1.waybill_sign, 55, 1) = '0'
-			AND SUBSTR(t1.waybill_sign, 31, 1) = '1'
-			AND SUBSTR(t1.waybill_sign, 116, 1) IN('0', '1', '2', '3')
-		THEN 2 --特快送
-		WHEN SUBSTR(t1.waybill_sign, 55, 1) = '0'
-			AND SUBSTR(t1.waybill_sign, 31, 1) = '4'
-		THEN 2 --特快送
-		WHEN SUBSTR(t1.waybill_sign, 55, 1) = '0'
-			AND SUBSTR(t1.waybill_sign, 31, 1) = '2'
-			AND SUBSTR(t1.waybill_sign, 16, 1) IN('1', '2', '3', '7', '8')
-		THEN 2 --特快送
-		WHEN SUBSTR(t1.waybill_sign, 55, 1) = '0'
-			AND SUBSTR(t1.waybill_sign, 31, 1) = '3'
-		THEN 2 --特快送
-		WHEN SUBSTR(t1.waybill_sign, 55, 1) = '0'
-			AND SUBSTR(t1.waybill_sign, 31, 1) = '9'
-		THEN 4 --生鲜特快
-		WHEN SUBSTR(t1.waybill_sign, 55, 1) = '0'
-			AND SUBSTR(t1.waybill_sign, 31, 1) = 'A'
-		THEN 5 --生鲜特惠
-		WHEN SUBSTR(t1.waybill_sign, 55, 1) = '1'
-		THEN 6 --生鲜专送
-		WHEN SUBSTR(t1.waybill_sign, 55, 1) = '0'
-			AND SUBSTR(t1.waybill_sign, 31, 1) = '7'
-			AND SUBSTR(t1.waybill_sign, 29, 1) = '8'
-		THEN 3 --同城速配
-		WHEN SUBSTR(t1.waybill_sign, 55, 1) = '0'
-			AND SUBSTR(t1.waybill_sign, 31, 1) = '8'
-		THEN 3 --同城速配
-		WHEN SUBSTR(t1.waybill_sign, 87, 1) = '2'
-			AND SUBSTR(t1.waybill_sign, 1, 1) = '6'
-		THEN 3 --同城速配
-		ELSE 99
-	END AS prd_type, --产品类型
-	CASE
-		WHEN SUBSTR(t1.waybill_sign, 55, 1) = '0'
-			AND SUBSTR(t1.waybill_sign, 31, 1) = '1'
-			AND SUBSTR(t1.waybill_sign, 116, 1) = '1'
-		THEN 21 --特快航空
-		WHEN SUBSTR(t1.waybill_sign, 55, 1) = '0'
-			AND SUBSTR(t1.waybill_sign, 31, 1) = '1'
-			AND SUBSTR(t1.waybill_sign, 116, 1) = '2'
-		THEN 22 --特快即日
-		WHEN SUBSTR(t1.waybill_sign, 55, 1) = '0'
-			AND SUBSTR(t1.waybill_sign, 31, 1) = '1'
-			AND SUBSTR(t1.waybill_sign, 116, 1) = '3'
-		THEN 23 --特快次晨
-		ELSE 299
-	END AS quick_type, --特快送类型
-	CASE
-		WHEN SUBSTR(t1.waybill_sign, 57, 1) = '2'
-		THEN 1
-		ELSE 0
-	END AS is_ka, -- 是否ka 1 是 0 否
-	t2.type_enum, --配送方式
-	t2.subtype_enum,--配送子类型
-	t3.staff_role, --人员性质
-	CASE
-		WHEN t4.collection_money > 0
-			AND SUBSTR(t1.waybill_sign, 40, 1) = '0'
-		THEN 1
-		ELSE 0
-	END is_cod, --是否COD 1:是 0:否
-	CASE
-		WHEN SUBSTR(t1.waybill_sign, 62, 1) = '8'
-		THEN 1
-		ELSE 0
-	END AS is_zy, --是否众邮 1:是 0:否
-	CASE
-		WHEN SUBSTR(t1.waybill_sign, 10, 1) IN('2', '5', '6', '7', '8', '9')
-			OR SUBSTR(t1.ord_flag, 2, 1) IN('3', '4', '5', '6', '7', '8', '9')
-		THEN 1
-		ELSE 2
-	END AS goods_type, --货物类型 1:生鲜 2:普货
-	count(T1.waybill_code) AS exam_num,
-	sum(package_qtty) package_qtty
-FROM
-    (
-	SELECT
-	     NVL(TMP1.waybill_code,TMP2.WAYBILL_CODE) WAYBILL_CODE ,
-		 NVL(TMP1.site_code,TMP2.site_code) site_code,
-		 NVL(TMP1.last_exam_operr_id,TMP2.last_exam_operr_id) last_exam_operr_id,
-		 NVL(TMP1.last_exam_tm,TMP2.last_exam_tm) last_exam_tm
-	FROM
-		(
-		 select
-			 waybill_code
-			 ,operator_site_id site_code
-			 ,operator_user_id last_exam_operr_id
-			 ,create_time  last_exam_tm
-	    FROM
-            (SELECT
-                waybill_code,
-                operator_site_id,
-                operator_user_id,
-                create_time,
-                row_number() over(partition by waybill_code order by create_time desc)	rn
-            FROM
-                fdm.fdm_bd_waybill_package_state
-            WHERE
-                SUBSTR(create_time, 1, 10) = '"""+now_bus_day_str+"""'
-                AND state = -460
-            ) a
-        where a.rn=1
-
-		) tmp1
-
-		full join
-        (select
-			 waybill_code
-			 ,operator_site_id site_code
-			 ,operator_user_id last_exam_operr_id
-			 ,create_time  last_exam_tm
-	    FROM
-            (SELECT
-                waybill_code,
-                operator_site_id,
-                operator_user_id  ,
-                create_time,
-                row_number() over(partition by waybill_code order by create_time desc)	rn
-            FROM
-                fdm.fdm_bd_waybill_package_state
-            WHERE
-                SUBSTR(create_time, 1, 10) = '"""+now_bus_day_str+"""'
-                AND state = 80
-            ) a
-        where a.rn=1
-		) tmp2
-	on tmp1.waybill_code=tmp2.waybill_code
-	)
-	T0
-    JOIN
-	(
-		SELECT
-			waybill_code,
-			outer_ord_flag,
-			waybill_sign,
-			distribute_type,
-			ord_flag,
-			package_qtty
-		FROM
-			cdm.cdm_dis_waybill_process_basic_det
-
-		WHERE
-		    DP='ACTIVE'  --如果需要3天之前的历史数据，此条件需要去除
-			AND NOT
-			(
-				split(waybill_sign, '0') [0] = '2'
-				AND size(split(waybill_sign, '0')) = 1
-				AND waybill_code = sale_ord_id
-			) --剔除无效运单
-			--AND last_create_site_id NOT IN('566358', '566360', '566372', '566374', '566377', '566396', '566399')
-			--AND coalesce(shelves_tm,'') = '' --剔除自提上架的运单
-	)
-	T1
-ON T0.waybill_code=T1.waybill_code
-JOIN
-	(
-		SELECT
-			site_code,
-			site_name,
-			type_enum,
-			subtype_enum,
-			org_id,
-			zhanqv_code,
-			area_id,
-			partition_id,
-			region_name,
-			zhanqv_name,
-			area_name,
-			partition_name
-		FROM
-			dim.dim_dis_base_site
-		WHERE type_enum<> 64
-	)
-	T2
-ON
-	t0.site_code = t2.site_code
-LEFT JOIN
-	(
-		SELECT
-			staff_no,
-			max(staff_role)	staff_role
-		FROM
-			fdm.fdm_basic_ql_base_staff_chain
-		WHERE
-			DP = 'ACTIVE'
-			and staff_role is not null
-			AND yn = 1
-		group by staff_no
-	)
-	t3d
-ON
-	t0.last_exam_operr_id = t3.staff_no
-LEFT JOIN
-	(
-		SELECT
-			delivery_id,
-			collection_money
-		FROM
-			fdm.fdm_receive_orderinfo_chain
-		WHERE
-			dp = 'ACTIVE'
-			AND SUBSTR(create_time, 1, 10) >= '"""+last30_bus_day_str+"""'
-	)
-	t4
-ON
-	t0.waybill_code = t4.delivery_id
-LEFT JOIN
-    (    SELECT
-            waybill_code,
-            order_level_type
-        FROM cdm.cdm_dis_del_waybill_info
-	    WHERE DP='ACTIVE' --历史3天以上回算需删除此条件
-	    and ship_bill_type_cd<>'22'
-    ) t5
-ON
-    t0.waybill_code=t5.waybill_code
-group by
-    SUBSTR(T0.last_exam_tm, 1, 10) ,
-	concat(SUBSTR(T0.last_exam_tm, 12, 2), ':', lpad(floor(SUBSTR(T0.last_exam_tm, 15, 2) / 5) * 5, 2, '0')) ,
-	concat(SUBSTR(T0.last_exam_tm, 1, 13), ':', lpad(floor(SUBSTR(T0.last_exam_tm, 15, 2) / 5) * 5, 2, '0')),
-	T2.org_id,
-	T2.region_name,
-	T2.zhanqv_code,
-	T2.zhanqv_name,
-	T2.area_id,
-	T2.area_name,
-	T2.partition_id,
-	T2.partition_name,
-	T0.site_code,
-	T2.SITE_NAME,
-	case when t5.order_level_type in ('wy028-001-001','wy028-001-002')
-	     then 1
-		 when t5.order_level_type in ('wy028-002-001','wy028-002-002')
-		 then 2
-		 when t5.order_level_type = 'wy028-003-001'
-		 then 3
-	else 100 end ,
-	CASE
-		WHEN SUBSTR(t1.waybill_sign, 55, 1) = '0'
-			AND SUBSTR(t1.waybill_sign, 31, 1) IN('0', 'B', 'C', '5')
-			AND SUBSTR(t1.waybill_sign, 40, 1) = '0'
-		THEN 1 --特惠送
-		WHEN SUBSTR(t1.waybill_sign, 55, 1) = '0'
-			AND SUBSTR(t1.waybill_sign, 31, 1) = '1'
-			AND SUBSTR(t1.waybill_sign, 116, 1) IN('0', '1', '2', '3')
-		THEN 2 --特快送
-		WHEN SUBSTR(t1.waybill_sign, 55, 1) = '0'
-			AND SUBSTR(t1.waybill_sign, 31, 1) = '4'
-		THEN 2 --特快送
-		WHEN SUBSTR(t1.waybill_sign, 55, 1) = '0'
-			AND SUBSTR(t1.waybill_sign, 31, 1) = '2'
-			AND SUBSTR(t1.waybill_sign, 16, 1) IN('1', '2', '3', '7', '8')
-		THEN 2 --特快送
-		WHEN SUBSTR(t1.waybill_sign, 55, 1) = '0'
-			AND SUBSTR(t1.waybill_sign, 31, 1) = '3'
-		THEN 2 --特快送
-		WHEN SUBSTR(t1.waybill_sign, 55, 1) = '0'
-			AND SUBSTR(t1.waybill_sign, 31, 1) = '9'
-		THEN 4 --生鲜特快
-		WHEN SUBSTR(t1.waybill_sign, 55, 1) = '0'
-			AND SUBSTR(t1.waybill_sign, 31, 1) = 'A'
-		THEN 5 --生鲜特惠
-		WHEN SUBSTR(t1.waybill_sign, 55, 1) = '1'
-		THEN 6 --生鲜特惠
-		WHEN SUBSTR(t1.waybill_sign, 55, 1) = '0'
-			AND SUBSTR(t1.waybill_sign, 31, 1) = '7'
-			AND SUBSTR(t1.waybill_sign, 29, 1) = '8'
-		THEN 3 --同城速配
-		WHEN SUBSTR(t1.waybill_sign, 55, 1) = '0'
-			AND SUBSTR(t1.waybill_sign, 31, 1) = '8'
-		THEN 3 --同城速配
-		WHEN SUBSTR(t1.waybill_sign, 87, 1) = '2'
-			AND SUBSTR(t1.waybill_sign, 1, 1) = '6'
-		THEN 3 --同城速配
-		ELSE 99
-	END,
-	CASE
-		WHEN SUBSTR(t1.waybill_sign, 55, 1) = '0'
-			AND SUBSTR(t1.waybill_sign, 31, 1) = '1'
-			AND SUBSTR(t1.waybill_sign, 116, 1) = '1'
-		THEN 21 --特快航空
-		WHEN SUBSTR(t1.waybill_sign, 55, 1) = '0'
-			AND SUBSTR(t1.waybill_sign, 31, 1) = '1'
-			AND SUBSTR(t1.waybill_sign, 116, 1) = '2'
-		THEN 22 --特快即日
-		WHEN SUBSTR(t1.waybill_sign, 55, 1) = '0'
-			AND SUBSTR(t1.waybill_sign, 31, 1) = '1'
-			AND SUBSTR(t1.waybill_sign, 116, 1) = '3'
-		THEN 23 --特快次晨
-		ELSE 299
-	END ,
-	CASE
-		WHEN SUBSTR(t1.waybill_sign, 57, 1) = '2'
-		THEN 1
-		ELSE 0
-	END ,
-	t2.type_enum, --配送方式
-	t2.subtype_enum,
-	t3.staff_role, --人员性质
-	CASE
-		WHEN t4.collection_money > 0
-			AND SUBSTR(t1.waybill_sign, 40, 1) = '0'
-		THEN 1
-		ELSE 0
-	END ,
-	CASE
-		WHEN SUBSTR(t1.waybill_sign, 62, 1) = '8'
-		THEN 1
-		ELSE 0
-	END ,
-	CASE
-		WHEN SUBSTR(t1.waybill_sign, 10, 1) IN('2', '5', '6', '7', '8', '9')
-			OR SUBSTR(t1.ord_flag, 2, 1) IN('3', '4', '5', '6', '7', '8', '9')
-		THEN 1
-		ELSE 2
-	END
-
-    """
-ht.exec_sql(schema_name = db_app, table_name = tab_name, sql = sql1,merge_flag = True, merge_type='mr',merge_part_dir = partition_dir)
-
-
 select TIMESTAMPDIFF(DAY,to_date('2022-03-08 15:33:22.0','yyyy-MM-dd'),CURRENT_DATE);
+
+
+create table employee(
+    emp_no string,
+    emp_name string,
+    dept_no string,
+    dept_name string,
+    sex string,
+    create_dt string,
+    salary int
+)
+row format delimited fields terminated by ',' lines terminated by '\n'
+stored as textfile;
+
+-- load data用于将指定的数据文件发送到hive table对应的hdfs目录，load会做两件事：
+-- 1.如果inpath是本地文件，那么将文件上传到hive表或分区的目录（hdfs -fs -put）；如果inpath是hdfs路径，则将指定路径的文件移动到hive表或分区的目录（hdfs -fs -mv）
+-- 2.如果metastore里没有要加载的分区信息，则在metastore的partitions表中创建该分区的信息
+load data inpath '/upload/emp_data.txt' overwrite into table employee;
+
+-- over内没有任何内容，那么每条数据的窗口大小是一样的，即窗口内的数据内容都是全表数据
+-- 如果over内既没有order by，也没有rows限定条件，那么会默认增加rows between unbounded preceding and unbounded following，即取窗口基础数据的所有数据作为窗口的实际数据
+select *,sum(salary) over() from employee;
+-- 当over内只有partition by dept_no时，代表窗口中的内容按照当前数据中的dept_no的值进行过滤，因此相同dept_no值的数据的窗口数据内容是相同的。例如当前数据dept_no=hr，那么该数据的窗口中的数据内容是数据源中所有dept_no=hr的数据。
+select *,sum(salary) over(partition by dept_no) from employee;
+-- over(order by salary)，由于没有给出range限制条件，因此会增加一个默认的rows限定条件，即增加rows between unbounded preceding and current row条件。
+-- over(order by salary)，由于没有partition by，因此窗口中基础数据内容是全表中的数据。同时没有rows限定条件，默认增加了rows between unbounded preceding and current row，因此每条数据的窗口的实际内容是：全表数据按照salary排序后，取第一条数据到当前数据。
+select *,sum(salary) over(order by salary) from employee;
+-- over(partition by dept_no order by salary)，既有partition by，又有order by。那么每条数据的窗口的内容是：过滤出全表中dept_no为当前数据dept_no值的数据，按salary进行排序，取排序后的第一条数据到当前数据。
+select *,sum(salary) over(partition by dept_no order by salary) from employee;
+-- over(order by salary rows between 2 preceding and 3 following)，每条数据的窗口是：以全表数据为基础数据，按salary进行排序，取当前数据的前两条、当前数据、当前数据的后三条作为窗口的实际数据内容。
+select *,sum(salary) over(order by salary rows between 2 preceding and 3 following) from employee;
+-- over(partition by sex order by salary rows between current row and 4 following)，每条数据的窗口数据内容是：以全表中sex为当前数据sex值的数据作为基础数据，按salary进行排序，取当前数据在基础数据的位置到窗口最后一条数据，作为窗口的实际数据内容。
+-- 总结,over内主要由三部分组成：
+-- 1.【确定窗口数据基础范围】partition by：使用当前数据的对应字段的值，过滤出窗口中数据的基础内容。如果没有写，则代表基础内容是全表中的数据
+-- 2.【确定当前数据在窗口基础范围的位置】order by：对窗口基础数据内容进行排序，找出当前数据的内容在窗口基础数据中的位置。如果没有给出rows，默认增加rows between unbounded preceding and current row
+-- 3.【根据数据在窗口基础范围的位置来挑选窗口实际的数据内容】rows between x preceding and y following：在窗口基础数据排序后，按照指定的要求和当前数据在窗口的位置，挑选出窗口实际的数据内容。每条数据的窗口的内容是：当前数据的前x条、当前数据、当前数据的后y条。
+select *,sum(salary) over(partition by sex order by salary rows between current row and unbounded following) from employee;
+
+select id,collect_list(id) over(order by id) window_elements,sum(id) over(order by id) sum_id from test1;
+
+select *,RANK() over(order by dept_no) from employee;
+select *,DENSE_RANK() over(order by dept_no) from employee;
+
+set mapreduce.job.reduces=3;
+-- order by用于全数据排序，在map-reduce中，会强制让任务只有一个reducer，这样所有map都将数据发送给同一个reducer，这样这个reducer收到的自然就是全数据，就可以进行全数据的排序了。由于这种方式只能有一个reducer，因此运行效率非常低
+insert overwrite table test select * from employee order by salary desc;
+-- distribute by dept_no sort by salary 按照dept_no进行分区，然后每个分区中再按salary进行排序，即保证分区内有序。注意，有可能是多个dept_no的值放在同一个分区，因此每个分区内是对多个dept_no值的数据按dept_no、salary进行排序。
+insert overwrite table test select * from employee distribute by dept_no sort by dept_no,salary;
+-- sort by也是能够保证分区内有序，但是sort by有个问题就是不知道他是按什么分区的，每条数据应该分到哪个分区是随机。这往往不符合我们的需求，因为一堆不相干的数据放在一个分区然后再排序，这是没有意义的。
+-- 所以我们一般在使用sort by前给出distribute by，指定拥有相同字段的值分到一个分区里，再对这个分区的数据排序才是有意义的。
+insert overwrite table test select * from employee sort by salary desc;
+-- cluster by dept_no 相当于distribute by dept_no sort by dept_no，但是cluster by不支持desc
+insert overwrite table test select * from employee cluster by dept_no;
+
+create table waybill_route_link(
+    waybill_code string,
+    operate_type int,
+    operate_site int,
+    operate_site_name string,
+    route string
+)
+partitioned by (dt string)
+row format DELIMITED fields terminated by '#' lines terminated by '\n'
+stored as textfile;
+
+insert into waybill_route_link partition(dt='2022-09-10') values('JDA',21,10013,'xian_site','beijing_sort,beijing_site,xian_sort,xian_site'),('JDB',21,101,'shanxi_site','xian_sort,xian_site,shanxi_site'),('JDC',15,1101,'hainan',null);
+
+-- 侧表的实现思路是：
+-- 1.拿主表的字段去调侧表的udtf
+-- 2.udtf可能会返回多条数据，侧表每返回一条数据，就和主表数据拼接成一条数据。因此如果侧表调完udtf后返回N条数据，那么主表该数据就会被增加成N条数据
+-- 当加上侧表后，select * 中就包含my_col字段了
+select * from waybill_route_link lateral view explode(split(route,',')) my_table as my_col;
+
+-- 如果lateral view后没有增加outer，那么如果当前数据调用udtf后，udtf没有返回任何数据，当前数据就会被过滤掉。而如果lateral view后面有outer，那么即使udtf没有返回数据，当前数据也不会被过滤掉。
+select * from waybill_route_link lateral view outer explode(split(route,',')) my_table as my_col;
+
+-- 不能将侧表出来的数据再作为子查询的数据源，下面sql会报错：FAILED: ParseException line 4:5 cannot recognize input near '(' 'select' 'waybill_code' in joinSource
+select
+    waybill_code,operate_type,route_site
+from (
+     select waybill_code,operate_type,route_site from waybill_route_link lateral view explode(split(route,',')) route_table as route_site
+ );
+
+-- 如果对侧表出来的数据进行group by，那么是使用下面的方式，不能将侧表出来的数据作为子查询的数据源
+select route_site,count(waybill_code) cnt from waybill_route_link lateral view explode(split(route,',')) route_table as route_site group by route_site;
+
+-- 需求是：一个运单的route字段中有多个站点，需要先拆成列转行，变成多条数据。然后求当前运单当前站点的数据的上游站点和下游站点
+-- 例如一条是这样的：JDA,'beijing_sort,beijing_site,shanxi_site'
+-- 需要先列转行成以下数据
+-- JDA,beijing_sort
+-- JDA,beijing_site
+-- JDA,shanxi_site
+-- 然后为每条数据找到上游站点和下游站点，形成以下数据
+-- JDA,beijing_sort,null,beijing_site
+-- JDA,beijing_site,beijing_sort,shanxi_site
+-- JDA,shanxi_site,beijing_site,null
+select
+    *,
+    lead(route_site) over(partition by waybill_code) site_downstream,
+    lag(route_site) over(partition by waybill_code) site_upstream
+from waybill_route_link lateral view outer explode(split(route,',')) t as route_site;
+
+-- 直接使用udtf，这样出来的数据中只能有一个字段，就是udtf返回的字段
+select explode(split(route,',')) from waybill_route_link;
+
+select
+    waybill_code,
+    route,
+    route_site,
+    lead(route_site) over (partition by waybill_code) downstream,
+   count(1) over(partition by waybill_code) cnt,
+   count(1) over(partition by route_site) cnt_1
+from waybill_route_link lateral view outer explode(split(route,',')) t as route_site;
+
+select route_site,count(*) cnt
+from waybill_route_link lateral view explode(split(route,',')) t as route_site
+group by route_site;
