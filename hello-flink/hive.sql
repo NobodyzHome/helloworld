@@ -177,3 +177,6 @@ from waybill_route_link lateral view outer explode(split(route,',')) t as route_
 select route_site,count(*) cnt
 from waybill_route_link lateral view explode(split(route,',')) t as route_site
 group by route_site;
+
+select * from employee where dept_no is null;
+insert into employee values('emp_999','测试',null,null,'male',null,1000);

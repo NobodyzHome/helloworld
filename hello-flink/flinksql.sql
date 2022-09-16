@@ -786,3 +786,68 @@ select
     t.*,
     route_site
 from waybill_route_link t left join lateral table(explode(route)) as route_table(route_site) on true;
+
+/*
+    gropuing sets用于多聚合维度查询，例如grouping sets((dept_name),(sex),(dept_name,sex),())是按以下聚合多次维度
+    1.按dept_name聚合，结果如下
+        hr,null,10
+        dev,null,20
+    2.按sex聚合，结果如下
+        null,male,11
+        null,female,13
+    3.按dept_namem,sex聚合，结果如下
+        hr,male,3
+        hr,female,7
+        dev,male,8
+        dev,female,13
+    4.()代表按全表聚合，结果如下
+        null,null,30
+
+    grouping_id用于获取当前数据是按什么维度聚合的。grouping_id(dept_name,sex)：
+    1.当按照dept_name聚合，dept_name字段有值，sex字段没有值，那么dept_name，sex就变为了二进制的01（有值的字段为0，没值的字段为1），01转换为十进制则是1。所以按dept_name聚合时，grouping_id(dept_name,sex)的值为1
+        hr,null,10,1
+        dev,null,20,1
+    2.当按照sex聚合，dept_name字段没有值，sex字段有值，那么dept_name，sex就变为了二进制的10，转换为十进制是2。所以按sex聚合时，grouping_id(dept_name,sex)的值为2
+        null,male,11,2
+        null,female,13,2
+    3.当按照dept_name,sex聚合时，dept_name和sex字段都有值，那么dept_name，sex就变为了二进制的00，转换为十进制是0。所以按dept_name、sex聚合时，grouping_id(dept_name,sex)的值为0
+        hr,male,3,0
+        hr,female,7,0
+        dev,male,8,0
+        dev,female,13,0
+    4.当按照()聚合时，也就是全表聚合，dept_name和sex字段都没有值，那么dept_name，sex就变为了二进制的11，转换为十进制是3。所以按全表聚合时，grouping_id(dept_name,sex)的值为3
+        null,null,30，3
+
+    多维聚合的好处：
+    1.仅用一次计算，可以算出多维度的聚合结果
+    2.结合grouping_id()，我们可以轻松从多维度聚合结果中选取出我们需要的一个或多个维度的聚合结果的数据
+*/
+select
+    dept_name,
+    sex,
+    count(*) cnt,
+    grouping_id(dept_name,sex) gp_id
+from employee
+group by grouping sets((dept_name),(sex),(dept_name,sex),())
+order by grouping_id(dept_name,sex);
+
+-- rollup(dept_name,sex)是grouping sets的语法糖，提供了递进式的聚合维度。rollup(dept_name,sex)相当于grouping sets((dept_name,sex),(dept_name),())
+select
+    dept_name,
+    sex,
+    count(*) cnt,
+    grouping_id(dept_name,sex) gp_id
+from employee
+group by rollup(dept_name,sex)
+order by grouping_id(dept_name,sex);
+
+-- cube也是grouping_sets的语法糖，相比rollup提供了更多的聚合维度。cube(dept_name,sex)相当于grouping sets((dept_name,sex),(dept_name),(sex),())
+select
+    dept_name,
+    sex,
+    count(*) cnt,
+    grouping_id(dept_name,sex) gp_id
+from employee
+group by cube(dept_name,sex)
+order by grouping_id(dept_name,sex);
+
