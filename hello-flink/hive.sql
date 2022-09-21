@@ -121,11 +121,59 @@ create table waybill_route_link(
     operate_site_name string,
     route string
 )
+-- 增加分区字段
 partitioned by (dt string)
+-- 数据文件中数据的样式
 row format DELIMITED fields terminated by '#' lines terminated by '\n'
+-- 数据文件存储格式
 stored as textfile;
 
-insert into waybill_route_link partition(dt='2022-09-10') values('JDA',21,10013,'xian_site','beijing_sort,beijing_site,xian_sort,xian_site'),('JDB',21,101,'shanxi_site','xian_sort,xian_site,shanxi_site'),('JDC',15,1101,'hainan',null);
+-- 使用create table as select的方式，只能是创建一个非分区表，然后将select中的数据（select的数据表可以是分区表）写入这个非分区表。
+-- 下面这个语句尝试create一个分区表，执行时会报以下异常：CREATE-TABLE-AS-SELECT does not support partitioning in the target table
+create table waybill_route_link_bak
+    partitioned by (dt string)
+row format DELIMITED fields terminated by '@' lines terminated by '\n'
+stored as textfile
+as
+select
+    *
+from waybill_route_link;
+
+-- 使用create table as select的方式，不能指定table中的字段。这个table有哪些字段完全是由select语句推断出来
+-- 使用create table as select的方式，可以指定row format、stored as等，这些可以与select的table不一样
+create table waybill_route_link_bak
+-- 给出了和数据源表不同的数据存储格式
+stored as orc
+as
+select
+    waybill_code,
+    operate_type,
+    operate_site_name,
+    route
+from waybill_route_link
+where
+    waybill_code is not null;
+
+-- 创建一个table，其表定义完全和like的表一样
+create table waybill_route_link1 like waybill_route_link_bak;
+
+-- 删除一个表，会进行以下操作：
+-- 1.在metastore的tbls、partitions表中删除该表的数据
+-- 2-1.如果该表是管理表，则会直接在hdfs删除该table的目录及目录下的内容
+-- 2-2.如果该表是外部表，则不会删除该表在hdfs中的目录
+drop table waybill_route_link_bak;
+
+insert into waybill_route_link partition(dt='2022-09-09') values('JDA',21,10013,'xian_site','beijing_sort,beijing_site,xian_sort,xian_site'),('JDB',21,101,'shanxi_site','xian_sort,xian_site,shanxi_site'),('JDC',15,1101,'hainan',null);
+
+-- 清空一个表的所有数据，会进行以下操作：
+-- 1.去metastore中查询partitions表，获取该表的所有分区
+-- 2.删除每一个分区目录下的所有数据文件
+-- 注意：truncate只会删除该表下的所有数据文件，不会删除分区
+-- 如果truncate不是分区表，则直接删除该表在hdfs目录下的所有文件
+truncate table waybill_route_link;
+
+-- 在使用truncate时还可以指定分区，仅删除某一个分区目录下的所有文件
+truncate table waybill_route_link partition (dt='2022-09-08');
 
 -- 侧表的实现思路是：
 -- 1.拿主表的字段去调侧表的udtf
@@ -180,3 +228,158 @@ group by route_site;
 
 select * from employee where dept_no is null;
 insert into employee values('emp_999','测试',null,null,'male',null,1000);
+
+select * from employee;
+select
+    *,
+    avg(salary) over(partition by sex order by salary rows between 1 preceding and 1 following) near_avg_salary,
+    avg(salary) over(partition by sex) avg_salary
+from employee;
+
+desc function extended split;
+
+select
+    emp_name,
+    salary,
+    word,
+    count(1) over(partition by word) cnt
+from employee lateral view explode(split(emp_name,'')) lt as word
+where
+    word is not null and word <> ''
+order by word;
+
+-- 查询所有分区
+show partitions waybill_route_link;
+-- 查询指定分区
+show partitions waybill_route_link partition(dt='2022-09-09');
+
+-- hive大部分ddl都会操作两部分：
+-- 1.hdfs对应的文件夹或文件
+-- 2.metastore中对应的元数据表
+-- 因此add partition操作会：
+-- 1.向hdfs中该表的路径下创建一个分区文件夹
+-- 2.向metastore的partitions表中插入一条数据
+alter table waybill_route_link add partition (dt='2022-09-09') partition(dt='2022-09-08');
+
+-- drop partition操作会：
+-- 1.删除hdfs中该分区对应的文件和目录
+-- 2.删除metastore中partitions表对应的数据
+alter table waybill_route_link drop partition (dt='2022-09-09'),partition(dt='2022-09-08');
+
+show partitions waybill_route_link;
+
+-- 根据hive表的hdfs的分区目录来修复metastore中partitions表的数据
+MSCK REPAIR TABLE waybill_route_link;
+
+-- load命令在操作hdfs命令的同时，还会操作元数据。因此将文件load到一个不存在的partition时，load命令除了将inpath指定的文件移动到指定分区的目录，还会在partitions表中增加一条该分区的数据
+load data inpath '/user/hive/warehouse/waybill_route_link/dt=2022-09-15/000000_0' into table waybill_route_link partition(dt='2022-09-10');
+
+show functions like 'a*';
+
+desc function extended abs;
+
+describe extended waybill_route_link;
+
+show create table waybill_route_link;
+
+show partitions waybill_route_link;
+
+describe waybill_route_link partition (dt='2022-09-07');
+
+describe  waybill_route_link;
+
+
+-- insert values
+-- 1.insert values 静态分区
+-- 通过在表后面用partition来表示values中的数据要插入到哪个固定的分区
+insert into waybill_route_link partition (dt='2022-09-20') values('JDD',21,10013,'xian_site','beijing_sort,beijing_site,xian_sort,xian_site'),('JDF',21,111,'beijing_site','beijing_sort,beijing_site,xian_sort,xian_site');
+-- 2.insert values 动态分区
+-- 如果使用动态分区，需要将hive.exec.dynamic.partition.mode参数设为nonstrict，设为strict时，在插入动态分区时，需要有一个分区字段是静态的（例如有dp、dt二级分区，如果动态分区的话，那么insert时，dp分区字段的值必须是静态的）
+-- 注意：插入动态分区时，分区字段默认是最后一个字段，别赋值错了
+set hive.exec.dynamic.partition.mode=nonstrict;
+insert overwrite table waybill_route_link partition(dt) values('JDD',21,10013,'xian_site','beijing_sort,beijing_site,xian_sort,xian_site','2022-08-11'),('JDE',30,125,'shanxi_site','beijing_sort,beijing_site,xian_sort,xian_site','2022-08-16');
+
+create table waybill_route_link_copy like waybill_route_link;
+-- insert from querys
+-- 1.insert from query 静态分区
+insert overwrite table waybill_route_link_copy partition (dt='history')
+select
+    waybill_code,
+    operate_type,
+    operate_site,
+    operate_site_name,
+    route
+from waybill_route_link;
+-- 2.insert from query 动态分区
+set hive.exec.dynamic.partition.mode=nonstrict;
+insert into waybill_route_link_copy partition (dt)
+select * from waybill_route_link where dt>='2022-09-01';
+
+/*
+    在hive中，一个表分为两部分：一是存在于metastore的元数据，存储了这个表有哪些字段、有哪些分区、数据存储位置等信息。二是存在于hdfs中的真正的数据文件。
+    hive认为管理表同时拥有这两部分的权限，即可以增加字段、分区，也可以增加或删除hdfs中的数据文件(Hive assumes that it owns the data for managed tables,data is attached to the Hive entities. So, whenever you change an entity (e.g. drop a table) the data is also changed (in this case the data is deleted))
+    hive认为外部表只拥有元数据的权限，即只能增加字段、分区，不能对数据文件进行修改(For external tables Hive assumes that it does not manage the data.Use external tables when files are already present or in remote locations, and the files should remain even if the table is dropped.)
+    我们一般把管理表就看作关系型数据库的表，他能够管理数据。而外部表的使用场景是：假设已经有了一批同构的数据文件（例如通过数据采集抓取来的），我们建立一个外部表，并将location指向对应数据文件的目录，然后我们就可以通过对外部表执行聚合等语句来达到对那些数据文件进行分析的目的。
+    总结：
+    1.管理表真正用于管理数据，他的生命周期是和数据文件同步的。给表增加数据，就会在对应目录下增加数据文件；当表被drop后，元数据和数据文件都被删除了。当然，管理表管理数据的最终目的，也是为了使用sql语句对这些数据进行分析。
+    2.外部表相当于在已有的数据文件上盖上一层表，目的就是以访问表的方式来对已有数据文件进行分析。他的生命周期是和数据文件独立开来的，当外部表被删除后（也就是元数据中该表被删除），对应的数据文件也不会被删除
+ */
+create external table  hello_external(
+    id int,
+    name string
+)
+-- 外部表也可以是分区表，意味着外部数据采集软件，是按天rollup的。例如10号采集的数据放在2022-09-10文件夹中，11号采集的数据放在2022-09-11文件夹中
+partitioned by (dt string)
+-- 这里设置的数据样式必须和外部数据文件的样式能够匹配上，否则无法将数据解析成对应的字段
+row format delimited fields terminated by ',' lines terminated by '\n'
+-- 使用外部表时，可以自己指定表的路径。假设我们是先有数据文件后有表的话，我们在建外部表时，就需要把location设置为数据文件所在的路径
+location '/hello_external';
+
+-- 我们可以向外部表插入数据。不过尽量不要这样，我们建立外部表，是想要通过hive来加工已有的数据，而非往里新增数据
+insert into hello_external partition(dt) values(1,'hello','2022-09-10'),(2,'external','2022-09-11');
+-- 不能删除外部表的数据，因为hive认为外部表只有使用数据的权利，没有删除数据的权利。如果对外部表进行truncate操作，会报错误：[Error 10146]: Cannot truncate non-managed table hello_external.
+truncate table hello_external;
+-- 当外部表被drop后，只会在metastore中删除该表的元数据，不会删除对应的数据文件
+drop table hello_external;
+-- 可以通过describe formatted的数据结果中的Table Type字段来获取当前表是管理表还是外部表
+describe formatted hello_external;
+-- 通过对外部表使用sql来达到对外部数据进行分析的目的
+select ch,count(*) word_cnt from hello_external lateral view explode(split(name,'')) t as ch
+where ch <> ''
+group by ch;
+
+
+
+-- 下面四行执行完毕后，就得到了一个分区目录下有文件，但元数据中没有所有分区信息的表
+create external table partition_table like waybill_route_link;
+insert into partition_table partition(dt) select * from waybill_route_link;
+drop table partition_table;
+create external table partition_table like waybill_route_link;
+-- 当我们自己手动在hdfs中建了分区目录和数据文件，但是元数据中partitions表还没有分区时，我们是查不到数据的。因为hive查分区表，永远是先去partitions表中查询分区信息，由于没有查到分区信息，因此不会加载分区目录下的数据文件。
+select * from partition_table;
+-- 我们手动在元数据中增加了一个分区的信息，我们就可以查到该分区的数据了
+alter table partition_table add partition (dt='2022-08-11');
+select * from partition_table where dt='2022-08-11';
+-- 我们通过msck命令，根据hdfs中的分区目录来修复元数据，将分区目录已存在但是元数据中没有的分区都添加到partitions表中
+msck repair table partition_table;
+-- 元数据中分区修复完毕后，我们再直接查该表，就可以查到所有分区的数据了
+select * from partition_table;
+
+
+create table two_partition(
+    name string
+)
+partitioned by (dp string,dt string)
+row format delimited fields terminated by '@' lines terminated by '\n'
+stored as textfile;
+
+insert into two_partition partition (dp,dt) values('ACTIVE-2022-09-11','ACTIVE','2022-09-11'),('ACTIVE-2022-09-10','ACTIVE','2022-09-10'),('ACTIVE-2022-09-09','ACTIVE','2022-09-09'),('HISTORY-2022-09-11','HISTORY','2022-09-11'),('HISTORY-2022-09-10','HISTORY','2022-09-10'),('HISTORY-2022-09-09','HISTORY','2022-09-09');
+// 全表查询
+select * from two_partition;
+// 只按照一级分区查询
+select * from two_partition where dp='HISTORY';
+// 按照一级和二级分区查询
+select * from two_partition where dp='ACTIVE' and dt='2022-09-11';
+// 只按照二级分区查询
+select * from two_partition where dt='2022-09-11';
+

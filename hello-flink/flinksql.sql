@@ -851,3 +851,10 @@ from employee
 group by cube(dept_name,sex)
 order by grouping_id(dept_name,sex);
 
+select DATE_FORMAT(CEIL(CURRENT_TIMESTAMP TO HOUR),'yyyy-MM-dd HH:mm');
+select substr(cast(CEIL(time '02:30:14' TO HOUR) as string),1,5);
+
+select lpad(cast(hour(current_time) as string),2,'0')||lpad(cast((minute(current_time)/20)*20 as string),2,'0');
+select (((minute(current_time)/15)+1)*15) -1
+
+

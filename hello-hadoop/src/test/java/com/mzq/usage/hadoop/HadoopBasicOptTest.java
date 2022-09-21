@@ -175,16 +175,18 @@ public class HadoopBasicOptTest {
     public void testUploadFile() {
         Configuration configuration = new Configuration();
         try (FileSystem fileSystem = FileSystem.get(configuration)) {
-            Path path = new Path("/upload/emp_data.txt");
-            if (fileSystem.exists(path)) {
-                fileSystem.delete(path, false);
-            }
-            FSDataOutputStream fsDataOutputStream = fileSystem.create(path);
-            for (int i = 1; i <= 20; i++) {
-                fsDataOutputStream.write(Employee.generate().toString().getBytes());
-            }
-            fsDataOutputStream.flush();
-            fsDataOutputStream.close();
+            fileSystem.delete(new Path("/hello_external/000000_0"));
+//
+//            Path path = new Path("/upload/emp_data.txt");
+//            if (fileSystem.exists(path)) {
+//                fileSystem.delete(path, false);
+//            }
+//            FSDataOutputStream fsDataOutputStream = fileSystem.create(path);
+//            for (int i = 1; i <= 20; i++) {
+//                fsDataOutputStream.write(Employee.generate().toString().getBytes());
+//            }
+//            fsDataOutputStream.flush();
+//            fsDataOutputStream.close();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
