@@ -139,7 +139,7 @@ select
     *
 from waybill_route_link;
 
--- 使用create table as select的方式，不能指定table中的字段。这个table有哪些字段完全是由select语句推断出来
+-- 使用create table as select的方式，不能指定table中的字段。这个table有哪些字段完全是由select语句推断出来，如果是select *，那么会把select表的分区字段放在数据字段的最后，作为新表的一个字段
 -- 使用create table as select的方式，可以指定row format、stored as等，这些可以与select的table不一样
 create table waybill_route_link_bak
 -- 给出了和数据源表不同的数据存储格式
@@ -298,6 +298,8 @@ insert into waybill_route_link partition (dt='2022-09-20') values('JDD',21,10013
 -- 注意：插入动态分区时，分区字段默认是最后一个字段，别赋值错了
 set hive.exec.dynamic.partition.mode=nonstrict;
 insert overwrite table waybill_route_link partition(dt) values('JDD',21,10013,'xian_site','beijing_sort,beijing_site,xian_sort,xian_site','2022-08-11'),('JDE',30,125,'shanxi_site','beijing_sort,beijing_site,xian_sort,xian_site','2022-08-16');
+insert into waybill_route_link partition(dt='2022-08-11') values('JDG',21,10013,'xian_site','beijing_sort,beijing_site,xian_sort,xian_site'),('JDN',30,125,'shanxi_site','beijing_sort,beijing_site,xian_sort,xian_site');
+
 
 create table waybill_route_link_copy like waybill_route_link;
 -- insert from querys
@@ -383,3 +385,55 @@ select * from two_partition where dp='ACTIVE' and dt='2022-09-11';
 // 只按照二级分区查询
 select * from two_partition where dt='2022-09-11';
 
+insert into waybill_route_link partition(dt='2021-09-30') values('JGBB',15,1911,'xian_site','beijing_sort,beijing_site,xian_sort,xian_site');
+
+alter table waybill_route_link add columns(
+    yn int comment '是否有效'
+)
+-- 加上cascade后，不仅对table的元数据加上该字段，还会对所有partition的元数据加上该字段
+cascade;
+
+alter table waybill_route_link add columns(
+    -- 由于没有加cascade，因此仅会对table的元数据加上该字段，也就是说历史partition中没有该字段，而以后新建的partition中有该字段
+    -- 如果历史partition的元数据不加该字段，那么查询历史分区，该字段的值永远为null，并且就算insert插入数据时给历史分区的该字段插入值了，在查询时，该字段的值也为null。
+    -- 但是，实际插入的文件中，该字段是有值的，只是查询时查询不出来，就是因为该partition的元数据没有该字段
+    version int comment '数据版本'
+);
+
+show partitions waybill_route_link;
+describe waybill_route_link partition (dt='2022-08-11');
+
+select * from waybill_route_link where dt='2021-09-30';
+insert into waybill_route_link partition(dt='2021-09-30') values ('JDOO',75,187,'xian_site','beijing_sort,beijing_site,xian_sort,xian_site',0,10);
+
+insert into waybill_route_link partition(dt='2021-01-30') values('MZ',23,1911,'xian_site','beijing_sort,beijing_site,xian_sort,xian_site',2,5);
+select * from waybill_route_link where dt='2022-08-11';
+
+create table waybill_route_link_replace
+row format delimited fields terminated by '#' lines terminated by '\n'
+stored as textfile
+as
+select
+    *
+from waybill_route_link;
+
+drop table waybill_route_link_replace;
+select * from waybill_route_link_replace;
+
+-- replace用于使用新字段列表完全替代已有的字段列表。注意，该命令只是修改元数据，是不会修改数据文件的。
+-- 假设原表有四个字段waybill_code,operate_type,operate_site,site_name，对应数据文件内容为JDV,12,1311,xian_site。当使用replace变为两个字段way_bill,op_type后，该表查询的内容为JDV,12。但是数据文件的内容没有被修改
+-- 注意相同位置的字段在replace前后的类型是否兼容，例如replace前，第三个字段是int，replace后，第三个字段是string，int -> string是可以兼容的，不会报错。但是如果第二个字段replace前是string，replace后是int，string -> int是不兼容的，则会报出异常：Unable to alter table. The following columns have types incompatible with the existing columns in their respective positions :site_name
+alter table waybill_route_link_replace replace columns(
+    waybill_code string,
+    operate_type string,
+    operate_site string,
+    site_name string
+);
+
+select * from waybill_route_link_replace;
+describe formatted waybill_route_link_replace;
+
+-- 使用change可以更改指定字段的名字、类型、注释等。也是用cascade来对所有partition的元数据进行修改，不加cascade则只对table的元数据进行更改
+alter table waybill_route_link change operate_t op_type int comment '操作类型' cascade;
+
+describe waybill_route_link partition(dt='2021-01-31');

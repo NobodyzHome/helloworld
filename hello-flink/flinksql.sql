@@ -756,12 +756,11 @@ select id,name,count(*) cnt from kafka_source/*+options('properties.auto.offset.
 
 CREATE TABLE hTable (
                         rowkey string,
-                        info ROW<name string,age string>,
-                        extra ROW<tel string>,
+                        info ROW<name string,level string>,
                         PRIMARY KEY (rowkey) NOT ENFORCED
 ) WITH (
       'connector' = 'hbase-1.4',
-      'table-name' = 'stu',
+      'table-name' = 'dept',
       'zookeeper.quorum' = 'zookeeper:2181'
       );
 
@@ -857,4 +856,54 @@ select substr(cast(CEIL(time '02:30:14' TO HOUR) as string),1,5);
 select lpad(cast(hour(current_time) as string),2,'0')||lpad(cast((minute(current_time)/20)*20 as string),2,'0');
 select (((minute(current_time)/15)+1)*15) -1
 
+set execution.runtime-mode=batch;
+set table.exec.hive.infer-source-parallelism=true;
+set table.exec.hive.infer-source-parallelism.max=2;
+set table.exec.resource.default-parallelism=1;
+insert overwrite waybill_route_link/*+ options('sink.parallelism'='1') */ select * from waybill_route_link order by waybill_code,operate_type;
+
+select hour(TO_TIMESTAMP_LTZ(UNIX_TIMESTAMP('2022-09-01 12:32:33', 'yyyy-MM-dd HH:mm:ss'),0)) am_flag;
+
+create table hbase_dept(
+    rowkey string,
+    info row<name string,level string,tel string>
+)with(
+    'connector'='hbase-1.4',
+    'zookeeper.quorum'='zookeeper:2181',
+    'table-name'='dept'
+);
+
+create table kafka_test(
+    contents string
+)with(
+    'connector'='kafka',
+    'properties.bootstrap.servers'='kafka-1:9092',
+    'properties.client.id'='my-cli',
+    'properties.group.id'='my-group',
+    'properties.auto.offset.reset'='earliest',
+    'topic'='hello_world',
+    'format'='raw'
+);
+
+insert into hbase_dept values('1001',row('flink dev','l4',cast(null as string))),('1002',row('flink test','l5','137****3172'));
+
+create table kafka_test(
+         contents string
+ )with(
+                'connector'='kafka',
+                'properties.bootstrap.servers'='kafka-1:9092',
+                'properties.client.id'='my-cli',
+                'properties.group.id'='my-group',
+                'properties.auto.offset.reset'='earliest',
+                'topic'='hello_world',
+                'format'='raw'
+            );
+
+select
+    t.contents,h.info
+from (
+     select *,proctime() row_time from kafka_test
+ ) t
+left join hbase_dept for system_time  as of t.row_time as h
+on t.contents=h.rowkey;
 
