@@ -32,7 +32,7 @@
     <properties>
         <maven.compiler.source>8</maven.compiler.source>
         <maven.compiler.target>8</maven.compiler.target>
-        <flink.version>1.15.0</flink.version>
+        <flink.version>1.16.0</flink.version>
         <elasticsearch.version>7.5.1</elasticsearch.version>
         <flink.mysql-cdc.version>2.0.2</flink.mysql-cdc.version>
         <lettuce.version>6.0.2.RELEASE</lettuce.version>

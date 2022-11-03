@@ -2,6 +2,7 @@ package com.mzq.hello.flink;
 
 import com.mzq.hello.domain.WaybillRouteLink;
 import com.mzq.hello.flink.func.source.WaybillRouteLinkSource;
+import com.mzq.hello.flink.usage.sql.HiveUsage;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
@@ -58,7 +59,10 @@ public class HelloWorldFlinkSql {
 
     public static void main(String[] args) throws Exception {
 //        testFlinkSqlWithDataStream();
-        testHive();
+//        testHive();
+
+        HiveUsage hiveUsage = new HiveUsage();
+        hiveUsage.execute();
     }
 
     public static void testBase() throws Exception {
