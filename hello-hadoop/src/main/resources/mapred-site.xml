@@ -241,4 +241,20 @@
         <!-- 如果设置成500kb，也就是说每个切片最多500kb。在切割一个4.3mb大小、有5个block、每个block1mb（最后一个block300kb）的文件时，最终会生成9个split，前8个split500kb，最后一个split300kb。 -->
         <value>500000</value>
     </property>
+
+    <!-- mapreduce客户端在根据【切块清单】生成【切片清单】时，切片的最大大小，单位是byte -->
+    <property>
+        <!-- The maximum size chunk that map input should be split into. Note that some file formats may have maximum split sizes that take priority over this setting. -->
+        <name>mapreduce.map.output.compress</name>
+        <!-- default:false -->
+        <value>true</value>
+    </property>
+
+    <!-- mapreduce客户端在根据【切块清单】生成【切片清单】时，切片的最大大小，单位是byte -->
+    <property>
+        <!-- The maximum size chunk that map input should be split into. Note that some file formats may have maximum split sizes that take priority over this setting. -->
+        <name>mapreduce.map.output.compress.codec</name>
+        <!-- default:false -->
+        <value>org.apache.hadoop.io.compress.GzipCodec</value>
+    </property>
 </configuration>

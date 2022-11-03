@@ -90,4 +90,17 @@ public class Employee {
     public String toString() {
         return String.format("%s,%s,%s,%s,%s,%s,%d%n", getEmp_no(), getEmp_name(), getDept_no(), getDept_name(), getSex(), getCreate_dt(), getSalary());
     }
+
+    public static Employee from(String str) {
+        String[] split = str.split(",");
+        Employee employee = new Employee();
+        employee.setEmp_no(split[0]);
+        employee.setEmp_name(split[1]);
+        employee.setDept_no(split[2]);
+        employee.setDept_name(split[3]);
+        employee.setSex(split[4]);
+        employee.setCreate_dt(split[5]);
+        employee.setSalary(Integer.valueOf(split[6]));
+        return employee;
+    }
 }
