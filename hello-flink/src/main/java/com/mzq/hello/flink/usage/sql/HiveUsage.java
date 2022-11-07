@@ -8,7 +8,7 @@ public class HiveUsage extends BaseSqlUsage {
     @Override
     public void execute() {
         TableEnvironment tableEnvironment=TableEnvironment.create(EnvironmentSettings.inBatchMode());
-        HiveCatalog hiveCatalog = new HiveCatalog("my-hive", "default", "/my-repository");
+        HiveCatalog hiveCatalog = new HiveCatalog("my-hive", "default", "/Users/maziqiang/Documents/my-libs");
         tableEnvironment.registerCatalog("my-hive", hiveCatalog);
         tableEnvironment.useCatalog("my-hive");
         tableEnvironment.executeSql("create table default_catalog.default_database.kafka_sink(dept_no string,dept_name string,cnt bigint)" +
