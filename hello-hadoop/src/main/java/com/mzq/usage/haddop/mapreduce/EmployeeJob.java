@@ -61,17 +61,21 @@ public class EmployeeJob {
 
     public static void main(String[] args) throws IOException, InterruptedException, ClassNotFoundException {
         /*
+         *  一个mapreduce任务最基础需要配置的内容：
          *  1.mapreduce任务的名字
          *  2.设置mapreduce程序的jar包，客户端需要把jar包提交到hdfs
          *  3.Mapper实现类
          *  4.Reducer实现类
          *  5.任务输入文件路径
          *  6.任务输出文件路径
-         *  7.读取输入文件的InputFormat
+         *  7.设置用于读取输入文件内容并转换为key、value（也就是Mapper.map方法的第一和第二个入参）的InputFormat
          *  8.设置MapTask输出的中间数据的key和value的类型（为什么不需要设置输入数据的类型，因为使用的InputFormat决定了输入数据的key和value的类型）
-         *  9.写入任务计算结果的OutputFormat
+         *  9.设置用于将Reducer.reduce输出的key、value写入到输出文件的OutputFormat
          *  10.设置ReduceTask输出的最终计算结果的key和value的类型
          *  11.任务运行模式(local还是yarn)、切片大小、压缩输出等配置存储于mapred-site.xml文件中
+         *
+         *  MapReduce中数据的流转：
+         *  输入文件 --> InputFormat --> Mapper.map --> 序列化中间结果 --> 网络传输 --> 反序列化中间数据 --> Reducer.reduce --> OutputFormat --> 输出文件
          */
         JobConf jobConf = new JobConf(true);
         // 设置任务名称
