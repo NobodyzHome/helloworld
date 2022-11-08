@@ -2,9 +2,10 @@ package com.mzq.usage;
 
 import org.apache.commons.lang3.RandomUtils;
 
+import java.io.Serializable;
 import java.time.LocalDate;
 
-public class Employee {
+public class Employee implements Serializable {
 
     private static String[] deptNames = {"营销部", "运维部", "人力资源部", "研发部", "产品部", "销售部", "项目部", "测试部", "合规部", "法务部", "客户服务部"};
 
