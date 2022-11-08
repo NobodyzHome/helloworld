@@ -5,7 +5,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.*;
@@ -36,16 +35,16 @@ public class EmployeeJob {
         }
     }
 
-    public static class DeptReducer implements Reducer<Text, Text, Text, IntWritable> {
+    public static class DeptReducer implements Reducer<Text, Text, String, Integer> {
 
         @Override
-        public void reduce(Text key, Iterator<Text> values, OutputCollector<Text, IntWritable> output, Reporter reporter) throws IOException {
+        public void reduce(Text key, Iterator<Text> values, OutputCollector<String, Integer> output, Reporter reporter) throws IOException {
             int cnt = 0;
             while (values.hasNext()) {
                 cnt++;
                 values.next();
             }
-            output.collect(key, new IntWritable(cnt));
+            output.collect(key.toString(), cnt);
         }
 
         @Override
@@ -75,7 +74,10 @@ public class EmployeeJob {
          *  11.任务运行模式(local还是yarn)、切片大小、压缩输出等配置存储于mapred-site.xml文件中
          *
          *  MapReduce中数据的流转：
-         *  输入文件 --> InputFormat --> Mapper.map --> 序列化中间结果 --> 网络传输 --> 反序列化中间数据 --> Reducer.reduce --> OutputFormat --> 输出文件
+         *  输入文件 --> RecordReader（通过InputFormat.getRecordReader()获取）解析成key,value --> Mapper.map --> 序列化中间结果 --> 网络传输 --> 反序列化中间数据 --> Reducer.reduce计算出key,value --> Collector.collect --> RecordWriter(通过OutputFormat.getRecordWriter()获取)写入key,value --> 输出文件
+         *  可以看到：
+         *  RecordReader是将数据文件读取为key、value；RecordWriter是将key、value写入到输出文件。
+         *  选用了何种InputFormat决定了如何将数据文件读取成key,value；而选用了何种OutputFormat决定了如何将key,value写入到输出文件。
          */
         JobConf jobConf = new JobConf(true);
         // 设置任务名称
@@ -89,9 +91,10 @@ public class EmployeeJob {
         // 设置任务的输入文件路径
         TextInputFormat.addInputPath(jobConf, new Path("/data/employee"));
         // 设置任务的输出文件路径
-        Path outputDir = new Path("/data/result");
+        Path outputDir = new Path("/data/employee_mapreduce_result");
         TextOutputFormat.setOutputPath(jobConf, outputDir);
         // 设置读取输入文件的InputFormat
+        // TextInputFormat每次调用next方法是读取当前数据文件的一行，然后把当前行第一个字符的offset作为key，把当前行的内容作为value。key和value会传入Mapper.map方法
         jobConf.setInputFormat(TextInputFormat.class);
         /*
             为什么要是用Text、IntWritable这些类来替代String、int等类型？
@@ -102,12 +105,14 @@ public class EmployeeJob {
         jobConf.setMapOutputKeyClass(Text.class);
         jobConf.setMapOutputValueClass(Text.class);
         // 设置写入任务计算结果的OutputFormat
-        jobConf.setOutputFormat(SequenceFileOutputFormat.class);
-        // 设置ReduceTask输出的数据的key和value的类型
-        jobConf.setOutputKeyClass(Text.class);
-        jobConf.setOutputValueClass(IntWritable.class);
+        // TextOutputFormat是把Reducer.reduce中collect的key和value按照key\tvalue的格式写入到目的地
+        jobConf.setOutputFormat(TextOutputFormat.class);
+        // 设置ReduceTask输出的数据的key和value的类型，TextOutputFormat不要求输出的key和value必须是hadoop的writable的
+        jobConf.setOutputKeyClass(String.class);
+        jobConf.setOutputValueClass(Integer.class);
 
         // 如果输出路径已存在，需要先删除该路径，否则提交任务会报错
+        // path.getFileSystem()会根据classpath下core-site.xml的fs.defaultFS配置来知道要使用哪个文件系统以及文件系统的连接地址
         try (FileSystem fileSystem = outputDir.getFileSystem(new Configuration(true))) {
             boolean exists = fileSystem.exists(outputDir);
             if (exists) {
