@@ -456,6 +456,8 @@ services:
       SERVICE_PRECONDITION: "namenode:50070 datanode:50075 zookeeper:2181"
     ports:
       - 16010:16010
+      # 16000是hbase-client发起请求的端口
+      - 16000:16000
     networks:
       - my-network
 
@@ -470,6 +472,25 @@ services:
       SERVICE_PRECONDITION: "namenode:50070 datanode:50075 zookeeper:2181 hbase-master:16010"
     ports:
       - 16030:16030
+      # 16020是hbase-client访问region-server的端口
+      - 16020:16020
+    networks:
+      - my-network
+
+  hbase-region1:
+    image: bde2020/hbase-regionserver:1.0.0-hbase1.2.6
+    container_name: hbase-regionserver1
+    hostname: hbase-regionserver1
+    env_file:
+      - ./hbase-distributed-local.env
+    environment:
+      HBASE_CONF_hbase_regionserver_hostname: hbase-region1
+      HBASE_CONF_hbase_regionserver_info_port: 16031
+      HBASE_CONF_hbase_regionserver_port: 16021
+      SERVICE_PRECONDITION: "namenode:50070 datanode:50075 zookeeper:2181 hbase-master:16010"
+    ports:
+      - 16031:16031
+      - 16021:16021
     networks:
       - my-network
 
@@ -492,3 +513,4 @@ volumes:
 # docker compose up -d flink-jobmanager flink-taskmanager-1 zookeeper namenode datanode resourcemanager nodemanager1 historyserver hive-server hive-metastore hive-metastore-postgresql presto-coordinator hbase-master hbase-region
 # docker compose up -d zookeeper namenode datanode resourcemanager nodemanager1 hive-server hive-metastore hive-metastore-postgresql presto-coordinator hbase-master hbase-region spark-master spark-worker-1
 # docker compose up -d flink-taskmanager-1 kafka-1 namenode datanode resourcemanager nodemanager1 hive-server hive-metastore hive-metastore-postgresql presto-coordinator
+# docker compose up -d flink-jobmanager flink-taskmanager-1 zookeeper namenode datanode hbase-master hbase-region hbase-region1 hive-server hive-metastore hive-metastore-postgresql presto-coordinator

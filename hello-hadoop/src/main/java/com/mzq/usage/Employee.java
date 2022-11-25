@@ -76,7 +76,7 @@ public class Employee implements Serializable {
     public static Employee generate() {
         BuildFullName buildFullName = new BuildFullName();
         Employee employee = new Employee();
-        employee.setEmp_no("emp_" + RandomUtils.nextInt(1, 100));
+        employee.setEmp_no("emp_" + RandomUtils.nextInt(1, 100000000));
         int deptNo = RandomUtils.nextInt(0, deptNames.length);
         employee.setDept_no("dept_" + deptNo);
         employee.setDept_name(deptNames[deptNo]);

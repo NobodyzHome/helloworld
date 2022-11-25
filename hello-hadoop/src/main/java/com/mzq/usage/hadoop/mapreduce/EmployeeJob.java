@@ -1,4 +1,4 @@
-package com.mzq.usage.haddop.mapreduce;
+package com.mzq.usage.hadoop.mapreduce;
 
 import com.mzq.usage.Employee;
 import lombok.extern.slf4j.Slf4j;

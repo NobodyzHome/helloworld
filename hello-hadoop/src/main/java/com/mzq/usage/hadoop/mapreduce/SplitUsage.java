@@ -1,4 +1,4 @@
-package com.mzq.usage.haddop.mapreduce;
+package com.mzq.usage.hadoop.mapreduce;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hadoop.conf.Configuration;

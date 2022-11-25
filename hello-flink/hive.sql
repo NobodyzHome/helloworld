@@ -437,3 +437,15 @@ describe formatted waybill_route_link_replace;
 alter table waybill_route_link change operate_t op_type int comment '操作类型' cascade;
 
 describe waybill_route_link partition(dt='2021-01-31');
+
+create table employee(
+    emp_no string,
+    emp_name string,
+    dept_no string,
+    dept_name string,
+    sex string,
+    create_dt string,
+    salary int
+)
+row format delimited fields terminated by ',' lines terminated by '\n'
+stored as textfile;

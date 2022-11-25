@@ -907,3 +907,82 @@ from (
 left join hbase_dept for system_time  as of t.row_time as h
 on t.contents=h.rowkey;
 
+
+create table hbase_employee(
+    rowkey string,
+    base row<emp_no string,emp_name string,sex string>,
+    dept row<dept_no string,dept_name string>,
+    info row<create_dt string,salary string>
+)
+with(
+    'connector'='hbase-1.4',
+    'zookeeper.quorum'='zookeeper:2181',
+    'table-name'='employee'
+);
+
+set execution.runtime-mode=batch;
+
+CREATE CATALOG myhive WITH ('type'='hive','default-database'='default','hive-conf-dir'='/my-repository');
+use catalog myhive;
+
+insert into hbase_employee
+select
+    emp_no,
+    row(emp_no,emp_name,sex) base,
+    row(dept_no,dept_name) dept,
+    row(create_dt,salary_str) info
+from (
+    select *,cast(salary as string) salary_str
+    from employee
+);
+
+insert into kafka_sink_employee_summary
+select dept_no,dept_name,count(emp_no) cnt
+from (
+     select base.emp_no,dept.dept_no,dept.dept_name
+     from hbase_employee
+)
+group by dept_no,dept_name;
+
+select dept_no, dept_name,sum(salary) salary_sum, avg(salary) salary_avg, count(emp_no) cnt
+from (select base.emp_no, dept.dept_no, dept.dept_name,cast(info.salary as int) salary
+      from hbase_employee)
+group by dept_no, dept_name;
+
+select *
+from (select *, row_number() over(partition by dept_name order by create_dt) rn
+      from (select base.emp_no, dept.dept_no, dept.dept_name, info.create_dt
+            from hbase_employee))
+where rn<=3;
+
+select
+    rowkey,
+    base.emp_no,
+    base.emp_name,
+    base.sex,
+    dept.dept_no,
+    dept.dept_name,
+    info.create_dt,
+    info.salary,
+    avg(cast(salary as int)) over(partition by dept_name)
+from hbase_employee
+where
+    info.salary between '2000' and '3000'
+    and base.sex = 'female'
+limit 30;
+
+select count(*) cnt
+from hbase_employee;
+
+create table kafka_sink_employee_summary(
+    dept_no string,
+    dept_name string,
+    cnt bigint,
+    primary key (dept_no,dept_name) not enforced
+)with(
+    'connector'='upsert-kafka',
+    'properties.bootstrap.servers'='kafka-1:9092',
+    'topic'='employee_summary',
+    'key.format'='json',
+    'value.format'='json'
+);

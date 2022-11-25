@@ -1,4 +1,4 @@
-package com.mzq.usage.haddop.mapreduce;
+package com.mzq.usage.hadoop.mapreduce;
 
 import com.mzq.usage.Employee;
 import org.apache.hadoop.fs.FileSystem;

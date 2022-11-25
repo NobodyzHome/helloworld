@@ -1,4 +1,4 @@
-package com.mzq.usage.haddop.mapreduce;
+package com.mzq.usage.hadoop.mapreduce;
 
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.Text;
