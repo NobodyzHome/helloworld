@@ -99,6 +99,8 @@
             <version>3.0.8</version>
         </dependency>
 
+        <!-- hbase集成map-reduce需要使用的构件：start -->
+        <!-- 只使用hbase client访问client需要使用的构件，包含HBaseConfiguration、ConnectionFactory等类：start -->
         <!-- https://mvnrepository.com/artifact/org.apache.hbase/hbase-client -->
         <dependency>
             <groupId>org.apache.hbase</groupId>
@@ -111,6 +113,35 @@
                 </exclusion>
             </exclusions>
         </dependency>
+        <!-- 只使用hbase client访问client需要使用的构件，包含HBaseConfiguration、ConnectionFactory等类：end -->
+
+        <!-- 包含TableMapper、TableReducer等和mapreduce集成的类 -->
+        <!-- https://mvnrepository.com/artifact/org.apache.hbase/hbase-server -->
+        <dependency>
+            <groupId>org.apache.hbase</groupId>
+            <artifactId>hbase-server</artifactId>
+            <version>1.2.6</version>
+            <exclusions>
+                <exclusion>
+                    <artifactId>log4j</artifactId>
+                    <groupId>log4j</groupId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <!-- https://mvnrepository.com/artifact/org.apache.hbase/hbase-hadoop-compat -->
+        <dependency>
+            <groupId>org.apache.hbase</groupId>
+            <artifactId>hbase-hadoop-compat</artifactId>
+            <version>1.2.6</version>
+            <exclusions>
+                <exclusion>
+                    <artifactId>log4j</artifactId>
+                    <groupId>log4j</groupId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <!-- hbase集成map-reduce需要使用的构件：end -->
     </dependencies>
 
     <modelVersion>4.0.0</modelVersion>

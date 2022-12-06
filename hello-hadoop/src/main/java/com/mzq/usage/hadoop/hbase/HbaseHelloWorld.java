@@ -238,7 +238,7 @@ public class HbaseHelloWorld {
         try (Connection connection = ConnectionFactory.createConnection(hbaseConfiguration);
              Table table = connection.getTable(TableName.valueOf("dept"))) {
             for (int i = 1; i <= 5; i++) {
-                Put put = new Put(Bytes.toBytes("2005"));
+                Put put = new Put(Bytes.toBytes("2010"));
                 put.addColumn(Bytes.toBytes("info"), Bytes.toBytes("name"), Bytes.toBytes(RandomStringUtils.random(5, true, false)));
                 put.addColumn(Bytes.toBytes("info"), Bytes.toBytes("age"), Bytes.toBytes(String.valueOf(RandomUtils.nextInt(20, 40))));
                 put.addColumn(Bytes.toBytes("info"), Bytes.toBytes("sex"), Bytes.toBytes(new String[]{"female", "male"}[RandomUtils.nextInt(0, 2)]));
@@ -247,7 +247,7 @@ public class HbaseHelloWorld {
                 table.put(put);
             }
 
-            Get get = new Get(Bytes.toBytes("2005"));
+            Get get = new Get(Bytes.toBytes("2010"));
             get.addFamily(Bytes.toBytes("info"));
             get.addFamily(Bytes.toBytes("tmp"));
             Result result = table.get(get);
@@ -263,13 +263,13 @@ public class HbaseHelloWorld {
                 log.info("row={},family:qualifier={}:{},timestamp={},value={}", row, family, qualifier, cellTimestamp, value);
             }
 
-            Delete delete = new Delete(Bytes.toBytes("2005"));
+            Delete delete = new Delete(Bytes.toBytes("2010"));
             // 在delete.addFamily相当于命令行中的deleteall，但与命令行不同的是，api中可以删除单一一个column，而命令行中只能删除所有的column
             delete.addFamily(Bytes.toBytes("info"));
             table.delete(delete);
 
             // 删除列族后，再查询该rowkey的该列族，就查不到数据了
-            Get get1 = new Get(Bytes.toBytes("2005"));
+            Get get1 = new Get(Bytes.toBytes("2010"));
             get1.addFamily(Bytes.toBytes("info"));
             Result result1 = table.get(get1);
             assert result1.listCells() == null;
