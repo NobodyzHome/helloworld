@@ -273,4 +273,9 @@
         <!-- default:org.apache.hadoop.io.compress.DefaultCodec -->
         <value>org.apache.hadoop.io.compress.Lz4Codec</value>
     </property>
+
+    <property>
+        <name>mapreduce.output.textoutputformat.separator</name>
+        <value>,</value>
+    </property>
 </configuration>

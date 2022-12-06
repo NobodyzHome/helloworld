@@ -13,7 +13,7 @@ import org.apache.hadoop.mapreduce.Reducer;
 
 import java.io.IOException;
 
-public class WriteHbaseReducer extends TableReducer<LongWritable, Text, NullWritable> {
+public class HbaseReducer extends TableReducer<LongWritable, Text, NullWritable> {
 
     @Override
     protected void setup(Reducer<LongWritable, Text, NullWritable, Mutation>.Context context) throws IOException, InterruptedException {
@@ -33,7 +33,7 @@ public class WriteHbaseReducer extends TableReducer<LongWritable, Text, NullWrit
         Put put = new Put(Bytes.toBytes(employee.getEmp_no()));
         put.addColumn(Bytes.toBytes("info"), Bytes.toBytes("name"), Bytes.toBytes(employee.getEmp_name()));
         put.addColumn(Bytes.toBytes("info"), Bytes.toBytes("sex"), Bytes.toBytes(employee.getSex()));
-        put.addColumn(Bytes.toBytes("secret"), Bytes.toBytes("salary"), Bytes.toBytes(employee.getSalary()));
+        put.addColumn(Bytes.toBytes("secret"), Bytes.toBytes("salary"), Bytes.toBytes(String.valueOf(employee.getSalary())));
         put.addColumn(Bytes.toBytes("secret"), Bytes.toBytes("create_dt"), Bytes.toBytes(employee.getCreate_dt()));
         put.addColumn(Bytes.toBytes("dept"), Bytes.toBytes("name"), Bytes.toBytes(employee.getDept_name()));
         put.addColumn(Bytes.toBytes("dept"), Bytes.toBytes("no"), Bytes.toBytes(employee.getDept_no()));

@@ -12,17 +12,18 @@ import org.apache.hadoop.mapreduce.Mapper;
 
 import java.io.IOException;
 
-public class HbaseMapper extends TableMapper<Text, Text> {
+public class HbaseMapper extends TableMapper<ImmutableBytesWritable, Text> {
 
     @Override
-    protected void map(ImmutableBytesWritable key, Result value, Mapper<ImmutableBytesWritable, Result, Text, Text>.Context context) throws IOException, InterruptedException {
-        // TableMapper中入参的key就是rowkey，value就是通过Scan后，该rowkey对应Result，也就是该行数据的cell
+    protected void map(ImmutableBytesWritable key, Result value, Mapper<ImmutableBytesWritable, Result, ImmutableBytesWritable, Text>.Context context) throws IOException, InterruptedException {
         CellScanner cellScanner = value.cellScanner();
         while (cellScanner.advance()) {
-            Cell current = cellScanner.current();
-            // 在这里我们将每个cell的"column+qualifier"作为输出key，将"rowkey+value"作为输出value，让Reducer将相同column+qualifier的所有rowkey的数据都统计出来
-            context.write(new Text(Bytes.toString(CellUtil.cloneFamily(current)) + ":" + Bytes.toString(CellUtil.cloneQualifier(current))),
-                    new Text(new String(key.get()) + "-" + Bytes.toString(CellUtil.cloneValue(current))));
+            Cell cell = cellScanner.current();
+            String family = Bytes.toString(CellUtil.cloneFamily(cell));
+            String qualifier = Bytes.toString(CellUtil.cloneQualifier(cell));
+            String cellValue = Bytes.toString(CellUtil.cloneValue(cell));
+
+            context.write(key, new Text(String.format("%s,%s,%s,%d", family, qualifier, cellValue, cell.getTimestamp())));
         }
     }
 }

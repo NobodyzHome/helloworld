@@ -1,13 +1,13 @@
 package com.mzq.usage.hadoop.hbase.mapred.hbaseToFile;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Reducer;
 
 import java.io.IOException;
-import java.util.StringJoiner;
 
-public class RowKeyReducer extends Reducer<Text, Text, Text, Text> {
+public class RowKeyReducer extends Reducer<ImmutableBytesWritable, Text, Text, Text> {
 
     private String rowKeySeperator;
 
@@ -19,26 +19,25 @@ public class RowKeyReducer extends Reducer<Text, Text, Text, Text> {
      * @throws InterruptedException
      */
     @Override
-    protected void setup(Reducer<Text, Text, Text, Text>.Context context) throws IOException, InterruptedException {
+    protected void setup(Reducer<ImmutableBytesWritable, Text, Text, Text>.Context context) throws IOException, InterruptedException {
         super.setup(context);
 
         Configuration configuration = context.getConfiguration();
-        rowKeySeperator = configuration.get("my.rowkey.seperator", "#");
+        rowKeySeperator = configuration.get("my.rowkey.seperator");
     }
 
     @Override
-    protected void cleanup(Reducer<Text, Text, Text, Text>.Context context) throws IOException, InterruptedException {
+    protected void cleanup(Reducer<ImmutableBytesWritable, Text, Text, Text>.Context context) throws IOException, InterruptedException {
         super.cleanup(context);
 
         rowKeySeperator = null;
     }
 
     @Override
-    protected void reduce(Text key, Iterable<Text> values, Reducer<Text, Text, Text, Text>.Context context) throws IOException, InterruptedException {
-        StringJoiner stringJoiner = new StringJoiner(rowKeySeperator);
+    protected void reduce(ImmutableBytesWritable key, Iterable<Text> values, Reducer<ImmutableBytesWritable, Text, Text, Text>.Context context) throws IOException, InterruptedException {
+        Text rowkey = new Text(new String(key.get()));
         for (Text value : values) {
-            stringJoiner.add(value.toString());
+            context.write(rowkey, value);
         }
-        context.write(key, new Text(stringJoiner.toString()));
     }
 }

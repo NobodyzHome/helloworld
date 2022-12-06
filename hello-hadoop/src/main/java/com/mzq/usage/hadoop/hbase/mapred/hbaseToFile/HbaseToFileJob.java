@@ -5,11 +5,11 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.client.Scan;
+import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
 import org.apache.hadoop.hbase.mapreduce.TableMapReduceUtil;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
-import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 
@@ -37,12 +37,11 @@ public class HbaseToFileJob implements Tool {
         Job job = Job.getInstance(getConf());
         job.setJobName("hbase-to-file");
         job.setJar("/Users/maziqiang/IdeaProjects/helloworld/hello-hadoop/target/hello-hadoop-1.0-SNAPSHOT.jar");
-        TableMapReduceUtil.initTableMapperJob("dept", new Scan(), HbaseMapper.class, Text.class, Text.class, job);
+        TableMapReduceUtil.initTableMapperJob("emp", new Scan(), HbaseMapper.class, ImmutableBytesWritable.class, Text.class, job);
         job.setReducerClass(RowKeyReducer.class);
         job.setOutputKeyClass(Text.class);
         job.setOutputValueClass(Text.class);
         FileOutputFormat.setOutputPath(job, outputDir);
-        job.setOutputFormatClass(SequenceFileOutputFormat.class);
 
         job.waitForCompletion(true);
         return 0;
@@ -61,7 +60,7 @@ public class HbaseToFileJob implements Tool {
     public static void main(String[] args) throws Exception {
         Configuration configuration = new Configuration();
         // 设置自定义参数
-        configuration.set("my.rowkey.seperator", "@");
+        configuration.set("my.rowkey.seperator", ",");
         Configuration hbaseConfiguration = HBaseConfiguration.create(configuration);
         // 启动mapreduce任务
         ToolRunner.run(hbaseConfiguration, new HbaseToFileJob(), args);

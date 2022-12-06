@@ -57,7 +57,7 @@ public class FileToHbaseJob implements Tool {
             job.setMapOutputValueClass(Text.class);
             // reducer端配置：reducer类、reducer输出的key和value的类型、OutputFormat、输出文件
             // TableMapReduceUtil.initTableReducerJob里配置了：OutputFormat、输出目标源、Reducer类
-            TableMapReduceUtil.initTableReducerJob("emp", WriteHbaseReducer.class, job);
+            TableMapReduceUtil.initTableReducerJob("emp", HbaseReducer.class, job);
             job.setOutputKeyClass(NullWritable.class);
             job.setOutputValueClass(Put.class);
 
