@@ -10,6 +10,7 @@ import org.apache.hadoop.hbase.mapreduce.TableMapReduceUtil;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 
@@ -22,8 +23,8 @@ public class HbaseToFileJob implements Tool {
     private Configuration configuration;
 
     /**
-     * ToolRunner在调Tool.run方法时，已经把启动参数中所有和mapreduce相同的参数都去掉了，也就是args参数中只有除mapreduce参数以外的启动参数了。
-     * 实际就是将GenericOptionsParser.getRemainingArgs()返回的参数传入给Tool的run方法
+     * ToolRunner在调Tool.run方法前，已经把启动参数中所有-D指定的参数都装入Configuration对象中，
+     * 实际传入run方法的是GenericOptionsParser.getRemainingArgs()返回的args
      */
     @Override
     public int run(String[] args) throws Exception {
@@ -39,6 +40,7 @@ public class HbaseToFileJob implements Tool {
         job.setJar("/Users/maziqiang/IdeaProjects/helloworld/hello-hadoop/target/hello-hadoop-1.0-SNAPSHOT.jar");
         TableMapReduceUtil.initTableMapperJob("emp", new Scan(), HbaseMapper.class, ImmutableBytesWritable.class, Text.class, job);
         job.setReducerClass(RowKeyReducer.class);
+        job.setOutputFormatClass(TextOutputFormat.class);
         job.setOutputKeyClass(Text.class);
         job.setOutputValueClass(Text.class);
         FileOutputFormat.setOutputPath(job, outputDir);
