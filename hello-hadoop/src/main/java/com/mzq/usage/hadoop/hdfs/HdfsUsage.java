@@ -24,7 +24,7 @@ public class HdfsUsage {
                  OutputStreamWriter outputStreamWriter = new OutputStreamWriter(fsDataOutputStream);
                  BufferedWriter bufferedWriter = new BufferedWriter(outputStreamWriter, 10485760)) {
                 int i = 1;
-                while (i++ <= 10000000) {
+                while (i++ <= 2000000) {
                     bufferedWriter.write(Employee.generate().toString());
                 }
             }

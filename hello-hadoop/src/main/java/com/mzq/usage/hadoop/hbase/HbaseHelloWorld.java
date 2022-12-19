@@ -7,6 +7,9 @@ import org.apache.commons.lang3.RandomUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.*;
 import org.apache.hadoop.hbase.client.*;
+import org.apache.hadoop.hbase.filter.CompareFilter;
+import org.apache.hadoop.hbase.filter.RegexStringComparator;
+import org.apache.hadoop.hbase.filter.RowFilter;
 import org.apache.hadoop.hbase.util.Bytes;
 
 import java.io.IOException;
@@ -46,9 +49,11 @@ public class HbaseHelloWorld {
 //        dml();
 //        dmlScanner();
 //        modifyColumn();
-        dmlDeleteFamily();
+//        dmlDeleteFamily();
 //        dmlDeleteColumns();
 //        dmlDeleteColumn();
+//        dmlSameColumnPut();
+        scanFilter();
     }
 
     private static void ddl() {
@@ -338,6 +343,66 @@ public class HbaseHelloWorld {
             Result result1 = table.get(get1);
             for (Cell cell1 : result1.listCells()) {
                 assert cell1.getTimestamp() != cell.getTimestamp();
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static void dmlSameColumnPut() {
+        Configuration configuration = new Configuration(true);
+        Configuration hbaseConf = HBaseConfiguration.create(configuration);
+
+        try (Connection connection = ConnectionFactory.createConnection(hbaseConf);
+             Admin admin = connection.getAdmin()) {
+            TableName testTable = TableName.valueOf("test_put_tbl");
+            if (admin.tableExists(testTable)) {
+                admin.disableTable(testTable);
+                admin.deleteTable(testTable);
+            }
+
+            HTableDescriptor hTableDescriptor = new HTableDescriptor(testTable);
+            HColumnDescriptor info = new HColumnDescriptor("info");
+            info.setMaxVersions(3);
+            hTableDescriptor.addFamily(info);
+            admin.createTable(hTableDescriptor);
+
+            Table table = connection.getTable(testTable);
+            // 我们在一次put请求中，向1000,info:name这个column增加了三个cell，并且没有给这三个cell赋值时间戳。实际上，并不是在底层由客户端对这三个cell进行赋值，而是PUT请求发送到RegionServer后，由RS对PUT请求的这三个cell进行时间戳赋值。
+            // 这导致一个问题是，由于这三个cell是在一个请求中过来的，因此RegionServer在遍历赋值时，很有可能给这三个cell赋值相同的时间戳，最终导致这三个cell只有一个被hbase记录了，剩余两个因为时间戳相同就被覆盖了。
+            Put put = new Put(Bytes.toBytes("1000"));
+            put.addColumn(Bytes.toBytes("info"), Bytes.toBytes("name"), Bytes.toBytes("hello"));
+            put.addColumn(Bytes.toBytes("info"), Bytes.toBytes("name"), Bytes.toBytes("world"));
+            put.addColumn(Bytes.toBytes("info"), Bytes.toBytes("name"), Bytes.toBytes("hbase"));
+            // 解决方案是像下面这样在客户端就给cell赋值时间戳，保证这三个cell的时间戳不一致
+//            long ts = System.currentTimeMillis();
+//            put.addColumn(Bytes.toBytes("info"), Bytes.toBytes("name"), ts++, Bytes.toBytes("hello"));
+//            put.addColumn(Bytes.toBytes("info"), Bytes.toBytes("name"), ts++, Bytes.toBytes("world"));
+//            put.addColumn(Bytes.toBytes("info"), Bytes.toBytes("name"), ts++, Bytes.toBytes("hbase"));
+
+            table.put(put);
+            table.close();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static void scanFilter() {
+        Configuration configuration = new Configuration(true);
+        Configuration hbaseConf = HBaseConfiguration.create(configuration);
+
+        try (Connection connection = ConnectionFactory.createConnection(hbaseConf);
+             Table table = connection.getTable(TableName.valueOf("emp"))) {
+
+            Scan scan = new Scan();
+            // 可以给scan设置filter，来按照rowkey、列族、列、cellValue来对数据进行过滤
+            // 下面使用RowFilter来对rowkey进行过滤，过滤出rowkey后内容为六位数字的rowkey
+            scan.setFilter(new RowFilter(CompareFilter.CompareOp.EQUAL, new RegexStringComparator("emp_\\d{6}$")));
+
+            ResultScanner scanner = table.getScanner(scan);
+            for (Result result : scanner) {
+                System.out.println(Bytes.toString(result.getRow()));
+
             }
         } catch (IOException e) {
             throw new RuntimeException(e);

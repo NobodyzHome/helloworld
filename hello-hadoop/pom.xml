@@ -142,6 +142,14 @@
             </exclusions>
         </dependency>
         <!-- hbase集成map-reduce需要使用的构件：end -->
+
+        <!-- https://mvnrepository.com/artifact/org.apache.hive/hive-hbase-handler -->
+        <dependency>
+            <groupId>org.apache.hive</groupId>
+            <artifactId>hive-hbase-handler</artifactId>
+            <version>2.3.2</version>
+        </dependency>
+
     </dependencies>
 
     <modelVersion>4.0.0</modelVersion>

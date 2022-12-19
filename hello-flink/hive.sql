@@ -449,3 +449,214 @@ create table employee(
 )
 row format delimited fields terminated by ',' lines terminated by '\n'
 stored as textfile;
+
+-- 当创建外部表时，不会去hbase创建对应的table，同理删除该hive表也不会删除hbase对应的table
+-- 我们【通常】是使用外部表的形式来连接hbase表，因为hbase表一般都是已存在的，我们很少需要hive来管理hbase表。我们之所以使用hive来连接hbase，是因为我们需要对hbase表中的数据进行分析。
+create external table hbase_emp(
+    emp_no string,
+    emp_name string,
+    dept_name string,
+    dept_no string,
+    create_dt string,
+    salary int,
+    ts bigint
+)
+-- 使用hbase的InputFormat和OutputFormat
+stored by 'org.apache.hadoop.hive.hbase.HBaseStorageHandler'
+-- 为HBaseStorageHandler配置属性
+with serdeproperties (
+    -- 使用hbase.columns.mapping配置hive表和hbase表的对应关系，赋值的顺序必须和hive表字段的顺序一致。其中【:key】代表hive表中对应的字段作为rowkey，【:timestamp】代表hive表中对应的字段作为timestamp
+    -- 注意：相比于【:key】，【:timestamp】不是必须给出的，但是【:timestamp】给出后，当往该表插入数据时，就必须要给【:timestamp】对应的字段赋值
+    -- 在查询时，【:timestamp】对应的字段返回的值是相同rowkey下的所有数据中最大的那个
+    "hbase.columns.mapping" = ":key,info:name,dept:name,dept:no,secret:create_dt,secret:salary,:timestamp",
+    -- 要映射的hbase的表名
+    "hbase.table.name" = "emp"
+);
+
+select * from hbase_emp;
+
+-- 通过将hbase集成到hive，就可以对hbase表中数据进行分析了
+-- hbase是存储型数据库，在他里面没有给任何用于数据计算的函数（例如sum、avg等），因此hbase没有数据分析能力。只能集成到hive，依托hive的数据分析能力来对hbase表中的数据进行分析
+select *
+from (
+    select dept_name,words,count(*) cnt
+    from hbase_emp lateral view explode(split(emp_name,'')) my_table as words where words<>''
+    group by dept_name,words
+    having count(*) > 3
+) t
+distribute by dept_name sort by dept_name,cnt;
+
+-- 创建一个管理表，创建后会去hbase创建对应的表，在删除该hive表时也会删除对应hbase的表
+-- 我们知道管理表管理两部分数据：一部分是metastore中的元数据，另一部分是实际数据，在这里就是管理hbase的table和table中的数据
+-- 我们【很少】使用管理表来与hbase集成的hive表，因为将hbase集成到hive并不是为了让hive来管理hbase中的数据，而是让hive来分析hbase中的数据
+create table hbase_emp_enrich(
+    emp_no string,
+    emp_name string,
+    dept_no string,
+    dept_name string,
+    create_dt string,
+    salary bigint,
+    dept_avg_salary bigint,
+    salary_compare int,
+    ts bigint
+)
+stored by 'org.apache.hadoop.hive.hbase.HBaseStorageHandler'
+with serdeproperties (
+    "hbase.table.name"="emp_enrich",
+    "hbase.columns.mapping"=":key,info:name,dept:no,dept:name,info:create_dt,secret:salary,dept:avg_salary,secret:salary_compare,:timestamp"
+);
+
+insert into hbase_emp_enrich
+select
+    emp_no,
+    emp_name,
+    dept_no,
+    dept_name,
+    create_dt,
+    salary,
+    dept_avg_salary,
+    case when salary>dept_avg_salary then '1' else '0' end salary_compare,
+    ts
+from (
+    select
+        *,
+        avg(salary) over(partition by dept_no) dept_avg_salary
+    from hbase_emp
+) t;
+
+insert into hbase_emp_enrich
+select
+    t.emp_no,
+    t.emp_name,
+    t.dept_no,
+    t.dept_name,
+    t.create_dt,
+    t.salary,
+    d.dept_avg_salary,
+    case when salary>dept_avg_salary then '1' else '0' end salary_compare,
+    ts
+from hbase_emp t
+         left join (
+    select dept_no,
+           avg(salary) dept_avg_salary
+    from hbase_emp
+    group by dept_no
+) d
+on t.dept_no = d.dept_no;
+
+-- 和hbase关联的table无法被truncate，报错：SemanticException [Error 10147]: Cannot truncate non-native table hbase_emp_enrich.
+-- truncate table hbase_emp_enrich;
+
+create external table hbase_dept(
+    dept_no string,
+    dept_name string,
+    dept_level string,
+    tel string,
+    level string,
+    salary int,
+    ts bigint
+)
+stored by 'org.apache.hadoop.hive.hbase.HBaseStorageHandler'
+with serdeproperties (
+    "hbase.table.name"="dept",
+    "hbase.columns.mapping"=":key,info:name,info:level,info:tel,tmp:level,tmp:salary,:timestamp"
+);
+
+-- 当向与hbase集成的table写入数据时，如果table配置了:timestamp对应的字段(在这里是ts字段)，那么必须给该字段赋值
+insert into hbase_dept values('1000','hello world','999999','186','L0',3000,10);
+-- 在查询一个rowkey下的所有字段数据时，由于在hbase中每一个字段是一条KV数据，都会有对应的时间戳，因此在hive表中ts字段返回的是该rowkey下所有KV数据的timestamp最大的那个
+select * from hbase_dept;
+
+insert into hbase_dept
+select
+    dept_no,
+    dept_name,
+    dept_level,
+    null,
+    concat('L',dept_level) level,
+    round(avg_salary) salary,
+    unix_timestamp() * 1000 ts
+from(
+    select
+        *,
+        floor(avg_salary/1000) dept_level
+    from(
+        select
+            dept_no,
+            dept_name,
+            avg(salary) avg_salary
+        from hbase_emp
+        group by dept_no,dept_name
+    ) a
+) t;
+
+create table employee(
+    emp_no string,
+    emp_name string,
+    dept_no string,
+    dept_name string,
+    sex string,
+    create_dt string,
+    salary int
+)
+row format delimited fields terminated by ',' lines terminated by '\n'
+stored as textfile;
+
+load data inpath '/data/employee' overwrite into table employee;
+
+create table hbase_employee(
+    emp_no string,
+    emp_name string,
+    dept_no string,
+    dept_name string,
+    sex string,
+    create_dt string,
+    salary int
+)
+stored by 'org.apache.hadoop.hive.hbase.HBaseStorageHandler'
+with serdeproperties (
+    "hbase.table.name"="employee",
+    "hbase.columns.mapping"=":key,info:name,dept:no,dept:name,info:sex,info:create_dt,secret:salary"
+);
+
+insert into hbase_employee select * from employee;
+
+insert into hbase_dept
+select
+    dept_no,
+    dept_name,
+    dept_level,
+    null,
+    concat('L',dept_level) level,
+    round(avg_salary) salary,
+    unix_timestamp() * 1000 ts
+from(
+    select
+        *,
+        floor(avg_salary/1000) dept_level
+    from(
+            select
+                dept_no,
+                dept_name,
+                avg(salary) avg_salary
+            from hbase_employee
+            group by dept_no,dept_name
+        ) a
+) t;
+
+create external table hbase_student(
+    rowkey string,
+    name string,
+    age string,
+    sex string,
+    class string,
+    ts bigint
+)
+stored by 'org.apache.hadoop.hive.hbase.HBaseStorageHandler'
+with serdeproperties (
+    "hbase.table.name"="student",
+    "hbase.columns.mapping"=":key,info:name,info:age,info:sex,info:class,:timestamp"
+);
+
+select * from hbase_student;
+insert into hbase_student(rowkey,sex,age,ts) values('1001','male','17',12)
