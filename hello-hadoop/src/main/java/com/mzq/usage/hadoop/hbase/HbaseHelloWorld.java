@@ -4,12 +4,11 @@ import com.mzq.usage.Employee;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.RandomUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.*;
 import org.apache.hadoop.hbase.client.*;
-import org.apache.hadoop.hbase.filter.CompareFilter;
-import org.apache.hadoop.hbase.filter.RegexStringComparator;
-import org.apache.hadoop.hbase.filter.RowFilter;
+import org.apache.hadoop.hbase.filter.*;
 import org.apache.hadoop.hbase.util.Bytes;
 
 import java.io.IOException;
@@ -53,7 +52,8 @@ public class HbaseHelloWorld {
 //        dmlDeleteColumns();
 //        dmlDeleteColumn();
 //        dmlSameColumnPut();
-        scanFilter();
+//        scanFilter();
+        scanMultiFilter();
     }
 
     private static void ddl() {
@@ -403,6 +403,35 @@ public class HbaseHelloWorld {
             for (Result result : scanner) {
                 System.out.println(Bytes.toString(result.getRow()));
 
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static void scanMultiFilter() {
+        Configuration configuration = new Configuration(true);
+        Configuration hbaseConf = HBaseConfiguration.create(configuration);
+
+        try (Connection connection = ConnectionFactory.createConnection(hbaseConf);
+             Table table = connection.getTable(TableName.valueOf("emp"))) {
+            // 过滤出rowkey以emp_开头，后面跟六个数字，然后再在这些rowkey的cell中过滤出列族为info或dept的cell的数据
+            RowFilter rowFilter = new RowFilter(CompareFilter.CompareOp.EQUAL, new RegexStringComparator("emp_\\d{6}$"));
+            FamilyFilter familyFilter = new FamilyFilter(CompareFilter.CompareOp.EQUAL, new RegexStringComparator("info|dept"));
+            FilterList filterList = new FilterList(FilterList.Operator.MUST_PASS_ALL, rowFilter, familyFilter);
+
+            Scan scan = new Scan();
+            scan.setFilter(filterList);
+
+            ResultScanner resultScanner = table.getScanner(scan);
+            for (Result result : resultScanner) {
+                System.out.println(StringUtils.center(Bytes.toString(result.getRow()), 100, "="));
+                CellScanner cellScanner = result.cellScanner();
+                while (cellScanner.advance()) {
+                    Cell cell = cellScanner.current();
+                    System.out.printf("cellFamily=%s,cellQualifier=%s,cellValue=%s,cellTimestamp=%d%n"
+                            , Bytes.toString(CellUtil.cloneFamily(cell)), Bytes.toString(CellUtil.cloneQualifier(cell)), Bytes.toString(CellUtil.cloneValue(cell)), cell.getTimestamp());
+                }
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
