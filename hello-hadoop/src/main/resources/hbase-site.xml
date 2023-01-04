@@ -139,7 +139,7 @@
     <property>
         <!-- 当一个region中所有memstore大小超过了该配置，则开始进行由memstore到storefile的flush。此时不会阻塞该region的写入请求。 -->
         <name>hbase.hregion.memstore.flush.size</name>
-        <!-- default:134217728 (129MB) -->
+        <!-- default:134217728 (128MB) -->
         <value>134217728</value>
         <description>
             Memstore will be flushed to disk if size of the memstore
