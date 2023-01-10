@@ -17,7 +17,7 @@
         <start-class>com.mzq.hello.flink.HelloWorldFlinkSql</start-class>
     </properties>
 
-    <packaging>war</packaging>
+    <packaging>jar</packaging>
 
     <dependencies>
         <dependency>

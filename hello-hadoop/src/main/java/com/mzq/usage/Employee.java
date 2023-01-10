@@ -7,8 +7,8 @@ import java.time.LocalDate;
 
 public class Employee implements Serializable {
 
-    private static String[] deptNames = {"营销部", "运维部", "人力资源部", "研发部", "产品部", "销售部", "项目部", "测试部", "合规部", "法务部", "客户服务部"};
-
+    private static String[] deptNames = {"营销部", "运维部", "人力资源部", "研发部", "产品部", "销售部", "项目部", "测试部", "合规部", "法务部", "客户服务部", "生产部", "工程部", "安保部", "运力部"
+            , "用户体验部", "商家服务部", "研发效能部", "行政部", "采销部", "安全部", "绿化部", "后勤保障部"};
     private String emp_no;
     private String emp_name;
     private String dept_no;
@@ -103,5 +103,9 @@ public class Employee implements Serializable {
         employee.setCreate_dt(split[5]);
         employee.setSalary(Integer.valueOf(split[6]));
         return employee;
+    }
+
+    public static void main(String[] args) {
+        System.out.println("1000".compareTo("100"));
     }
 }

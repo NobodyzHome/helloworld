@@ -920,12 +920,33 @@ with(
     'table-name'='employee'
 );
 
+create table hbase_employee_usage(
+    rowkey string,
+    info row<emp_no string,emp_name string,sex string,dept_no string,dept_name string,create_dt string,salary string>
+)
+with(
+    'connector'='hbase-1.4',
+    'zookeeper.quorum'='zookeeper:2181',
+    'table-name'='employee_usage'
+    );
+
 set execution.runtime-mode=batch;
 
 CREATE CATALOG myhive WITH ('type'='hive','default-database'='default','hive-conf-dir'='/my-repository');
 use catalog myhive;
 
 insert into hbase_employee
+select
+    emp_no,
+    row(emp_no,emp_name,sex) base,
+    row(dept_no,dept_name) dept,
+    row(create_dt,salary_str) info
+from (
+    select *,cast(salary as string) salary_str
+    from employee
+);
+
+insert into hbase_employee_usage
 select
     emp_no,
     row(emp_no,emp_name,sex) base,
@@ -986,3 +1007,34 @@ create table kafka_sink_employee_summary(
     'key.format'='json',
     'value.format'='json'
 );
+
+create function hash_code as 'com.mzq.hello.flink.sql.udf.scalar.HashCodeScalar';
+select lpad(cast(hash_code('dept_1') % 10 as string),2,'0');
+
+create table hbase_emp_usage(
+                                     rowkey string,
+                                     info row<emp_no string,emp_name string,sex string,dept_no string,dept_name string,create_dt string,salary string>
+)
+    with(
+        'connector'='hbase-1.4',
+        'zookeeper.quorum'='zookeeper:2181',
+        'table-name'='emp_usage'
+        );
+
+insert into hbase_emp_usage
+select
+    --使用bucket编码(根据分区键计算出来)+分区键+主键生成rowkey
+    concat(lpad(cast(abs(hash_code(dept_no)) % 10 as string),2,'0'),'_',dept_no,'_',emp_no) rowkey,
+    row(emp_no,emp_name,sex,dept_no,dept_name,create_dt,salary_str) info
+from (
+         select *,cast(salary as string) salary_str
+         from employee
+     );
+
+select *
+from hbase_emp_usage
+where
+    -- 只要知道分区键和主键，就可以反向计算出该数据的rowkey，进行hbase精准查询
+    rowkey = concat(lpad(cast(abs(hash_code('dept_14'))%10 as string), 2, '0'), '_', 'dept_14', '_', 'emp_15798882');
+
+create 'emp_usage','info',SPLITS=>['00|','01|','02|','03|','04|','05|','06|','07|','08|']
