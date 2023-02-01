@@ -551,10 +551,11 @@ public class ConsumerTest {
          *   b) 向GroupCoordinator发送JoinGroupRequest，JoinGroupRequest中带着当前consumer的分区分配策略
          *   c) GroupCoordinator从该group的consumer中选出一个，作为leader consumer，其余为follower consumer
          *   d) GroupCoordinator收集到这个group的所有consumer的分区分配策略后，从中选出被所有consumer支持最多的分区分配策略，作为实际分区分配结果。选出后给leader consumer的响应中有分区分配策略，而follower consumer收到的响应中没有分区分配策略
-         *   e) 在收到GroupCoordinator对JoinGroupRequest的正确响应后，每一个consumer都要向GroupCoordinator发起SyncGroupRequest。如果consumer是leader，那么SyncGroupRequest请求中包含了各个consumer的分区分配结果，否则发送的SyncGroupRequest中没有分区分配结果
-         *   f) 所有consumer在收到SyncGroupRequest的响应后，就收到了分配给它的分区。此时该consumer就可以正常工作了，在次之前它会开启一个心跳线程，定时向GroupCoordinator发送心跳，以表明当前consumer是存活的。
-         *   g) 在consumer拉取数据之前，它需要知道这个分区的拉取位点。它会向GroupCoordinator发起OffsetFetchRequest，GroupCoordinator收到请求后，会从__commit_offset中找到这个group中该partition对应的位点信息，发送给consumer
-         *   h) 如果启动了自动提交位点（enable.auto.commit=true），且距离上次提交位点已经过了auto.commit.interval.ms指定的距离，就会发起一次异步位点提交请求
+         *   e) leader consumer在收到分区分配策略后，根据策略进行分区分配，生成分配的具体方案，即给每个consumer分配哪些分区
+         *   f) 在收到GroupCoordinator对JoinGroupRequest的正确响应后，每一个consumer都要向GroupCoordinator发起SyncGroupRequest。leader consumer的SyncGroupRequest请求中包含了各个consumer的分区分配的具体方案，follower consumer中则没有
+         *   g) GroupCoordinator将分区分配的具体方案作为SyncGroupRequest的响应，发送给每一个consumer。此时该consumer就可以正常工作了，在次之前它会开启一个心跳线程，定时向GroupCoordinator发送心跳，以表明当前consumer是存活的。
+         *   h) 在consumer拉取数据之前，它需要知道这个分区的拉取位点。它会向GroupCoordinator发起OffsetFetchRequest，GroupCoordinator收到请求后，会从__commit_offset中找到这个group中该partition对应的位点信息，发送给consumer
+         *   i) 如果启动了自动提交位点（enable.auto.commit=true），且距离上次提交位点已经过了auto.commit.interval.ms指定的距离，就会发起一次异步位点提交请求
          * 上面这些过程其实就是consumer从不知道分配的分区到获取到broker分配给它的分区的过程
          * 2.经过上述步骤后，consumer已经知道了要拉取的分区以及要拉取分区的位点信息，那么它就要开始拉取数据了。它就不向GroupCoordinator发送消息了，而是向各个分区的所在broker发起FetchRequest，开始进行数据拉取了
          * 注意：
@@ -563,7 +564,7 @@ public class ConsumerTest {
          * 3.自动提交位点机制是通过不断调用KafkaConsumer的poll方法来实现的，通过ConsumerCoordinator的poll方法触发位点提交动作
          *
          * 当consumer和broker建立好连接后，consumer会开启一个线程（心跳线程），心跳线程主要用于：
-         * 1.定时向GroupCoordinator发送心跳
+         * 1.定时向GroupCoordinator发送心跳，报告当前consumer处于存活状态
          * 2.监控距离上一次poll的时间间隔，当超时后，会向GroupCoordinator发送LeaveGroupRequest
          * 3.监控在session.timeout.ms配置的时间范围内，是否有发送过心跳包，没有则向GroupCoordinator发送LeaveGroupRequest
          *

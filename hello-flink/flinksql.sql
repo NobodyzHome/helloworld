@@ -1038,3 +1038,16 @@ where
     rowkey = concat(lpad(cast(abs(hash_code('dept_14'))%10 as string), 2, '0'), '_', 'dept_14', '_', 'emp_15798882');
 
 create 'emp_usage','info',SPLITS=>['00|','01|','02|','03|','04|','05|','06|','07|','08|']
+
+create function explode as 'com.mzq.hello.flink.sql.udf.table.Explode';
+select
+    t1.w,
+    t2.sw
+from (select *
+      from (values ('hello,world'), ('hello,laozhang')) as t(w)) t1,
+     lateral table(explode(w)) as t2(sw);
+
+
+select cast(FLOOR((current_date - interval '1' year) + interval '1' month to month) as string) st,cast(ceil((current_date - interval '1' year) + interval '1' month to month) as string) ed;
+
+select if(json_value('','$.b') <> '',true,false);

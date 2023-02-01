@@ -1,0 +1,248 @@
+<?xml version="1.0"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<!--
+/**
+ *
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+-->
+<configuration>
+    <property>
+        <!--  producer在写入数据时，根据分区器判定要写入的分区，会写入到不同的broker中。但在填写bootstrap.server时，只需要给出broker集群中一两个broker的连接地址即可。
+              这是因为当客户端连接到一个broker后，会给broker发送ClusterMetaRequest，broker会访问zookeeper下面的/broker/ids目录，获取broker集群中的每一个broker信息，然后返回给客户端。
+              这样客户端就知道broker集群中所有broker的连接信息了。 -->
+        <name>bootstrap.servers</name>
+        <!-- default:  -->
+        <value></value>
+        <description>
+            A list of host/port pairs to use for establishing the initial connection to the Kafka cluster.
+            The client will make use of all servers irrespective of which servers are specified here for bootstrapping—this list only impacts the initial hosts used to discover the full set of servers.
+            This list should be in the form host1:port1,host2:port2,.... Since these servers are just used for the initial connection to discover the full cluster membership (which may change dynamically),
+            this list need not contain the full set of servers (you may want more than one, though, in case a server is down).
+        </description>
+    </property>
+
+    <property>
+        <!--
+            我们知道，客户端在向broker发送数据时，使用的肯定是二进制字节码。但在程序中，我们的数据是java的各种数据类型。这里就产生一个问题：如何将程序中的各种数据类型转换成二进制字节码？
+            KafkaProducer允许我们发送数据的key和value是程序中的数据类型，由KafkaProducer内部来进行二进制字节码的转换，但前提就是要在KafkaProducer中给出key和value的序列化器，KafkaProducer会使用他们将用户发来的ProducerRecord中的key和value转换成二进制字节码。
+            流程是：用户使用KafkaProducer，传入用户类型的key和value -> KafkaProducer使用key.serializer和value.serializer分别把key和value由用户程序类型转换成二进制 -> KafkaProducer把二进制的key和value发送给broker。
+         -->
+        <name>key.serializer</name>
+        <!-- default: null -->
+        <value></value>
+        <description>
+            Serializer class for key that implements the org.apache.kafka.common.serialization.Serializer interface.
+        </description>
+    </property>
+
+    <property>
+        <name>value.serializer</name>
+        <!-- default: null -->
+        <value></value>
+        <description>
+            Serializer class for value that implements the org.apache.kafka.common.serialization.Serializer interface.
+        </description>
+    </property>
+
+    <property>
+        <!-- 当前producer客户端的命名，broker使用该命名来区分不同的producer -->
+        <name>client.id</name>
+        <!-- default: null -->
+        <value>my-producer</value>
+        <description>
+            An id string to pass to the server when making requests. The purpose of this is to be able to track the source of requests beyond just ip/port by allowing a logical application name to be included in server-side request logging.
+        </description>
+    </property>
+
+    <property>
+        <!-- max.request.size用于控制ProducerRecord的最大大小（单位是byte），当ProducerRecord经过序列化器序列化后，key和value的大小的和，再加上一些请求需要的信息，构成了该请求的大小。如果该大小超过了配置，就会报RecordTooLargeException异常，这个请求都不会写入到RecordAccumulator中。 -->
+        <name>max.request.size</name>
+        <!-- default: 1048576 (1mb) -->
+        <value>1048576</value>
+        <description>
+            The maximum size of a request in bytes. This setting will limit the number of record batches the producer will send in a single request to avoid sending huge requests.
+            This is also effectively a cap on the maximum uncompressed record batch size. Note that the server has its own cap on the record batch size (after compression if compression is enabled) which may be different from this.
+        </description>
+    </property>
+
+    <property>
+        <!-- RecordAccumulator中存储的每一个ProducerBatch的最大容量。当发来一个ProducerRecord时，如果它的大小比小batch.size小，那么会尝试把它放到已有的ProducerBatch中。否则会创建一个ProducerBatch，它的大小和ProducerRecord的大小一样，但注意这种超过batch.size的ProducerBatch不会放到对象池中进行对象复用 -->
+        <name>batch.size</name>
+        <!-- default: 1048576 (1mb) -->
+        <value>1048576</value>
+        <description>
+            The producer will attempt to batch records together into fewer requests whenever multiple records are being sent to the same partition. This helps performance on both the client and the server. This configuration controls the default batch size in bytes.
+            No attempt will be made to batch records larger than this size.
+            Requests sent to brokers will contain multiple batches, one for each partition with data available to be sent.
+            A small batch size will make batching less common and may reduce throughput (a batch size of zero will disable batching entirely). A very large batch size may use memory a bit more wastefully as we will always allocate a buffer of the specified batch size in anticipation of additional records.
+            Note: This setting gives the upper bound of the batch size to be sent. If we have fewer than this many bytes accumulated for this partition, we will 'linger' for the linger.ms time waiting for more records to show up. This linger.ms setting defaults to 0, which means we'll immediately send out a record even the accumulated batch size is under this batch.size setting.
+        </description>
+    </property>
+
+    <property>
+        <!-- send、partitionsFor等方法阻塞用户线程（因为它们的执行是在用户线程中执行的）的最大时间，当这些方法执行时间超过该配置，用户线程则会收到TimeoutException异常，以此来解除用户线程的阻塞 -->
+        <name>max.block.ms</name>
+        <!-- default: 60000 (1 minute) -->
+        <value>60000</value>
+        <description>
+            The configuration controls how long the KafkaProducer's send(), partitionsFor(), initTransactions(), sendOffsetsToTransaction(), commitTransaction() and abortTransaction() methods will block.
+            For send() this timeout bounds the total time waiting for both metadata fetch and buffer allocation (blocking in the user-supplied serializers or partitioner is not counted against this timeout).
+            For partitionsFor() this timeout bounds the time spent waiting for metadata if it is unavailable. The transaction-related methods always block, but may timeout if the transaction coordinator could not be discovered or did not respond within the timeout.
+        </description>
+    </property>
+
+    <property>
+        <!-- send、partitionsFor等方法阻塞用户线程（因为它们的执行是在用户线程中执行的）的最大时间，当这些方法执行时间超过该配置，用户线程则会收到TimeoutException异常，以此来解除用户线程的阻塞 -->
+        <name>buffer.memory</name>
+        <!-- default: 60000 (1 minute) -->
+        <value>60000</value>
+        <description>
+            The total bytes of memory the producer can use to buffer records waiting to be sent to the server. If records are sent faster than they can be delivered to the server the producer will block for max.block.ms after which it will throw an exception.
+            This setting should correspond roughly to the total memory the producer will use, but is not a hard bound since not all memory the producer uses is used for buffering. Some additional memory will be used for compression (if compression is enabled) as well as for maintaining in-flight requests.
+        </description>
+    </property>
+
+    <property>
+        <!--
+            该参数是发送给broker，broker收到该参数后，会根据参数的值决定【何时】对发来的请求进行响应：
+             1.ack=0，broker在收到请求后，就立即对请求给出响应。这种情况下，send方法返回的RecordMetadata中，offset就固定为-1，因为响应结果是不等数据写入到副本后就发送了。
+             2.ack=1，broker在收到请求后，会将数据写入到leader副本，然后就对请求给出响应。因此在此时，send方法返回的RecordMetadata中，offset就是实际的数据写入到副本中的offset。
+             3.ack=all或-1，broker在收到该请求后，会将数据写入到leader副本，然后等待ISR中的其他broker同步完该条数据，才会给出响应。因此send方法返回的RecordMetadata中也会带有数据写入到副本的实际的offset。
+
+             注意：
+             1.无论ack等于几，都是Sender线程接收来自kafka的响应，然后根据响应内容把Future<RecordMetadata>设置为done状态，这样用户线程就可以获取到kafka的响应结果了（在此之前调用get方法会被阻塞）
+             2.如果ack=0，那么retries就无效了，因为客户端并没有等到broker对请求的响应结果，因此也就不知道响应结果中是否有异常，导致无法判断是否需要重试
+         -->
+        <name>acks</name>
+        <!-- default: all -->
+        <value>1</value>
+        <description>
+            The number of acknowledgments the producer requires the leader to have received before considering a request complete. This controls the durability of records that are sent. The following settings are allowed:
+            acks=0 If set to zero then the producer will not wait for any acknowledgment from the server at all. The record will be immediately added to the socket buffer and considered sent. No guarantee can be made that the server has received the record in this case, and the retries configuration will not take effect (as the client won't generally know of any failures). The offset given back for each record will always be set to -1.
+            acks=1 This will mean the leader will write the record to its local log but will respond without awaiting full acknowledgement from all followers. In this case should the leader fail immediately after acknowledging the record but before the followers have replicated it then the record will be lost.
+            acks=all This means the leader will wait for the full set of in-sync replicas to acknowledge the record. This guarantees that the record will not be lost as long as at least one in-sync replica remains alive. This is the strongest available guarantee. This is equivalent to the acks=-1 setting.
+            Note that enabling idempotence requires this config value to be 'all'. If conflicting configurations are set and idempotence is not explicitly enabled, idempotence is disabled.
+        </description>
+    </property>
+
+    <property>
+        <!-- 当请求发送到broker后，如果处理请求发生错误（例如网络闪断等），那么broker给客户端的响应中包含exception属性。Sender线程在收到该响应后，会根据该属性的判断是否需要对该ProducerBatch进行重试。如果该属性大于0，则会将该ProducerBatch重新写入到RecordAccumulator，用于重新发送该请求。
+            注意：不是所有响应的异常都可以重试，继承自RetriableException下面的异常才是可重试的异常。例如RecordTooLargeException异常则是不能重试的。-->
+        <name>retries</name>
+        <!-- default: 0 -->
+        <value>3</value>
+        <description>
+            Setting a value greater than zero will cause the client to resend any request that fails with a potentially transient error. It is recommended to set the value to either zero or `MAX_VALUE` and use corresponding timeout parameters to control how long a client should retry a request.
+        </description>
+    </property>
+
+    <property>
+        <!-- 设置Sender线程在收到kafka响应的异常多少毫秒后，才发起重试，避免在短时间内进行多次重试-->
+        <name>retry.backoff.ms</name>
+        <!-- default: 100 -->
+        <value>3</value>
+        <description>
+            The amount of time to wait before attempting to retry a failed request to a given topic partition. This avoids repeatedly sending requests in a tight loop under some failure scenarios.
+        </description>
+    </property>
+
+    <property>
+        <!-- Sender线程在将请求发送到broker后，超过request.timeout.ms配置的时间后，如果broker还没有给出响应，则认为请求超时，此时可能对该请求进行重试发送或认定请求发送超时异常。
+             注意：这里发送的请求不仅是写入数据的请求，也可以获取集群信息的请求、获取topic的分区信息等请求。总之是所有请求在发出去以后的超时时间。 -->
+        <name>request.timeout.ms</name>
+        <!-- default: 30000 (30 seconds) -->
+        <value>30000</value>
+        <description>
+            The configuration controls the maximum amount of time the client will wait for the response of a request. If the response is not received before the timeout elapses the client will resend the request if necessary or fail the request if retries are exhausted.
+        </description>
+    </property>
+
+    <property>
+        <!--
+            Sender线程在从RecordAccumulator中拉取到ProducerBatch后，在将ProducerBatch发送到broker前，会判断当前ProducerBatch是否过期了，就是使用【当前时间 - ProducerBatch的创建时间 > delivery.timeout.ms】来判断是否过期。
+            如果有过期，则Sender线程将对应的ProducerBatch的处理结果ProduceRequestResult的exception属性赋值TimeoutException。
+            此时主线程调用send方法返回的FutureRecordMetadata的get方法时，get方法内发现ProduceRequestResult的exception属性被赋值了，则会抛出异常(异常内容：Expiring 1 record(s) for hello-world-0:11 ms has passed since batch creation)。
+
+            发生该异常主要原因是：KafkaProducer.send()的频率大于Sender线程从RecordAccumulator中拉取ProducerBatch并发送至broker然后清理已响应的ProducerBatch的速度，导致ProducerBatch在RecordAccumulator中驻留的时间超过了delivery.timeout.ms的配置。
+            解决方案：
+            1.我们可以提高该配置，降低ProducerBatch过期几率
+            2.增加该topic对应的分区数，使send()方法发来的ProducerBatch存储于不同的分区中
+            注意：此时超时的ProducerBatch是无法通过retries参数进行重试的，因为retries控制的是broker给出响应后，发现响应中有可重试的异常才会重试。但这种情况下，Sender线程根本没有往broker里发送ProducerBatch，所以无法重试。
+         -->
+        <name>delivery.timeout.ms</name>
+        <!-- default: 30000 (30 seconds) -->
+        <value>30000</value>
+        <description>
+            An upper bound on the time to report success or failure after a call to send() returns. This limits the total time that a record will be delayed prior to sending, the time to await acknowledgement from the broker (if expected), and the time allowed for retriable send failures.
+            The producer may report failure to send a record earlier than this config if either an unrecoverable error is encountered, the retries have been exhausted, or the record is added to a batch which reached an earlier delivery expiration deadline.
+            The value of this config should be greater than or equal to the sum of request.timeout.ms and linger.ms.
+        </description>
+    </property>
+
+    <property>
+        <!--
+            当我们发送消息时，为了减少网络I/O的使用，producer在发送的ProducerRecord时，会把数据先存储到内存中，具体是存储到ProducerBatch中。此后，producer会在以下情况将内存中的ProducerBatch发送给broker：
+            1.ProducerBatch的大小超过batch.size，代表该ProducerBatch已经装满数据了，可以被发送出去了
+            2.ProducerBatch的大小虽然小于batch.size，但在RecordAccumulator中存在的时间也超过了linger.ms时间。
+            linger.ms配置的目的是：让ProducerBatch即使没有满足大小的要求，也可以及时发送到broker中，不会因为一直不生产新的ProducerRecord，导致数据都积压在producer的内存中
+
+            注意：一个ProducerBatch如果在RecordAccumulator中存在时间超过delivery.timeout.ms后也没发送到broker中，那么KafkaProducer会抛出异常。因此linger.ms应该远小于delivery.timeout.ms，让producer尽量不会因为ProducerBatch存储在内存中时间过长而抛出异常。
+         -->
+        <name>linger.ms</name>
+        <!-- default: 30000 (30 seconds) -->
+        <value>30000</value>
+        <description>
+            The producer groups together any records that arrive in between request transmissions into a single batched request. Normally this occurs only under load when records arrive faster than they can be sent out.
+            However in some circumstances the client may want to reduce the number of requests even under moderate load. This setting accomplishes this by adding a small amount of artificial delay—that is, rather than immediately sending out a record,
+            the producer will wait for up to the given delay to allow other records to be sent so that the sends can be batched together. This can be thought of as analogous to Nagle's algorithm in TCP.
+            This setting gives the upper bound on the delay for batching: once we get batch.size worth of records for a partition it will be sent immediately regardless of this setting,
+            however if we have fewer than this many bytes accumulated for this partition we will 'linger' for the specified time waiting for more records to show up. This setting defaults to 0 (i.e. no delay). Setting linger.ms=5, for example,
+            would have the effect of reducing the number of requests sent but would add up to 5ms of latency to records sent in the absence of load.
+        </description>
+    </property>
+
+    <property>
+        <!-- 根据用户传入的ProducerRecord来决定当前record要发送到哪个partition的分区器。如果不传入，则使用默认分区器，默认分区器的策略是：
+             1.如果ProducerRecord中给定了partition，则将当前record发送至指定的partition
+             2.如果ProducerRecord中没有给定partition，那么严格根据record的key来判断要发送到哪个partition，相同key的record必须分配到同一个partition中 -->
+        <name>partitioner.class</name>
+        <!-- default: null -->
+        <value></value>
+        <description>
+            A class to use to determine which partition to be send to when produce the records. Available options are:
+
+            If not set, the default partitioning logic is used. This strategy will try sticking to a partition until batch.size bytes is produced to the partition. It works with the strategy:
+            If no partition is specified but a key is present, choose a partition based on a hash of the key
+            If no partition or key is present, choose the sticky partition that changes when batch.size bytes are produced to the partition.
+            org.apache.kafka.clients.producer.RoundRobinPartitioner: This partitioning strategy is that each record in a series of consecutive records will be sent to a different partition(no matter if the 'key' is provided or not), until we run out of partitions and start over again.
+            Note: There's a known issue that will cause uneven distribution when new batch is created. Please check KAFKA-9965 for more detail. Implementing the org.apache.kafka.clients.producer.Partitioner interface allows you to plug in a custom partitioner.
+        </description>
+    </property>
+
+    <property>
+        <!-- 拦截器类列表，多个拦截器之间使用逗号分割 -->
+        <name>interceptor.classes</name>
+        <!-- default: null -->
+        <value></value>
+        <description>
+            A list of classes to use as interceptors. Implementing the org.apache.kafka.clients.producer.ProducerInterceptor interface allows you to intercept (and possibly mutate) the records received by the producer before they are published to the Kafka cluster. By default, there are no interceptors.
+        </description>
+    </property>
+
+
+</configuration>

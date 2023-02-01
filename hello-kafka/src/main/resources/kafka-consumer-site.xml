@@ -1,0 +1,261 @@
+<?xml version="1.0"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<!--
+/**
+ *
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+-->
+<configuration>
+    <property>
+        <!--  consumer连接的初始服务器。因为consumer会被分配多个分区，每个分区可能存在于不同的broker中。这样consumer需要和broker集群中的多个broker都进行连接。
+              我们在配置consumer时，仅需要填broker集群的一两个broker，consumer会向配置的broker发起集群嗅探的请求，broker接到请求后，会将集群中的所有broker连接方式都发送给consumer。这样consumer就可以向集群中所有broker发起连接请求了。 -->
+        <name>bootstrap.servers</name>
+        <!-- default:  -->
+        <value></value>
+        <description>
+            A list of host/port pairs to use for establishing the initial connection to the Kafka cluster. The client will make use of all servers irrespective of which servers
+            are specified here for bootstrapping—this list only impacts the initial hosts used to discover the full set of servers. This list should be in the form host1:port1,host2:port2,....
+            Since these servers are just used for the initial connection to discover the full cluster membership (which may change dynamically), this list need not contain the full set of servers
+            (you may want more than one, though, in case a server is down).
+        </description>
+    </property>
+
+    <property>
+        <!--  KafkaConsumer允许我们在程序中使用自己的类型（例如value的类型是BdWaybillInfo），但前提是需要给kafka提供将从broker拉取到的数据转换成我们需要的类型的转换器。
+                key.deserializer和value.deserializer分别用于提供对拉取的数据的key和value进行转换的处理类。 -->
+        <name>key.deserializer</name>
+        <!-- default: null -->
+        <value></value>
+        <description>
+            Deserializer class for key that implements the org.apache.kafka.common.serialization.Deserializer interface.
+        </description>
+    </property>
+
+    <property>
+        <name>value.deserializer</name>
+        <!-- default: null -->
+        <value></value>
+        <description>
+            Deserializer class for value that implements the org.apache.kafka.common.serialization.Deserializer interface.
+        </description>
+    </property>
+
+    <property>
+        <!-- kafka有两种订阅模式，一种是以加入到group中的subscribe模式，另一种是直接消费指定分区的assign模式。使用subscribe模式可以实现位点迁移、动态负载均衡（我们往相同组中加入新的consumer，会剥夺当前consumer分配的一些分区，移动给新的consumer，这样就减少了当前consumer的负载）
+            当我们使用subscribe订阅模式时，需要提供一个groupId，代表当前consumer所属于的组中，相同组中的consumer被分配给一个topic的不同partition。 -->
+        <name>group.id</name>
+        <!-- default: null -->
+        <value></value>
+        <description>
+            A unique string that identifies the consumer group this consumer belongs to. This property is required if the consumer uses either the group management functionality by using subscribe(topic) or the Kafka-based offset management strategy.
+        </description>
+    </property>
+
+    <property>
+        <!-- 当前consumer client的一个命名，broker通过该命名来识别不同consumer客户端发来的请求，在broker中也可以通过该命名搜索到所有来自该客户端的请求 -->
+        <name>client.id</name>
+        <!-- default: null -->
+        <value></value>
+        <description>
+            An id string to pass to the server when making requests. The purpose of this is to be able to track the source of requests beyond just ip/port by allowing a logical application name to be included in server-side request logging.
+        </description>
+    </property>
+
+    <property>
+        <!-- 是否允许自动提交位点。如果启动的话，consumer会开启一个线程，定时的提交位点
+            通常我们是需要手动提交位点的，因为一旦我们提交位点了，那么在broker中就记录了该group中，该分区已消费到了那儿。下次再有该group的consumer获取该分区后，会自动从该位置拉取数据。
+            我们提交位点的前提应该是我这次拉取的数据都正确处理完成了，而自动提交是无法实现这个保证的，它就认为过了指定时间后，就可以提交位点了，它就把位点信息提交给broker。所以在自动提交位点情况下，有可能数据处理不正确，但位点依旧提交出去了。 -->
+        <name>enable.auto.commit</name>
+        <!-- default: true -->
+        <value>false</value>
+        <description>
+            If true the consumer's offset will be periodically committed in the background.
+        </description>
+    </property>
+
+    <property>
+        <!-- 当enable.auto.commit为true时，也就是自动提交位点时，指定每隔多长时间进行一次位点提交 -->
+        <name>auto.commit.interval.ms</name>
+        <!-- default: 5000 (5 seconds) -->
+        <value>5000</value>
+        <description>
+            The frequency in milliseconds that the consumer offsets are auto-committed to Kafka if enable.auto.commit is set to true.
+        </description>
+    </property>
+
+    <property>
+        <!-- 当consumer和分配的分区的broker建立好连接后，它在拉取数据之前需要先向broker获取要拉取的位点信息。如果当前consumer的group在broker中没有位点提交信息，那么broker会根据该配置给consumer返回位点信息。
+             如果该值为earliest，那么broker会把该分区第一个数据的offset发给consumer，代表consumer需要从该分区的第一条数据来拉取。如果该值为latest，那么broker会把该分区最后一个数据的offset发送给consumer，代表consumer需要从该分区最后一条数据来拉取。 -->
+        <name>auto.offset.reset</name>
+        <!-- default: latest -->
+        <value>earliest</value>
+        <description>
+            What to do when there is no initial offset in Kafka or if the current offset does not exist any more on the server (e.g. because that data has been deleted):
+
+            earliest: automatically reset the offset to the earliest offset
+            latest: automatically reset the offset to the latest offset
+            none: throw exception to the consumer if no previous offset is found for the consumer's group
+            anything else: throw exception to the consumer.
+        </description>
+    </property>
+
+    <property>
+        <!-- 当consumer的拉取一个partition的record请求发来后，broker不会只抓取一个record就返回给consumer，而是创建一个延时任务，在到达延迟任务最大的延时时间内，尽可能地多拉取一些该partition的record，直至拉取的record大小超过该配置，
+             则结束record拉取任务，以减少consumer和broker的交互。如果拉取一个分区中，第一条数据的大小就超过了该配置，那consumer就不会继续从该分区再拉取数据了 -->
+        <name>max.partition.fetch.bytes</name>
+        <!-- default: 1048576 (1 mb) -->
+        <value>1048576</value>
+        <description>
+            The maximum amount of data per-partition the server will return. Records are fetched in batches by the consumer.
+            If the first record batch in the first non-empty partition of the fetch is larger than this limit, the batch will still be returned to ensure that the consumer can make progress.
+            The maximum record batch size accepted by the broker is defined via message.max.bytes (broker config) or max.message.bytes (topic config). See fetch.max.bytes for limiting the consumer request size.
+        </description>
+    </property>
+
+    <property>
+        <!-- 本次poll请求最大拉取的数据量，也就是说从所有分配给这个consumer的分区中拉取到的所有数据的数据量的最大值。注意max.partition.fetch.bytes是设置consumer每个partition的拉取量，而该配置是当前consumer拉取所有分配的partition的数据量。 -->
+        <name>fetch.max.bytes</name>
+        <!-- default: 52428800 (50 mebibytes) -->
+        <value>52428800</value>
+        <description>
+            The maximum amount of data the server should return for a fetch request. Records are fetched in batches by the consumer,
+            and if the first record batch in the first non-empty partition of the fetch is larger than this value, the record batch will still be returned to ensure that the consumer can make progress.
+            As such, this is not a absolute maximum. The maximum record batch size accepted by the broker is defined via message.max.bytes (broker config) or max.message.bytes (topic config).
+            Note that the consumer performs multiple fetches in parallel.
+        </description>
+    </property>
+
+    <property>
+        <!-- 本次poll请求最大拉取的数据条数。它和fetch.max.bytes是谁先到达就用谁的关系，例如fetch.max.bytes配置为100MB，但max.poll.records配置为10，那么consumer依然会只最多拉取10条数据，反之亦然。 -->
+        <name>max.poll.records</name>
+        <!-- default: 500 -->
+        <value>500</value>
+        <description>
+            The maximum number of records returned in a single call to poll(). Note, that max.poll.records does not impact the underlying fetching behavior.
+            The consumer will cache the records from each fetch request and returns them incrementally from each poll.
+        </description>
+    </property>
+
+    <property>
+        <!-- 一次poll请求最少拉取的数据量，如果broker中数据量少于该配置，那么broker不会马上对这个POLL REQUEST进行响应，而是暂时挂起当前请求，直到broker中收到足够的数据后才会给当前REQUEST进行响应。
+            增加该配置可以降低和broker的交互频率，但是会增加一定的数据延迟，因为需要等拉取的数据到达一定量才响应给consumer。 -->
+        <name>fetch.min.bytes</name>
+        <!-- default: 1 -->
+        <value>1</value>
+        <description>
+            The minimum amount of data the server should return for a fetch request. If insufficient data is available the request will wait for that much data to accumulate before answering the request.
+            The default setting of 1 byte means that fetch requests are answered as soon as a single byte of data is available or the fetch request times out waiting for data to arrive.
+            Setting this to something greater than 1 will cause the server to wait for larger amounts of data to accumulate which can improve server throughput a bit at the cost of some additional latency.
+        </description>
+    </property>
+
+    <property>
+        <!-- consumer在运作时，会向broker发起很多请求，例如JoinGroupRequest、LeaveGroupRequest，该配置用于控制请求发出去后需要最晚多长时间接收到响应。如果超过该配置没有收到响应，那么consumer会再次发起请求或把这次请求认定为请求失败。
+            例如该配置为3秒，当consumer在10:50发起请求后，如果10：53还没有接收到broker的响应，那么consumer就会发起重试或认定该请求发送失败 -->
+        <name>request.timeout.ms</name>
+        <!-- default: 30000 (30 seconds) -->
+        <value>30000</value>
+        <description>
+            The configuration controls the maximum amount of time the client will wait for the response of a request.
+            If the response is not received before the timeout elapses the client will resend the request if necessary or fail the request if retries are exhausted.
+        </description>
+    </property>
+
+    <property>
+        <!-- 配置consumer的拦截器，多个拦截器以逗号分割。consumer拦截器的主要作用是对consumer的poll、commit等方法获得broker的响应后进行的拦截 -->
+        <name>interceptor.classes</name>
+        <!-- default: null -->
+        <value></value>
+        <description>
+            A list of classes to use as interceptors. Implementing the org.apache.kafka.clients.producer.ProducerInterceptor interface allows you to intercept (and possibly mutate) the records
+            received by the producer before they are published to the Kafka cluster. By default, there are no interceptors.
+        </description>
+    </property>
+
+    <property>
+        <!-- kafkaConsumer在被分配到partition后，会开启一个线程来监听consumer poll方法的调用频率，如果调用频率低于该配置，那么该线程会主动向GroupCoordinator发起LeaveGroupRequest，让broker从当前分组中把该client剔除掉，并且把分配给它的分区收回，分配给分组中其他active的consumer。
+            consumer两次调用poll()方法拉取数据，如果超过了该间隔，当前consumer会给broker发送一个leave group request，这样broker就会把当前consumer剔除出group，将分配给它的分区分配给组内其他正在保持心跳的consumer -->
+        <name>max.poll.interval.ms</name>
+        <!-- default: 300000 (5 minutes) -->
+        <value>300000</value>
+        <description>
+            The maximum delay between invocations of poll() when using consumer group management. This places an upper bound on the amount of time that the consumer can be idle before fetching more records.
+            If poll() is not called before expiration of this timeout, then the consumer is considered failed and the group will rebalance in order to reassign the partitions to another member.
+            For consumers using a non-null group.instance.id which reach this timeout, partitions will not be immediately reassigned. Instead, the consumer will stop sending heartbeats
+            and partitions will be reassigned after expiration of session.timeout.ms. This mirrors the behavior of a static consumer which has shutdown.
+        </description>
+    </property>
+
+    <property>
+        <!--
+            当consumer加入一个group成功并获取到分区后，它就会和broker建立连接。之后的一个问题broker如何判断这个consumer是否一直存活。kafka使用consumer定时向GroupCoordinator发送心跳来解决这个问题。
+            每隔heartbeat.interval.ms时间，consumer就会定时给GroupCoordinator发送一个心跳，证明自己还存活。但是如果有一次心跳超时就判定该consumer不存活了，又过于严格。
+            所以就有了session.timeout.ms配置，在session.timeout.ms配置的范围内，如果没有consumer没有发送过一个心跳包，GroupCoordinator就可以认为该consumer不存活了。
+            一般情况，heartbeat.interval.ms要小于session.timeout.ms的1/3大小。
+        -->
+        <name>heartbeat.interval.ms</name>
+        <!-- default: 3000 (3 seconds) -->
+        <value>3000</value>
+        <description>
+            The expected time between heartbeats to the group coordinator when using Kafka's group management facilities.
+            Heartbeats are used to ensure that the worker's session stays active and to facilitate rebalancing when new members join or leave the group.
+            The value must be set lower than session.timeout.ms, but typically should be set no higher than 1/3 of that value. It can be adjusted even lower to control the expected time for normal rebalances.
+        </description>
+    </property>
+
+    <property>
+        <name>session.timeout.ms</name>
+        <!-- default: 10000 (10 seconds) -->
+        <value>10000</value>
+        <description>
+            The timeout used to detect worker failures. The worker sends periodic heartbeats to indicate its liveness to the broker.
+            If no heartbeats are received by the broker before the expiration of this session timeout, then the broker will remove the worker from the group and initiate a rebalance.
+            Note that the value must be in the allowable range as configured in the broker configuration by group.min.session.timeout.ms and group.max.session.timeout.ms.
+        </description>
+    </property>
+
+    <property>
+        <!-- 当前consumer能够支持的分区分配策略，该配置会在consumer发送JoinRequest时发送出去 -->
+        <name>partition.assignment.strategy</name>
+        <!-- default: org.apache.kafka.clients.consumer.RangeAssignor,org.apache.kafka.clients.consumer.CooperativeStickyAssignor -->
+        <value>10000</value>
+        <description>
+            A list of class names or class types, ordered by preference, of supported partition assignment strategies that the client will use to distribute partition ownership amongst consumer instances when group management is used. Available options are:
+
+            org.apache.kafka.clients.consumer.RangeAssignor: Assigns partitions on a per-topic basis.
+            org.apache.kafka.clients.consumer.RoundRobinAssignor: Assigns partitions to consumers in a round-robin fashion.
+            org.apache.kafka.clients.consumer.StickyAssignor: Guarantees an assignment that is maximally balanced while preserving as many existing partition assignments as possible.
+            org.apache.kafka.clients.consumer.CooperativeStickyAssignor: Follows the same StickyAssignor logic, but allows for cooperative rebalancing.
+            The default assignor is [RangeAssignor, CooperativeStickyAssignor], which will use the RangeAssignor by default, but allows upgrading to the CooperativeStickyAssignor with just a single rolling bounce that removes the RangeAssignor from the list.
+
+            Implementing the org.apache.kafka.clients.consumer.ConsumerPartitionAssignor interface allows you to plug in a custom assignment strategy.
+        </description>
+    </property>
+
+    <property>
+        <!-- 是否允许自动创建topic，前提是broker端的auto.create.topics.enable=true -->
+        <name>allow.auto.create.topics</name>
+        <!-- default: true -->
+        <value>true</value>
+        <description>
+            Allow automatic topic creation on the broker when subscribing to or assigning a topic.
+            A topic being subscribed to will be automatically created only if the broker allows for it using `auto.create.topics.enable` broker configuration.
+            This configuration must be set to `false` when using brokers older than 0.11.0
+        </description>
+    </property>
+</configuration>

@@ -1,0 +1,219 @@
+<?xml version="1.0"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<!--
+/**
+ *
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+-->
+<configuration>
+    <!-- LogSegment生成相关配置：start -->
+    <property>
+        <!-- 单个LogSegment的最大大小，当一个LogSegment超过该配置，则会创建一个新的LogSegment文件 -->
+        <name>log.segment.bytes</name>
+        <!-- default: 1073741824 (1 gb) -->
+        <value>1073741824</value>
+        <description>
+            The maximum size of a single log file
+        </description>
+    </property>
+
+    <property>
+        <!-- 单个LogSegment的最大写入时长。假设一个LogSegment一直没有写满log.segment.bytes，那么会一直往这个LogSegment写数据，当往该log file写入的时间超过了该配置，则会强制生成一个新的LogSegment -->
+        <name>log.roll.hours</name>
+        <!-- default: 168 (7 day) -->
+        <value>168</value>
+        <description>
+            The maximum time before a new log segment is rolled out (in hours), secondary to log.roll.ms property
+        </description>
+    </property>
+    <!-- LogSegment生成相关配置：end -->
+
+    <!-- 索引文件生成相关配置：start -->
+    <property>
+        <!-- log文件中每写入多少消息量，就向索引文件中插入一条记录。该配置越大，索引文件中写入的数据越稀疏，根据offset查找record时，顺序向下访问的内容越多。该配置越小，索引文件中写入数据越密集，根据offset查询record时，向下顺序读取的内容越少，但索引文件的容量越大。 -->
+        <name>log.index.interval.bytes</name>
+        <!-- default: 4096(4kb) -->
+        <value>4096</value>
+        <description>
+            The interval with which we add an entry to the offset index
+        </description>
+    </property>
+
+    <property>
+        <!-- 每个索引文件的最大大小，当索引文件超过该配置后，则生成一个新的索引文件 -->
+        <name>log.index.size.max.bytes</name>
+        <!-- default: 10485760(10mb) -->
+        <value>10485760</value>
+        <description>
+            The maximum size in bytes of the offset index
+        </description>
+    </property>
+    <!-- 索引文件生成相关配置：end -->
+
+    <!-- 日志清理相关配置：start -->
+    <property>
+        <!-- 日志清理策略，包含日志删除和日志合并 -->
+        <name>log.cleanup.policy</name>
+        <!-- default: delete -->
+        <value>delete</value>
+        <description>
+            The default cleanup policy for segments beyond the retention window. A comma separated list of valid policies. Valid policies are: "delete" and "compact"
+        </description>
+    </property>
+
+    <property>
+        <!-- 日志删除的检测周期 -->
+        <name>log.retention.check.interval.ms</name>
+        <!-- default: 300000 (5 minutes) -->
+        <value>300000</value>
+        <description>
+            The frequency in milliseconds that the log cleaner checks whether any log is eligible for deletion
+        </description>
+    </property>
+
+    <property>
+        <!-- LogSegment的最长存活时间（单位：ms） -->
+        <name>log.retention.ms</name>
+        <!-- default: null -->
+        <value></value>
+        <description>
+            The number of milliseconds to keep a log file before deleting it (in milliseconds), If not set, the value in log.retention.minutes is used. If set to -1, no time limit is applied.
+        </description>
+    </property>
+
+    <property>
+        <!-- LogSegment的最长存活时间（单位：hour），kafka使用LogSegment中最后一个record的timestamp作为该LogSegment的最后修改时间。当当前时间 - 最后修改时间超过该配置后，那么该LogSegment就是可以被删除的了 -->
+        <name>log.retention.hours</name>
+        <!-- default: 168(7 day) -->
+        <value>168</value>
+        <description>
+            The number of hours to keep a log file before deleting it (in hours), tertiary to log.retention.ms property
+        </description>
+    </property>
+
+    <property>
+        <!-- 每个partition中存留的最大的LogSegment的大小总量，当超过该配置后，则将更早的LogSegment删除掉，直接partition中所有LogSegment的大小小于该配置 -->
+        <name>log.retention.bytes</name>
+        <!-- default: -1 -->
+        <value>-1</value>
+        <description>
+            The maximum size of the log before deleting it
+        </description>
+    </property>
+
+    <property>
+        <!-- 如果启动log.cleanup.policy使用了compact，那么该参数必须要启动才能进行日志合并 -->
+        <name>log.cleaner.enable</name>
+        <!-- default: true -->
+        <value>true</value>
+        <description>
+            Enable the log cleaner process to run on the server. Should be enabled if using any topics with a cleanup.policy=compact including the internal offsets topic. If disabled those topics will not be compacted and continually grow in size.
+        </description>
+    </property>
+
+    <property>
+        <!-- 当一个LogSegment被标记为需要删除，那么将会在.log文件后增加.deleted文件，并创建一个延迟任务，该任务会在延迟该配置后，将.log文件从文件系统中真正删除 -->
+        <name>file.delete.delay.ms</name>
+        <!-- default: 60000 (1 minute) -->
+        <value>60000</value>
+        <description>
+            The time to wait before deleting a file from the filesystem
+        </description>
+    </property>
+    <!-- 日志清理相关配置：end -->
+
+    <property>
+        <!-- 创建一个新的topic时，如果没有指定分区数，则使用该配置作为默认的分区数 -->
+        <name>num.partitions</name>
+        <!-- default: 1 -->
+        <value>1</value>
+        <description>
+            The default number of log partitions per topic
+        </description>
+    </property>
+
+    <property>
+        <!-- broker存储日志文件的目录 -->
+        <name>log.dir</name>
+        <!-- default: /tmp/kafka-logs -->
+        <value>/tmp/kafka-logs</value>
+        <description>
+            The directory in which the log data is kept (supplemental for log.dirs property)
+        </description>
+    </property>
+
+
+
+    <property>
+        <!-- broker连接的zookeeper的地址 -->
+        <name>zookeeper.connect</name>
+        <!-- default: null -->
+        <value></value>
+        <description>
+            Specifies the ZooKeeper connection string in the form hostname:port where host and port are the host and port of a ZooKeeper server. To allow connecting through other ZooKeeper nodes when that ZooKeeper machine is down you can also specify multiple hosts in the form hostname1:port1,hostname2:port2,hostname3:port3.
+            The server can also have a ZooKeeper chroot path as part of its ZooKeeper connection string which puts its data under some path in the global ZooKeeper namespace. For example to give a chroot path of /chroot/path you would give the connection string as hostname1:port1,hostname2:port2,hostname3:port3/chroot/path.
+        </description>
+    </property>
+
+    <property>
+        <!-- broker的id，在一个broker集群中，每个broker应该有一个独一无二的id，如果没有给出，则由kafka自己生成 -->
+        <name>broker.id</name>
+        <!-- default: -1 -->
+        <value>-1</value>
+        <description>
+            The broker id for this server. If unset, a unique broker id will be generated.To avoid conflicts between zookeeper generated broker id's and user configured broker id's, generated broker ids start from reserved.broker.max.id + 1.
+        </description>
+    </property>
+
+    <property>
+        <!-- broker向zookeeper中注册的该broker的连接信息，客户端在连接到broker时，是获取的该地址 -->
+        <name>advertised.listeners</name>
+        <!-- default: null -->
+        <value>PLAINTEXT://kafka-1:9092</value>
+        <description>
+            Listeners to publish to ZooKeeper for clients to use, if different than the listeners config property. In IaaS environments, this may need to be different from the interface to which the broker binds. If this is not set, the value for listeners will be used. Unlike listeners, it is not valid to advertise the 0.0.0.0 meta-address.
+            Also unlike listeners, there can be duplicated ports in this property, so that one listener can be configured to advertise another listener's address. This can be useful in some cases where external load balancers are used.
+        </description>
+    </property>
+
+    <property>
+        <!-- broker实际监听用户请求的网段和地址，PLAINTEXT://0.0.0.0:9092代表监听所有ip向9092端口发起的请求 -->
+        <name>listeners</name>
+        <!-- default: null -->
+        <value>PLAINTEXT://0.0.0.0:9092</value>
+        <description>
+            Listener List - Comma-separated list of URIs we will listen on and the listener names. If the listener name is not a security protocol, listener.security.protocol.map must also be set.
+            Listener names and port numbers must be unique.
+            Specify hostname as 0.0.0.0 to bind to all interfaces.
+            Leave hostname empty to bind to default interface.
+            Examples of legal listener lists:
+            PLAINTEXT://myhost:9092,SSL://:9091
+            CLIENT://0.0.0.0:9092,REPLICATION://localhost:9093
+        </description>
+    </property>
+
+    <property>
+        <!-- 是否允许自动创建topic，如果客户端subscribe或assign一个不存在的topic，并且请求参数中auto.create.topics.enable=true，那么如果broker端auto.create.topics.enable=true，则可以自动创建topic -->
+        <name>auto.create.topics.enable</name>
+        <!-- default: true -->
+        <value>true</value>
+        <description>
+            Enable auto creation of topic on the server
+        </description>
+    </property>
+</configuration>
