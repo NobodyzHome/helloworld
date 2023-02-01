@@ -83,8 +83,8 @@
     <property>
         <!-- RecordAccumulator中存储的每一个ProducerBatch的最大容量。当发来一个ProducerRecord时，如果它的大小比小batch.size小，那么会尝试把它放到已有的ProducerBatch中。否则会创建一个ProducerBatch，它的大小和ProducerRecord的大小一样，但注意这种超过batch.size的ProducerBatch不会放到对象池中进行对象复用 -->
         <name>batch.size</name>
-        <!-- default: 1048576 (1mb) -->
-        <value>1048576</value>
+        <!-- default: 16384 (16kb) -->
+        <value>16384</value>
         <description>
             The producer will attempt to batch records together into fewer requests whenever multiple records are being sent to the same partition. This helps performance on both the client and the server. This configuration controls the default batch size in bytes.
             No attempt will be made to batch records larger than this size.
@@ -107,10 +107,10 @@
     </property>
 
     <property>
-        <!-- send、partitionsFor等方法阻塞用户线程（因为它们的执行是在用户线程中执行的）的最大时间，当这些方法执行时间超过该配置，用户线程则会收到TimeoutException异常，以此来解除用户线程的阻塞 -->
+        <!-- RecordAccumulator中存储待发送数据的最大内存。如果RecordAccumulator中存储的ProducerBatch容量已超过该配置，当新插入一条ProducerRecord时，那么当前线程会阻塞，等待RecordAccumulator中有请求被响应，从而从RecordAccumulator中提出，腾出足够的空余的容量 -->
         <name>buffer.memory</name>
-        <!-- default: 60000 (1 minute) -->
-        <value>60000</value>
+        <!-- default: 33554432 (32mb) -->
+        <value>33554432</value>
         <description>
             The total bytes of memory the producer can use to buffer records waiting to be sent to the server. If records are sent faster than they can be delivered to the server the producer will block for max.block.ms after which it will throw an exception.
             This setting should correspond roughly to the total memory the producer will use, but is not a hard bound since not all memory the producer uses is used for buffering. Some additional memory will be used for compression (if compression is enabled) as well as for maintaining in-flight requests.
@@ -185,8 +185,8 @@
             注意：此时超时的ProducerBatch是无法通过retries参数进行重试的，因为retries控制的是broker给出响应后，发现响应中有可重试的异常才会重试。但这种情况下，Sender线程根本没有往broker里发送ProducerBatch，所以无法重试。
          -->
         <name>delivery.timeout.ms</name>
-        <!-- default: 30000 (30 seconds) -->
-        <value>30000</value>
+        <!-- default: 120000 (2 minutes) -->
+        <value>120000</value>
         <description>
             An upper bound on the time to report success or failure after a call to send() returns. This limits the total time that a record will be delayed prior to sending, the time to await acknowledgement from the broker (if expected), and the time allowed for retriable send failures.
             The producer may report failure to send a record earlier than this config if either an unrecoverable error is encountered, the retries have been exhausted, or the record is added to a batch which reached an earlier delivery expiration deadline.
@@ -204,8 +204,8 @@
             注意：一个ProducerBatch如果在RecordAccumulator中存在时间超过delivery.timeout.ms后也没发送到broker中，那么KafkaProducer会抛出异常。因此linger.ms应该远小于delivery.timeout.ms，让producer尽量不会因为ProducerBatch存储在内存中时间过长而抛出异常。
          -->
         <name>linger.ms</name>
-        <!-- default: 30000 (30 seconds) -->
-        <value>30000</value>
+        <!-- default: 0 -->
+        <value>0</value>
         <description>
             The producer groups together any records that arrive in between request transmissions into a single batched request. Normally this occurs only under load when records arrive faster than they can be sent out.
             However in some circumstances the client may want to reduce the number of requests even under moderate load. This setting accomplishes this by adding a small amount of artificial delay—that is, rather than immediately sending out a record,
@@ -219,7 +219,7 @@
     <property>
         <!-- 根据用户传入的ProducerRecord来决定当前record要发送到哪个partition的分区器。如果不传入，则使用默认分区器，默认分区器的策略是：
              1.如果ProducerRecord中给定了partition，则将当前record发送至指定的partition
-             2.如果ProducerRecord中没有给定partition，那么严格根据record的key来判断要发送到哪个partition，相同key的record必须分配到同一个partition中 -->
+             2.如果ProducerRecord中没有给定partition，那么严格根据record的key来判断要发送到哪个partition，相同key的record必须分配到同一个partition中，因为同一个partition中的record可以被consumer顺序消费 -->
         <name>partitioner.class</name>
         <!-- default: null -->
         <value></value>
@@ -243,6 +243,4 @@
             A list of classes to use as interceptors. Implementing the org.apache.kafka.clients.producer.ProducerInterceptor interface allows you to intercept (and possibly mutate) the records received by the producer before they are published to the Kafka cluster. By default, there are no interceptors.
         </description>
     </property>
-
-
 </configuration>
