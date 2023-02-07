@@ -107,7 +107,7 @@
     </property>
 
     <property>
-        <!-- 每个partition中存留的最大的LogSegment的大小总量，当超过该配置后，则将更早的LogSegment删除掉，直接partition中所有LogSegment的大小小于该配置 -->
+        <!-- 每个partition中存留的最大的LogSegment的大小总量，当超过该配置后，则从partition中第一个LogSegment开始删除，直至partition中所有LogSegment的大小小于该配置 -->
         <name>log.retention.bytes</name>
         <!-- default: -1 -->
         <value>-1</value>
@@ -156,8 +156,6 @@
             The directory in which the log data is kept (supplemental for log.dirs property)
         </description>
     </property>
-
-
 
     <property>
         <!-- broker连接的zookeeper的地址 -->
@@ -214,6 +212,79 @@
         <value>true</value>
         <description>
             Enable auto creation of topic on the server
+        </description>
+    </property>
+
+    <property>
+        <!-- 允许consumer客户端设置的session.timeout.ms的最小值 -->
+        <name>group.min.session.timeout.ms</name>
+        <!-- default: 6000 (6 seconds) -->
+        <value>6000</value>
+        <description>
+            The minimum allowed session timeout for registered consumers. Shorter timeouts result in quicker failure detection at the cost of more frequent consumer heartbeating, which can overwhelm broker resources.
+        </description>
+    </property>
+
+    <property>
+        <!-- 允许consumer客户端设置的session.timeout.ms的最大值 -->
+        <name>group.max.session.timeout.ms</name>
+        <!-- default: 1800000 (30 minutes) -->
+        <value>1800000</value>
+        <description>
+            The maximum allowed session timeout for registered consumers. Longer timeouts give consumers more time to process messages in between heartbeats at the cost of a longer time to detect failures.
+        </description>
+    </property>
+
+    <property>
+        <!-- follower副本多长时间没有向leader副本发起通讯或同步请求，leader副本就会将该follower从isr中踢出。
+             当leader副本收到客户端发来的数据后，follower副本会向leader副本发起数据拉取请求，如果一个follower在同步的过程中挂掉了，在超过该配置的事件后，leader副本就会把该follower副本从isr踢出，进入osr。
+             被踢出isr的最大影响是当leader挂掉后，该follower没有机会被选为leader，因为默认只会从isr中选取新的leader。
+             但进入osr的follower依然会继续向leader副本同步数据，当他同步的数据和leader副本差不多后，leader副本又会把他重新从osr加入到isr。 -->
+        <name>replica.lag.time.max.ms</name>
+        <!-- default: 30000 (30 seconds) -->
+        <value>30000</value>
+        <description>
+            If a follower hasn't sent any fetch requests or hasn't consumed up to the leaders log end offset for at least this time, the leader will remove the follower from isr
+        </description>
+    </property>
+
+    <property>
+        <!--
+            仅在producer发送的请求中ack=-1或all时起作用，此时broker会判断要发送的partition中isr数量是否超过指定该配置。如果超过，则继续处理，如果没有超过，则直接给producer响应一个异常，告诉producer当前partition的isr数量不满足要求，无法进行数据的处理。
+            当producer发来的请求中ack=-1，broker端min.insync.replicas=2，broker在处理该请求时:
+            a) 如果发现该partition中isr数量<2，就会直接给客户端响应，响应一个NotEnoughReplicas异常，告知客户端当前partition中没有指定数量的isr。
+            b) 如果发现该partition中isr数量>=2，就会继续处理该请求，将数据记录到leader副本中，然后等isr中其他follower都同步完了该数据，再给客户端发送响应。此时即使leader副本挂了，还有isr中的其他follower副本记录着这条数据，数据不会丢失。
+            因此，下面这些操作联合起来可以极大地保证数据的可靠性（即producer发出的数据不会在broker端丢失）：
+            1.producer发送请求中的ack=-1，只有这样才能让producer客户端知道当前发送的数据是彻底被所有isr副本同步了
+            2.要发送的topic的副本因子(replicas) > 1，只有这样才能保证一个partition有多个副本
+            3.broker端的min.insync.replicas > 1，只有这样才能保证在接收producer发来的数据时，有多个副本(isr)完成了数据的同步
+        -->
+        <name>min.insync.replicas</name>
+        <!-- default: 1 -->
+        <value>1</value>
+        <description>
+            When a producer sets acks to "all" (or "-1"), min.insync.replicas specifies the minimum number of replicas that must acknowledge a write for the write to be considered successful. If this minimum cannot be met, then the producer will raise an exception (either NotEnoughReplicas or NotEnoughReplicasAfterAppend).
+            When used together, min.insync.replicas and acks allow you to enforce greater durability guarantees. A typical scenario would be to create a topic with a replication factor of 3, set min.insync.replicas to 2, and produce with acks of "all". This will ensure that the producer raises an exception if a majority of replicas do not receive a write.
+        </description>
+    </property>
+
+    <property>
+        <!-- 存储事务相关信息的__transaction_state的分区数，broker部署后就不允许修改了 -->
+        <name>transaction.state.log.num.partitions</name>
+        <!-- default: 50 -->
+        <value>50</value>
+        <description>
+            The number of partitions for the transaction topic (should not change after deployment).
+        </description>
+    </property>
+
+    <property>
+        <!-- 存储group位点信息相关信息的__consumer_offsets的分区数，broker部署后就不允许修改了 -->
+        <name>offsets.topic.num.partitions</name>
+        <!-- default: 50 -->
+        <value>50</value>
+        <description>
+            The number of partitions for the offset commit topic (should not change after deployment).
         </description>
     </property>
 </configuration>

@@ -120,13 +120,16 @@
     <property>
         <!--
             该参数是发送给broker，broker收到该参数后，会根据参数的值决定【何时】对发来的请求进行响应：
-             1.ack=0，broker在收到请求后，就立即对请求给出响应。这种情况下，send方法返回的RecordMetadata中，offset就固定为-1，因为响应结果是不等数据写入到副本后就发送了。
-             2.ack=1，broker在收到请求后，会将数据写入到leader副本，然后就对请求给出响应。因此在此时，send方法返回的RecordMetadata中，offset就是实际的数据写入到副本中的offset。
-             3.ack=all或-1，broker在收到该请求后，会将数据写入到leader副本，然后等待ISR中的其他broker同步完该条数据，才会给出响应。因此send方法返回的RecordMetadata中也会带有数据写入到副本的实际的offset。
+             1.ack=0，broker在收到请求后，就立即对请求给出响应。这样数据即使没有在副本里记录，producer也不知道
+             2.ack=1，broker在收到请求后，在将数据写入到leader副本后，才会对请求给出响应。这样producer能知道这条记录至少被leader副本记录了
+             3.ack=all或-1，broker在收到该请求后，在将数据写入到ISR中所有副本后，才会对请求给出响应。这样producer能知道这条记录被所有ISR副本记录了
 
              注意：
-             1.无论ack等于几，都是Sender线程接收来自kafka的响应，然后根据响应内容把Future<RecordMetadata>设置为done状态，这样用户线程就可以获取到kafka的响应结果了（在此之前调用get方法会被阻塞）
-             2.如果ack=0，那么retries就无效了，因为客户端并没有等到broker对请求的响应结果，因此也就不知道响应结果中是否有异常，导致无法判断是否需要重试
+             1.无论ack等于几，producer都是异步发送record，即producer只把record加入到内存中的RecordAccumulator就结束了，用户线程就不再阻塞了。而。
+             2.acks影响的是record从producer端传输到broker端的数据可靠性：
+                当ack=0，sender线程不知道broker的存储情况，无法对broker存储record时发生的异常进行重试【at most once】
+                而=1时，如果落leader副本异常时，sender线程会发起重试，保证leader副本肯定会把record落进去【at least once】
+                而=all时，如果落isr中任意副本异常时，sender线程会发起重试，保证isr中所有副本肯定会把record落进去【at least once】
          -->
         <name>acks</name>
         <!-- default: all -->
@@ -196,12 +199,10 @@
 
     <property>
         <!--
-            当我们发送消息时，为了减少网络I/O的使用，producer在发送的ProducerRecord时，会把数据先存储到内存中，具体是存储到ProducerBatch中。此后，producer会在以下情况将内存中的ProducerBatch发送给broker：
-            1.ProducerBatch的大小超过batch.size，代表该ProducerBatch已经装满数据了，可以被发送出去了
-            2.ProducerBatch的大小虽然小于batch.size，但在RecordAccumulator中存在的时间也超过了linger.ms时间。
-            linger.ms配置的目的是：让ProducerBatch即使没有满足大小的要求，也可以及时发送到broker中，不会因为一直不生产新的ProducerRecord，导致数据都积压在producer的内存中
+            当创建一个新的ProducerBatch，此时其还不可用，不能被sender发送。默认情况下，会一直等到其内容达到了batch.size大小，该ProducerBatch才会变为可用。
+            linger.ms用于给这个等待时间设置一个上限，即使ProducerBatch一直攒不满，也会在等待时间超过linger.ms时，强制将ProducerBatch变为可用，避免了由于数据量不多导致ProducerBatch一直不可用。
 
-            注意：一个ProducerBatch如果在RecordAccumulator中存在时间超过delivery.timeout.ms后也没发送到broker中，那么KafkaProducer会抛出异常。因此linger.ms应该远小于delivery.timeout.ms，让producer尽量不会因为ProducerBatch存储在内存中时间过长而抛出异常。
+            注意：linger.ms应该远小于delivery.timeout.ms，避免ProducerBatch变为可用后，当前时间-ProducerBatch创建时间超过delivery.timeout.ms，导致抛出异常。
          -->
         <name>linger.ms</name>
         <!-- default: 0 -->
@@ -219,7 +220,8 @@
     <property>
         <!-- 根据用户传入的ProducerRecord来决定当前record要发送到哪个partition的分区器。如果不传入，则使用默认分区器，默认分区器的策略是：
              1.如果ProducerRecord中给定了partition，则将当前record发送至指定的partition
-             2.如果ProducerRecord中没有给定partition，那么严格根据record的key来判断要发送到哪个partition，相同key的record必须分配到同一个partition中，因为同一个partition中的record可以被consumer顺序消费 -->
+             2.如果ProducerRecord中没有给partition，但给了key，则根据key的hash值%分区数计算出该record要发送的partition
+             3.如果ProducerRecord中既没有partition，也没有key，则使用"粘性方式"，即能存储在同一个ProducerBatch的所有record都被分到同一分区，当当前ProducerBatch满了，换一个新的ProducerBatch后，就换一个其他的分区来分配，依此类推。 -->
         <name>partitioner.class</name>
         <!-- default: null -->
         <value></value>
@@ -241,6 +243,98 @@
         <value></value>
         <description>
             A list of classes to use as interceptors. Implementing the org.apache.kafka.clients.producer.ProducerInterceptor interface allows you to intercept (and possibly mutate) the records received by the producer before they are published to the Kafka cluster. By default, there are no interceptors.
+        </description>
+    </property>
+
+    <property>
+        <!-- producer客户端强制向broker拉取元数据的间隔，以及时发现新的broker或partition。producer在最初只知道bootstrap-server以及要发送的topic名称，不知道broker集群都有哪些broker以及topic下有多少个partition，每个partition的leader副本在哪个broker中。
+             而producer发送数据时，肯定需要知道要把数据发送的什么地址和端口，因此producer客户端就需要定期向broker拉取集群以及topic的元数据。 -->
+        <name>metadata.max.age.ms</name>
+        <!-- default: 300000 (5 minutes) -->
+        <value>300000</value>
+        <description>
+            The period of time in milliseconds after which we force a refresh of metadata even if we haven't seen any partition leadership changes to proactively discover any new brokers or partitions.
+        </description>
+    </property>
+
+    <property>
+        <!--
+            在sender线程中，每个node节点最多存储的inflight request数量。
+            什么是inflight request？
+            sender线程会将RecordAccumulator中的多个ProducerBatch转换成Request，然后存储到Map<Node,List<Request>>的缓存中，然后发送给broker。在producer收到broker对该request的响应前，该Request对象一直不会被删除，因此我们将其成为in-flight request（即正在发送的request）。
+            该配置的作用
+            即使broker没有对request进行响应，sender线程依旧会继续从RecordAccumulator拉取ProducerBatch，然后转换成Request，最终添加到Map<Node,List<Request>>的缓存中。也就是说，broker响应不及时的情况下，缓存中一个Node可能存储了多个in-flight request。
+            该配置用于控制，每一个Node最多拥有的in-flight request的数量，当超过该配置，sender线程则不会拉取RecordAccumulator并生成Request了。
+            如果该配置=1
+            如果该配置=1，那么每个node每次只能发送一个request，如果broker响应成功，则消除该request，然后读取下一个request并发送。如果broker响应需要重试，则客户端再次向broker发送request，依次类推，直至broker响应成功，才会清除该request，然后发送下一个request。也就是处理完一个request才能再发下一个request。
+            如果该配置>1
+            如果该配置>1，那么每个node可以向broker发送多个request，也就是当R1被发送后，无论R1是否被broker，都可以向broker发送下一个request，直至in-flight request数量到达该配置。
+            为什么说该配置>1会有乱序的风险？
+            假设producer先后向broker发送了3个in-flight request：R1、R2、R3（从老到新），假设broker对R1和R2响应失败了，对R3响应成功了，那么R1和R2会触发重试，再次发送到broker，此时broker响应成功后，broker记录的数据顺序就是R3、R1、R2。可以看到，broker中数据的存储顺序和producer客户端中发送的数据顺序不一致了。
+            因此，当老的request失败，新的request成功，然后老的request重试后成功，则会导致数据顺序不一致。
+         -->
+        <name>max.in.flight.requests.per.connection</name>
+        <!-- default: 5 -->
+        <value>5</value>
+        <description>
+            The maximum number of unacknowledged requests the client will send on a single connection before blocking.
+            Note that if this configuration is set to be greater than 1 and enable.idempotence is set to false, there is a risk of message reordering after a failed send due to retries
+            (i.e., if retries are enabled); if retries are disabled or if enable.idempotence is set to true, ordering will be preserved.
+            Additionally, enabling idempotence requires the value of this configuration to be less than or equal to 5. If conflicting configurations are set and idempotence is not explicitly enabled, idempotence is disabled.
+        </description>
+    </property>
+
+    <property>
+        <!--
+            是否启动幂等性，启动幂等性共需要以下配置：
+            1.enable.idempotence=true
+            2.acks=all
+            3.retries>0
+            4.max.in.flight.requests.per.connection<=5
+         -->
+        <name>enable.idempotence</name>
+        <!-- default: true -->
+        <value>true</value>
+        <description>
+            When set to 'true', the producer will ensure that exactly one copy of each message is written in the stream. If 'false', producer retries due to broker failures, etc., may write duplicates of the retried message in the stream. Note that enabling idempotence requires max.in.flight.requests.per.connection to be less than or equal to 5 (with message ordering preserved for any allowable value), retries to be greater than 0, and acks must be 'all'.
+            Idempotence is enabled by default if no conflicting configurations are set. If conflicting configurations are set and idempotence is not explicitly enabled, idempotence is disabled. If idempotence is explicitly enabled and conflicting configurations are set, a ConfigException is thrown.
+        </description>
+    </property>
+
+    <property>
+        <!--
+            事务id，只有在使用事务时才有效，每个生产者的事务id应是独一无二的。启动事务需要：
+            1.启动幂等性
+            2.配置事务id
+            3.在程序中调用KafkaProducer的initTransactions、beginTransaction、sendOffsetsToTransaction、commitTransaction、abortTransaction等事务相关方法
+         -->
+        <name>transactional.id</name>
+        <!-- default: 5 -->
+        <value>5</value>
+        <description>
+            The TransactionalId to use for transactional delivery. This enables reliability semantics which span multiple producer sessions since it allows the client to guarantee that transactions using the same TransactionalId have been completed prior to starting any new transactions.
+            If no TransactionalId is provided, then the producer is limited to idempotent delivery. If a TransactionalId is configured, enable.idempotence is implied. By default the TransactionId is not configured, which means transactions cannot be used. Note that, by default
+            , transactions require a cluster of at least three brokers which is the recommended setting for production; for development you can change this, by adjusting broker setting transaction.state.log.replication.factor.
+        </description>
+    </property>
+
+    <property>
+        <!-- 一个事务在执行期间的超时时间，如果一个事务执行时间超过该配置，TransactionCoordinator则abort该事务 -->
+        <name>transaction.timeout.ms</name>
+        <!-- default: 60000 (1 minute) -->
+        <value>60000</value>
+        <description>
+            The maximum amount of time in ms that the transaction coordinator will wait for a transaction status update from the producer before proactively aborting the ongoing transaction.If this value is larger than the transaction.max.timeout.ms setting in the broker, the request will fail with a InvalidTxnTimeoutException error.
+        </description>
+    </property>
+
+    <property>
+        <!-- __consumer_offsets中每一条数据的过期时间，当key过期后，value会被置成null，代表当前group在该partition的位点已因为过期而被删除 -->
+        <name>offsets.retention.minutes</name>
+        <!-- default: 10080 (7 day) -->
+        <value>10080</value>
+        <description>
+            After a consumer group loses all its consumers (i.e. becomes empty) its offsets will be kept for this retention period before getting discarded. For standalone consumers (using manual assignment), offsets will be expired after the time of last commit plus this retention period.
         </description>
     </property>
 </configuration>

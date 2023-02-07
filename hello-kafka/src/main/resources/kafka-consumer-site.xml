@@ -219,6 +219,7 @@
     </property>
 
     <property>
+        <!-- 可以看出，session.timeout.ms越低，越能及时发现consumer已不能正常运行，但会对占用更多broker的资源，因为consumer失效后，broker需要组织重分区。 -->
         <name>session.timeout.ms</name>
         <!-- default: 10000 (10 seconds) -->
         <value>10000</value>
@@ -230,7 +231,7 @@
     </property>
 
     <property>
-        <!-- 当前consumer能够支持的分区分配策略，该配置会在consumer发送JoinRequest时发送出去 -->
+        <!-- 当前consumer能够支持的分区分配策略，该配置会在consumer发送JoinRequest时发送出去。 -->
         <name>partition.assignment.strategy</name>
         <!-- default: org.apache.kafka.clients.consumer.RangeAssignor,org.apache.kafka.clients.consumer.CooperativeStickyAssignor -->
         <value>10000</value>
@@ -256,6 +257,30 @@
             Allow automatic topic creation on the broker when subscribing to or assigning a topic.
             A topic being subscribed to will be automatically created only if the broker allows for it using `auto.create.topics.enable` broker configuration.
             This configuration must be set to `false` when using brokers older than 0.11.0
+        </description>
+    </property>
+
+    <property>
+        <!-- consumer客户端强制向broker拉取元数据的间隔，以及时发现新的broker或partition。consumer在最初只知道bootstrap-server以及要订阅的topic名称，不知道broker集群都有哪些broker以及topic下有多少个partition，每个partition的leader副本在哪个broker中。
+             而consumer拉取partition数据时，肯定需要知道要从什么地址和端口拉取数据，因此consumer客户端就需要定期向broker拉取集群以及topic的元数据。
+             我们可以把zookeeper中注册的broker信息、topic信息都看作是客户端需要的元数据。 -->
+        <name>metadata.max.age.ms</name>
+        <!-- default: 300000 (5 minutes) -->
+        <value>300000</value>
+        <description>
+            The period of time in milliseconds after which we force a refresh of metadata even if we haven't seen any partition leadership changes to proactively discover any new brokers or partitions.
+        </description>
+    </property>
+
+    <property>
+        <!-- 事务隔离级别，决定consumer是否能读取事务中未提交的数据 -->
+        <name>isolation.level</name>
+        <!-- default: read_uncommitted (read_uncommitted) -->
+        <value>read_committed</value>
+        <description>
+            Controls how to read messages written transactionally. If set to read_committed, consumer.poll() will only return transactional messages which have been committed. If set to read_uncommitted (the default), consumer.poll() will return all messages, even transactional messages which have been aborted. Non-transactional messages will be returned unconditionally in either mode.
+            Messages will always be returned in offset order. Hence, in read_committed mode, consumer.poll() will only return messages up to the last stable offset (LSO), which is the one less than the offset of the first open transaction. In particular any messages appearing after messages belonging to ongoing transactions will be withheld until the relevant transaction has been completed. As a result, read_committed consumers will not be able to read up to the high watermark when there are in flight transactions.
+            Further, when in read_committed the seekToEnd method will return the LSO
         </description>
     </property>
 </configuration>
