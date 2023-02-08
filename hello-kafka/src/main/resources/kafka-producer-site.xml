@@ -327,14 +327,4 @@
             The maximum amount of time in ms that the transaction coordinator will wait for a transaction status update from the producer before proactively aborting the ongoing transaction.If this value is larger than the transaction.max.timeout.ms setting in the broker, the request will fail with a InvalidTxnTimeoutException error.
         </description>
     </property>
-
-    <property>
-        <!-- __consumer_offsets中每一条数据的过期时间，当key过期后，value会被置成null，代表当前group在该partition的位点已因为过期而被删除 -->
-        <name>offsets.retention.minutes</name>
-        <!-- default: 10080 (7 day) -->
-        <value>10080</value>
-        <description>
-            After a consumer group loses all its consumers (i.e. becomes empty) its offsets will be kept for this retention period before getting discarded. For standalone consumers (using manual assignment), offsets will be expired after the time of last commit plus this retention period.
-        </description>
-    </property>
 </configuration>
