@@ -687,4 +687,32 @@ public class ConsumerTest {
         } while (++currentTime <= maxTime);
         kafkaConsumer.close();
     }
+
+    @Test
+    public void testAssignWithGroup() {
+        Properties properties = new Properties();
+        properties.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "kafka-1:9092");
+        properties.setProperty(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
+        properties.setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
+        properties.setProperty(ConsumerConfig.GROUP_ID_CONFIG, "tx-group5");
+        properties.setProperty(ConsumerConfig.CLIENT_ID_CONFIG, "testCli5");
+        properties.setProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        properties.setProperty(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
+        properties.setProperty(ConsumerConfig.MAX_PARTITION_FETCH_BYTES_CONFIG, String.valueOf(DataSize.ofKilobytes(20).toBytes()));
+
+        try (KafkaConsumer<String, String> kafkaConsumer = new KafkaConsumer<>(properties)) {
+            List<PartitionInfo> partitionInfoList = kafkaConsumer.partitionsFor("hello_tx");
+            /*
+             * 在assign时也可以使用groupId来获取partition在指定groupId对应的位点的数据，并且为指定groupId进行位点提交。
+             * assign的坏处是无法进行动态横向扩展，当group有新consumer时，也无法为当前consumer减少一些partition。
+             * 但assign的好处是，可以交由程序进行分区分配，因为在subscribe中，每个consumer被分配的partition是由consumer的分区分配策略决定的，而使用assign，可以让用户手动指定每个consumer分配哪个partition
+             * 下面的程序就是模拟我们通过程序手动为当前KafkaConsumer分配一个partition，而不是由分区分配策略决定
+             */
+            PartitionInfo assignPartition = partitionInfoList.get(0);
+            kafkaConsumer.assign(Collections.singleton(new TopicPartition(assignPartition.topic(), assignPartition.partition())));
+//            kafkaConsumer.assign(partitionInfoList.stream().map(pi->new TopicPartition(pi.topic(),pi.partition())).collect(Collectors.toList()));
+            ConsumerRecords<String, String> consumerRecords = kafkaConsumer.poll(Duration.ofSeconds(2));
+            kafkaConsumer.commitSync();
+        }
+    }
 }
