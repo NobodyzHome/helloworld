@@ -1,16 +1,86 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!--设置log4j2的自身log级别为warn -->
-<configuration status="warn">
+<configuration dest="${env:HOME}/logs/log4j.log" status="debug" name="my-log" >
+    <properties>
+        <property name="baseDir" value="${env:HOME}/logs"/>
+        <property name="infoDir" value="${baseDir}/my-info.log"/>
+        <property name="debugDir" value="${baseDir}/my-debug.log"/>
+        <property name="exDir" value="${baseDir}/my-ex.log"/>
+        <property name="exDir1" value="${baseDir}/my-ex1.log"/>
+    </properties>
 
     <appenders>
-        <Console target="SYSTEM_OUT" name="console">
-            <PatternLayout pattern="[%d][%t][%p][%l] %m%n"/>
-        </Console>
+        <console name="consoleAppender">
+            <target>SYSTEM_OUT</target>
+            <PatternLayout>
+                <pattern>%sn.[%d{ISO8601}][%10p][%40.40c{1.}][%t] --- %m(%C.%M:%L)%n%xEx</pattern>
+                <charset>${sys:file.encoding}</charset>
+                <header>${log4j:configLocation}%n</header>
+                <footer>${java:runtime}%n</footer>
+            </PatternLayout>
+        </console>
+
+        <RollingFile name="debugAppender">
+            <fileName>${debugDir}</fileName>
+            <filePattern>${baseDir}/debug/${date:yyyy-MM}/%d{yyyy-MM-dd}.%i.gz</filePattern>
+            <SizeBasedTriggeringPolicy size="100KB"/>
+            <DefaultRolloverStrategy min="1" max="10"/>
+            <PatternLayout>
+                <pattern>%sn.[%d{DEFAULT}][%p][%c{1.}][%t] --- %m(%C.%M:%L)%n</pattern>
+            </PatternLayout>
+            <LevelRangeFilter minLevel="DEBUG" maxLevel="DEBUG" onMatch="ACCEPT" onMismatch="DENY"/>
+            <fileOwner>${sys:user.name}</fileOwner>
+        </RollingFile>
+
+        <RollingFile name="infoAppender">
+            <fileName>${infoDir}</fileName>
+            <filePattern>${baseDir}/info/%d{yyyy-MM}/%d{yyyy-MM-dd}.%i.log</filePattern>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1"/>
+                <SizeBasedTriggeringPolicy size="20KB"/>
+            </Policies>
+            <DefaultRolloverStrategy>
+                <min>1</min>
+                <max>20</max>
+            </DefaultRolloverStrategy>
+            <fileOwner>${sys:user.name}</fileOwner>
+            <PatternLayout>
+                <pattern>[%d{yyyy-MM-dd HH:mm:ss}][%p][%c{1.}][%t][%C] --- %m(%C.%M:%L)%n</pattern>
+            </PatternLayout>
+            <LevelRangeFilter>
+                <minLevel>info</minLevel>
+                <maxLevel>info</maxLevel>
+                <onMatch>accept</onMatch>
+                <onMismatch>deny</onMismatch>
+            </LevelRangeFilter>
+            <immediateFlush>false</immediateFlush>
+            <bufferSize>30000</bufferSize>
+        </RollingFile>
+
+        <RollingFile name="exAppender">
+            <fileName>${exDir}</fileName>
+            <filePattern>${baseDir}/error/%d{yyyy}/%d{yyyy-MM}.%i.gz</filePattern>
+            <SizeBasedTriggeringPolicy size="20KB"/>
+            <DefaultRolloverStrategy min="1" max="10"/>
+            <PatternLayout>
+                <pattern>%sn.[%d{DEFAULT}][%p][%c{1.}] --- %m(%C.%M:%L)%n%xEx</pattern>
+            </PatternLayout>
+            <LevelRangeFilter minLevel="error" maxLevel="warn" onMatch="accept" onMismatch="deny"/>
+            <fileOwner>${sys:user.name}</fileOwner>
+            <createOnDemand>false</createOnDemand>
+        </RollingFile>
+
+        <File name="fileAppender">
+            <fileName>${baseDir}/file.log</fileName>
+            <PatternLayout>
+                <pattern>[%d{UNIX_MILLIS}][%p][%c{1.}] --- %m%n</pattern>
+            </PatternLayout>
+            <append>false</append>
+        </File>
     </appenders>
 
     <loggers>
-        <root level="info">
-            <appender-ref ref="console"/>
-        </root>
+        <asyncRoot level="info" includeLocation="true">
+            <appender-ref ref="consoleAppender"/>
+        </asyncRoot>
     </loggers>
 </configuration>

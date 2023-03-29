@@ -1,0 +1,446 @@
+<?xml version="1.0"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<!--
+/**
+ *
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+-->
+<configuration>
+    <property>
+        <!-- hmaster监听客户端请求的端口。hbase-client在连接hmaster时，向该端口发送数据 -->
+        <name>hbase.master.port</name>
+        <!-- default: 16000 -->
+        <value>16000</value>
+        <description>
+            The port the HBase Master should bind to.
+        </description>
+    </property>
+
+    <property>
+        <!-- 在hbase master启动的web ui服务的端口。设置为-1则代表不启动web ui -->
+        <name>hbase.master.info.port</name>
+        <!-- default: 16010 -->
+        <value>16010</value>
+        <description>
+            The port for the HBase Master web UI.
+            Set to -1 if you do not want a UI instance run.
+        </description>
+    </property>
+
+    <property>
+        <!-- 指出hbase是使用standalone部署方式(false)还是集群部署方式(true)。如果为true，那么hmaster、region server、zk部署在不同机器，否则他们都运行在一个JVM中 -->
+        <name>hbase.cluster.distributed</name>
+        <!-- default: false -->
+        <value>true</value>
+        <description>
+            The mode the cluster will be in. Possible values are
+            false for standalone mode and true for distributed mode.  If
+            false, startup will run all HBase and ZooKeeper daemons together
+            in the one JVM.
+        </description>
+    </property>
+
+    <property>
+        <!-- hbase使用的zookeeper机器的域名 -->
+        <name>hbase.zookeeper.quorum</name>
+        <!-- default: localhost -->
+        <value>zookeeper</value>
+        <description>
+            Comma separated list of servers in the ZooKeeper ensemble
+            (This config. should have been named hbase.zookeeper.ensemble).
+            For example, "host1.mydomain.com,host2.mydomain.com,host3.mydomain.com".
+            By default this is set to localhost for local and pseudo-distributed modes
+            of operation. For a fully-distributed setup, this should be set to a full
+            list of ZooKeeper ensemble servers. If HBASE_MANAGES_ZK is set in hbase-env.sh
+            this is the list of servers which hbase will start/stop ZooKeeper on as
+            part of cluster start/stop.  Client-side, we will take this list of
+            ensemble members and put it together with the hbase.zookeeper.clientPort
+            config. and pass it into zookeeper constructor as the connectString
+            parameter.
+        </description>
+    </property>
+    <property>
+        <name>hbase.master</name>
+        <value>hbase-master:16000</value>
+    </property>
+    <property>
+        <name>hbase.master.hostname</name>
+        <value>hbase-master</value>
+    </property>
+    <property>
+        <!-- hbase写入hdfs的基础目录 -->
+        <name>hbase.rootdir</name>
+        <!-- ${hbase.tmp.dir}/hbase -->
+        <value>hdfs://namenode:9000/hbase</value>
+        <description>
+            The directory shared by region servers and into
+            which HBase persists.  The URL should be 'fully-qualified'
+            to include the filesystem scheme.  For example, to specify the
+            HDFS directory '/hbase' where the HDFS instance's namenode is
+            running at namenode.example.org on port 9000, set this value to:
+            hdfs://namenode.example.org:9000/hbase.  By default, we write
+            to whatever ${hbase.tmp.dir} is set too -- usually /tmp --
+            so change this configuration or else all data will be lost on
+            machine restart.
+        </description>
+    </property>
+
+    <property>
+        <!-- 参见hbase.hstore.blockingStoreFiles -->
+        <name>hbase.hstore.blockingWaitTime</name>
+        <!-- default: 90000 -->
+        <value>90000</value>
+        <description>
+            The time an HRegion will block updates for after hitting the StoreFile
+            limit defined by hbase.hstore.blockingStoreFiles.
+            After this time has elapsed, the HRegion will stop blocking updates even
+            if a compaction has not been completed.
+        </description>
+    </property>
+
+    <property>
+        <!-- region server监听客户端请求的端口。hbase-client在连接region server时，向该端口发送数据 -->
+        <name>hbase.regionserver.port</name>
+        <!-- default: 16020 -->
+        <value>16020</value>
+        <description>
+            The port the HBase RegionServer binds to.
+        </description>
+    </property>
+    <property>
+        <!-- 在region server启动的web ui服务的端口。设置为-1则代表不启动web ui -->
+        <name>hbase.regionserver.info.port</name>
+        <!-- default: 16030 -->
+        <value>16030</value>
+        <description>
+            The port for the HBase RegionServer web UI
+            Set to -1 if you do not want the RegionServer UI to run.
+        </description>
+    </property>
+
+    <!-- flush相关：flush分为两大块，一块是根据memstore大小判断是否flush，另一块是根据memstore多长时间没有被更新来判断是否flush -->
+    <!-- 在根据memstore大小判断时，又分为RegionServer级别的判断和Region级别的判断。RegionServer级别的触发后，会对RegionServer下所有的memstore进行flush，
+        Region级别的触发后，会对Region下的所有memstore进行flush。-->
+    <property>
+        <!-- 当一个region中所有memstore大小超过了该配置，则开始进行由memstore到storefile的flush。此时不会阻塞该region的写入请求。 -->
+        <name>hbase.hregion.memstore.flush.size</name>
+        <!-- default:134217728 (128MB) -->
+        <value>134217728</value>
+        <description>
+            Memstore will be flushed to disk if size of the memstore
+            exceeds this number of bytes. Value is checked by a thread that runs
+            every hbase.server.thread.wakefrequency.
+        </description>
+    </property>
+
+    <property>
+        <!-- 当一个region中的所有memstore大小超过了hbase.hregion.memstore.flush.size * hbase.hregion.memstore.block.multiplier，那么会阻塞该region的写入请求，等待memstore中的内容被flush完毕 -->
+        <name>hbase.hregion.memstore.block.multiplier</name>
+        <!-- default:4 -->
+        <value>4</value>
+        <description>
+            Block updates if memstore has hbase.hregion.memstore.block.multiplier
+            times hbase.hregion.memstore.flush.size bytes. Useful preventing
+            runaway memstore during spikes in update traffic. Without an
+            upper-bound, memstore fills such that when it flushes the
+            resultant flush files take a long time to compact or split, or
+            worse, we OOME.
+        </description>
+    </property>
+
+    <property>
+        <!--
+            当我们close一个region后，会有三个阶段：preclose（可选的）、为region设置close flag和将region下线。
+            1.在preclose阶段时，会触发flush，此时region还是可用的
+            2.在为region设置close flag，此时会触发该region的flush
+            3.将region下线后，该region就不可用了（无法对该region进行读写）
+            当设置close flag时触发的flush执行时，memstore很大，那么此时flush时间很长，整个region close的过程就会很长。
+            该配置用于设置，在region close时，如果发现region的memstore超过该配置，则会增加preclose阶段。在该阶段进行一次flush，将memstore的内容刷写到hdfs。
+            当preclose阶段完毕后，再设置close flag并触发flush时，此时则可以很快就执行完毕，减少了阶段2、3的执行时长。
+        -->
+        <name>hbase.hregion.preclose.flush.size</name>
+        <!-- default: 5242880 (5MB) -->
+        <value>5242880</value>
+        <description>
+            If the memstores in a region are this size or larger when we go
+            to close, run a "pre-flush" to clear out memstores before we put up
+            the region closed flag and take the region offline. On close,
+            a flush is run under the close flag to empty memory. During
+            this time the region is offline and we are not taking on any writes.
+            If the memstore content is large, this flush could take a long time to
+            complete. The preflush is meant to clean out the bulk of the memstore
+            before putting up the close flag and taking the region offline so the
+            flush that runs under the close flag has little to do.
+        </description>
+    </property>
+
+    <property>
+        <!-- 当RegionServer中所有memstore的大小超过该配置后，会阻塞该RegionServer的所有写请求，强制触发flush。当所有memstore的大小由于flush而被降低至
+            hbase.regionserver.global.memstore.size.lower.limit（默认为0.4*0,95=0.38，即堆内存大小*0.38）以下后，才会取消该RegionServer所有的写请求的阻塞。 -->
+        <name>hbase.regionserver.global.memstore.size</name>
+        <!-- default: heap*0.4 -->
+        <value></value>
+        <description>
+            Maximum size of all memstores in a region server before new
+            updates are blocked and flushes are forced. Defaults to 40% of heap (0.4).
+            Updates are blocked and flushes are forced until size of all memstores
+            in a region server hits hbase.regionserver.global.memstore.size.lower.limit.
+            The default value in this configuration has been intentionally left emtpy in order to
+            honor the old hbase.regionserver.global.memstore.upperLimit property if present.
+        </description>
+    </property>
+
+    <property>
+        <!-- 当RegionServer所有memstore大小超过该配置，则触发flush，但此时不会阻塞写请求。假设写请求很多，那么memstore清理量抵不过写入量，memstore还会一直往上涨
+           ，当涨到hbase.regionserver.global.memstore.size，RegionServer则会阻塞写请求，专心进行memstore的flush。待memstore大小恢复至hbase.regionserver.global.memstore.size.lower.limit以下
+           ，才会恢复写请求。 -->
+        <name>hbase.regionserver.global.memstore.size.lower.limit</name>
+        <!-- default: hbase.regionserver.global.memstore.size * 0.95 -->
+        <value></value>
+        <description>
+            Maximum size of all memstores in a region server before flushes are forced.
+            Defaults to 95% of hbase.regionserver.global.memstore.size (0.95).
+            A 100% value for this value causes the minimum possible flushing to occur when updates are
+            blocked due to memstore limiting.
+            The default value in this configuration has been intentionally left emtpy in order to
+            honor the old hbase.regionserver.global.memstore.lowerLimit property if present.
+        </description>
+    </property>
+
+    <property>
+        <!-- 当memstore的最后一次编辑时间与当前时间差距超过该配置，则会进行该memstore的flush操作。注意是memstore的最后编辑时间，当有新的写入时，会刷新该时间。-->
+        <name>hbase.regionserver.optionalcacheflushinterval</name>
+        <!-- default: 3600000 (1小时) -->
+        <value>3600000</value>
+        <description>
+            Maximum amount of time an edit lives in memory before being automatically flushed.
+            Default 1 hour. Set it to 0 to disable automatic flushing.
+        </description>
+    </property>
+
+    <property>
+        <!-- 检测memstore是否应该flush、store是否应该compact的频率。也就是说，并不是memstore大小超过配置了就会马上进行flush，store下的文件数量超过配置了就马上compact。
+            而是在检测触发时，才会判断是否应该flush、compact等。 -->
+        <name>hbase.server.thread.wakefrequency</name>
+        <!-- default: 10000 -->
+        <value>10000</value>
+        <description>
+            Time to sleep in between searches for work (in milliseconds).
+            Used as sleep interval by service threads such as log roller.
+        </description>
+    </property>
+
+    <property>
+        <!-- 在flush检测时，如果一个region满足flush的条件了，但region中任意一个store的storefile数量超过该配置后，那么此时不会触发flush，等待compact触发，将文件数量缩小，再进行flush，避免store频繁的flush导致文件过多。
+            但也不会一直等待compact，如果等待时间超过hbase.hstore.blockingWaitTime的配置，则即使store下文件过多，也会进行flush。 -->
+        <name>hbase.hstore.blockingStoreFiles</name>
+        <!-- default: 10 -->
+        <value>10</value>
+        <description>
+            If more than this number of StoreFiles in any one Store
+            (one StoreFile is written per flush of MemStore) then updates are
+            blocked for this HRegion until a compaction is completed, or
+            until hbase.hstore.blockingWaitTime has been exceeded.
+        </description>
+    </property>
+
+    <!-- compact相关的配置：主要包括compact检测的间隔，何时需要触发compact，强制major compact的周期 -->
+    <property>
+        <!-- compact检测周期，每隔一定周期，就会遍历所有region的每一个store。如果一个store下的文件数量超过hbase.hstore.compactionThreshold时，就需要对该文件夹下的文件进行合并，至于是minor还是major，由hbase自己决定
+            compact检测间隔周期的计算公式是：hbase.server.thread.wakefrequency * hbase.server.compactchecker.interval.multiplier。默认值对应的周期是：1000*10000=2.7h -->
+        <name>hbase.server.compactchecker.interval.multiplier</name>
+        <!-- default: 1000 -->
+        <value>1000</value>
+        <description>
+            The number that determines how often we scan to see if compaction is necessary.
+            Normally, compactions are done after some events (such as memstore flush), but if
+            region didn't receive a lot of writes for some time, or due to different compaction
+            policies, it may be necessary to check it periodically. The interval between checks is
+            hbase.server.compactchecker.interval.multiplier multiplied by
+            hbase.server.thread.wakefrequency.
+        </description>
+    </property>
+
+    <property>
+        <!-- 当compact检测触发后，compact检测会遍历所有region的每一个store，如果一个store的文件数量超过该配置，则需要对该store下的文件进行合并，至于是minor还是major，由hbase自己决定 -->
+        <name>hbase.hstore.compactionThreshold</name>
+        <!-- default: 3 -->
+        <value>3</value>
+        <description>
+            If more than this number of HStoreFiles in any one HStore
+            (one HStoreFile is written per flush of memstore) then a compaction
+            is run to rewrite all HStoreFiles files as one.  Larger numbers
+            put off compaction but when it runs, it takes longer to complete.
+        </description>
+    </property>
+
+    <property>
+        <!-- 在每次minor compact时，最多将多少个小文件合并成一个文件。当已合并文件的数量到达该配置后，本次minor compact就不再合并其他文件了，不管是不是还有其他小文件需要合并。避免minor compact无限制地合并小文件。 -->
+        <name>hbase.hstore.compaction.max</name>
+        <!-- default: 10 -->
+        <value>10</value>
+        <description>Max number of HStoreFiles to compact per 'minor' compaction.</description>
+    </property>
+
+    <property>
+        <!-- 每一个region强制进行一次major compact的间隔，生产环境下一般设置为0，因为你不知道他具体什么时候做major compact，如果在白天做，对业务影响比较大。
+            所以设置为0，禁用周期性强制major compact，而是在业务低峰期手动进行major compact。 -->
+        <name>hbase.hregion.majorcompaction</name>
+        <!-- default: 604800000(7天) -->
+        <value>604800000</value>
+        <description>
+            The time (in miliseconds) between 'major' compactions of all
+            HStoreFiles in a region.  Default: Set to 7 days.  Major compactions tend to
+            happen exactly when you need them least so enable them such that they run at
+            off-peak for your deploy; or, since this setting is on a periodicity that is
+            unlikely to match your loading, run the compactions via an external
+            invocation out of a cron job or some such.
+        </description>
+    </property>
+
+    <property>
+        <!-- flush或compact时，每次读取的KV数量。针对内容比较大的KV，可以把该配置设置小一点，避免OOM；针对内容比较小的KV，可以把该配置设置大一点。 -->
+        <name>hbase.hstore.compaction.kv.max</name>
+        <!-- default: 10 -->
+        <value>10</value>
+        <description>
+            How many KeyValues to read and then write in a batch when flushing
+            or compacting.  Do less if big KeyValues and problems with OOME.
+            Do more if wide, small rows.
+        </description>
+    </property>
+
+    <!-- split相关配置：主要是如何判断region需要被split，一个table最大的region数量 -->
+    <property>
+        <!-- 一个storefile最大到多大时，就需要对该storefile所在的region进行split，切分成两个region。
+            注意：实际storefile多大进行region切分，是由hbase.regionserver.region.split.policy指定的策略计算出来的，默认是与该table的region数量有关，region越大，切分阈值就越大。
+            当策略计算出来的切分阈值比hbase.hregion.max.filesize大，则使用hbase.hregion.max.filesize作为切分阈值。即切分阈值 = Math.min(策略计算结果,hbase.hregion.max.filesize) -->
+        <name>hbase.hregion.max.filesize</name>
+        <!-- default: 10737418240（10GB） -->
+        <value>10737418240</value>
+        <description>
+            Maximum HStoreFile size. If any one of a column families' HStoreFiles has
+            grown to exceed this value, the hosting HRegion is split in two.
+        </description>
+    </property>
+
+    <property>
+        <!-- split策略，用于判断何时应该对一个region进行split。默认的IncreasingToUpperBoundRegionSplitPolicy会根据region个数与hbase.hregion.memstore.flush.size
+            的乘积与hbase.hregion.max.filesize进行取Min操作，来决定一个storefile超过多大时，就会对所在的region进行split。 -->
+        <name>hbase.regionserver.region.split.policy</name>
+        <!-- default: org.apache.hadoop.hbase.regionserver.IncreasingToUpperBoundRegionSplitPolicy -->
+        <value>org.apache.hadoop.hbase.regionserver.IncreasingToUpperBoundRegionSplitPolicy</value>
+        <description>
+            A split policy determines when a region should be split. The various other split policies that
+            are available currently are ConstantSizeRegionSplitPolicy, DisabledRegionSplitPolicy,
+            DelimitedKeyPrefixRegionSplitPolicy, KeyPrefixRegionSplitPolicy etc.
+        </description>
+    </property>
+
+    <property>
+        <!-- 当一个table的online region数量超过该配置后，则不再对该table的region进行split -->
+        <name>hbase.regionserver.regionSplitLimit</name>
+        <!-- default: 1000 -->
+        <value>1000</value>
+        <description>
+            Limit for the number of regions after which no more region splitting should take place.
+            This is not hard limit for the number of regions but acts as a guideline for the regionserver
+            to stop splitting after a certain limit. Default is set to 1000.
+        </description>
+    </property>
+
+    <!-- client相关配置 -->
+    <property>
+        <!-- 客户端在scan时，并不是每次调用next方法，就只向服务端请求一条数据。而是每次调用next方法，向服务端请求一批数据，并将响应结果存入内存中。
+            下次next方法调用时，如果内存中有，则直接从内存中取，如果没有，再向服务端再取一批数据，依此类推。这样能很大程度减少客户端和服务端的rpc交互次数。
+            该配置就是用来配置每次向服务端请求的row行数。
+            但具体请求的row行数，还取决于hbase.client.scanner.max.result.size的配置，代表每次请求的数据量大小。这两个配置哪个先符合用哪个。
+             这两个值越高，占用客户端的内存就越高。 -->
+        <name>hbase.client.scanner.caching</name>
+        <value>2147483647</value>
+        <description>
+            Number of rows that we try to fetch when calling next
+            on a scanner if it is not served from (local, client) memory. This configuration
+            works together with hbase.client.scanner.max.result.size to try and use the
+            network efficiently. The default value is Integer.MAX_VALUE by default so that
+            the network will fill the chunk size defined by hbase.client.scanner.max.result.size
+            rather than be limited by a particular number of rows since the size of rows varies
+            table to table. If you know ahead of time that you will not require more than a certain
+            number of rows from a scan, this configuration should be set to that row limit via
+            Scan#setCaching. Higher caching values will enable faster scanners but will eat up more
+            memory and some calls of next may take longer and longer times when the cache is empty.
+            Do not set this value such that the time between invocations is greater than the scanner
+            timeout; i.e. hbase.client.scanner.timeout.period
+        </description>
+    </property>
+
+    <property>
+        <!-- 参见hbase.client.scanner.caching。注意：如果服务端中第一条数据的大小就超过该配置，则依然会把第一条数据完整返回给客户端，而且仅返回这一条。 -->
+        <name>hbase.client.scanner.max.result.size</name>
+        <value>2097152</value>
+        <description>
+            Maximum number of bytes returned when calling a scanner's next method.
+            Note that when a single row is larger than this limit the row is still returned completely.
+            The default value is 2MB, which is good for 1ge networks.
+            With faster and/or high latency networks this value should be increased.
+        </description>
+    </property>
+
+    <property>
+        <!-- 写请求时，单个KV数据的最大容量，默认是10MB。这个是配置是为了避免单个KV过大，因为假设单个KV过大（10GB），那么会直接触发region的split，由于只有一个key，导致这个KV数据无法被拆分，
+            最终拆分出的两个region中，一个region里这个10GB的单个KV数据，另一个region没有数据，拆分了和没拆分一样，反而白白产生了一个region。 -->
+        <name>hbase.client.keyvalue.maxsize</name>
+        <!-- default: 10485760（10MB） -->
+        <value>10485760</value>
+        <description>
+            Specifies the combined maximum allowed size of a KeyValue
+            instance. This is to set an upper boundary for a single entry saved in a
+            storage file. Since they cannot be split it helps avoiding that a region
+            cannot be split any further because the data is too large. It seems wise
+            to set this to a fraction of the maximum region size. Setting it to zero
+            or less disables the check.
+        </description>
+    </property>
+
+    <property>
+        <!-- 客户端发送请求时缓冲区大小，默认2MB，假设客户端使用HTable发送了个Put请求，那么客户端不会立即向region server发起rpc请求，而是将PUT请求内容存储到writer buffer中，待客户端再发起请求，buffer内容超过配置，才会通过rpc将请求发送给服务端。
+            该配置越高，占用客户端和region server的内存越高，但是能明显降低客户端和region server的rpc次数。 -->
+        <name>hbase.client.write.buffer</name>
+        <!-- default: 2097152（2MB） -->
+        <value>2097152</value>
+        <description>
+            Default size of the HTable client write buffer in bytes.
+            A bigger buffer takes more memory -- on both the client and server
+            side since server instantiates the passed write buffer to process
+            it -- but a larger buffer size reduces the number of RPCs made.
+            For an estimate of server-side memory-used, evaluate
+            hbase.client.write.buffer * hbase.regionserver.handler.count
+        </description>
+    </property>
+
+    <property>
+        <!-- region server启动的rpc监听器数量，该配置越高，region server能够并行处理的rpc请求数就越高。客户端是通过rpc请求与region server进行读写等操作的。 -->
+        <name>hbase.regionserver.handler.count</name>
+        <!-- default: 30 -->
+        <value>30</value>
+        <description>
+            Count of RPC Listener instances spun up on RegionServers.
+            Same property is used by the Master for count of master handlers.
+        </description>
+    </property>
+</configuration>

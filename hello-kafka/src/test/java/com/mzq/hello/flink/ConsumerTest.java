@@ -18,6 +18,10 @@ import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * 拉取数据流程中，需要先订阅并且调用poll方法获取到partition后，才能拉取数据
+ * 提交位点时，可以不订阅topic，只需要给出group.id，就可以为指定group.id来提交位点
+ */
 @Slf4j
 public class ConsumerTest {
 
@@ -714,5 +718,21 @@ public class ConsumerTest {
             ConsumerRecords<String, String> consumerRecords = kafkaConsumer.poll(Duration.ofSeconds(2));
             kafkaConsumer.commitSync();
         }
+    }
+
+    @Test
+    public void testCommitWithoutPoll() {
+        Properties properties = new Properties();
+        properties.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "kafka-1:9092");
+        properties.setProperty(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
+        properties.setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
+        properties.setProperty(ConsumerConfig.GROUP_ID_CONFIG, "tx-group5");
+
+        KafkaConsumer<String, String> kafkaConsumer = new KafkaConsumer<>(properties);
+        // kafka允许consumer在不订阅topic和不获取partition的情况下，也可以提交提交位点。也是为properties中group.id中的group来提交位点
+        // 由于kafka允许这样处理，因此可以将topic订阅、拉取与位点提交放在两个不同的consumer来处理，只要他们的properties中group.id是相同的就可以，一个只负责拉取数据，另一个只负责提交位点（这个确实玩儿的挺花，也是看flink kafka source发现的）
+        // 注意：但是拉取数据时，consumer必须要通过subscribe或者assign订阅topic并且获取到partition，才能够拉取到数据
+        kafkaConsumer.commitSync(Collections.singletonMap(new TopicPartition("hello_tx",0),new OffsetAndMetadata(10)));
+        kafkaConsumer.close();
     }
 }

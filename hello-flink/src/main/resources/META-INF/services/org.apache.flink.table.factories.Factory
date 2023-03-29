@@ -1,0 +1,2 @@
+com.mzq.hello.flink.sql.connector.sink.PrintTableSinkTableFactory
+com.mzq.hello.flink.sql.connector.sink.RedisSinkDynamicSinkFactory
