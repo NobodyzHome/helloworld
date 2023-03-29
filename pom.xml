@@ -32,7 +32,7 @@
     <properties>
         <maven.compiler.source>8</maven.compiler.source>
         <maven.compiler.target>8</maven.compiler.target>
-        <flink.version>1.16.0</flink.version>
+        <flink.version>1.17.0</flink.version>
         <elasticsearch.version>7.5.1</elasticsearch.version>
         <flink.mysql-cdc.version>2.0.2</flink.mysql-cdc.version>
         <lettuce.version>6.0.2.RELEASE</lettuce.version>
@@ -190,7 +190,13 @@
             <dependency>
                 <groupId>org.apache.flink</groupId>
                 <artifactId>flink-connector-elasticsearch7</artifactId>
-                <version>${flink.version}</version>
+                <version>1.16.1</version>
+                <exclusions>
+                    <exclusion>
+                        <artifactId>flink-connector-base</artifactId>
+                        <groupId>org.apache.flink</groupId>
+                    </exclusion>
+                </exclusions>
             </dependency>
 
             <!-- flink连接jdbc的连接器 -->
@@ -198,7 +204,7 @@
             <dependency>
                 <groupId>org.apache.flink</groupId>
                 <artifactId>flink-connector-jdbc</artifactId>
-                <version>${flink.version}</version>
+                <version>1.16.1</version>
             </dependency>
 
             <!-- flink连接hbase的连接器 -->
