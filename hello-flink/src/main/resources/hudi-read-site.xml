@@ -1,0 +1,11 @@
+'connector' = 'hudi',
+'path' = 'hdfs://ns14/user/mart_coo_dev/app.db/app_hudi_busi_whole_busi_waybill_info',
+'table.type' = 'MERGE_ON_READ',
+'read.streaming.enabled' = 'false',
+'read.streaming.check-interval' = '5',
+'read.streaming.skip_compaction' = 'false',
+'hoodie.datasource.query.type' = 'snapshot',
+'hoodie.datasource.merge.type' = 'payload_combine',
+'payload.class' = 'org.apache.hudi.common.model.EventTimeAvroPayload',
+'precombine.field' = 'ts',
+'record.merger.impls' = 'org.apache.hudi.common.model.HoodieAvroRecordMerger

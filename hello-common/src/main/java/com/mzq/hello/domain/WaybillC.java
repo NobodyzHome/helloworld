@@ -14,4 +14,5 @@ public class WaybillC implements Serializable {
     private Long timeStamp;
     private Long watermark;
     private String siteWaybills;
+    private String dt;
 }

@@ -1,5 +1,6 @@
 package com.mzq.hello.flink;
 
+import com.mzq.hello.flink.usage.sql.HudiUsage;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.SqlDialect;
@@ -25,18 +26,8 @@ public class FlinkSqlUsage {
 //        UdfFunctionUsage udfFunctionUsage = new UdfFunctionUsage();
 //        udfFunctionUsage.execute();
 
-        EnvironmentSettings settings = EnvironmentSettings.newInstance().build();
-        TableEnvironment tableEnv = TableEnvironment.create(settings);
-        tableEnv.getConfig().setSqlDialect(SqlDialect.HIVE);
-
-        HiveCatalog hiveCatalog=new HiveCatalog("myhive","hello_world","/Users/maziqiang/Documents/sqlCli-lib");
-        tableEnv.registerCatalog("myhive",hiveCatalog);
-        tableEnv.useCatalog("myhive");
-
-        String[] strings = tableEnv.listTables();
-
-        tableEnv.executeSql("create table tt1234(id int,name string)");
-        tableEnv.executeSql("insert into print_sink select * from hello_t");
+        HudiUsage hudiUsage=new HudiUsage();
+        hudiUsage.execute();
     }
 
     public static void test1() {

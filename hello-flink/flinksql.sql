@@ -544,7 +544,7 @@ select
 from table(tumble(table mysql_hello,descriptor(update_time),interval '5' minute))
 group by window_start,window_end;
 
-CREATE CATALOG myhive WITH ('type'='hive','default-database'='default','hive-conf-dir'='/my-repository');
+CREATE CATALOG myhive WITH ('type'='hive','default-database'='default','hive-conf-dir'='/flink-libs');
 set table.sql-dialect=hive;
 
 create table kafka_test(id int,
@@ -1051,3 +1051,139 @@ from (select *
 select cast(FLOOR((current_date - interval '1' year) + interval '1' month to month) as string) st,cast(ceil((current_date - interval '1' year) + interval '1' month to month) as string) ed;
 
 select if(json_value('','$.b') <> '',true,false);
+
+CREATE CATALOG my_hudi WITH ('type'='hudi','mode'='dfs','catalog.path'='/my-hudi/hudi_catalog','default-database'='dev_db');
+use catalog my_hudi;
+use dev_db;
+
+CREATE TABLE hudi_hello_world(
+    waybillCode string,
+    waybillSign string,
+    siteCode string,
+    siteName string,
+    ts bigint,
+    dt string,
+    primary key (waybillCode) not enforced
+)
+    PARTITIONED BY (`dt`)
+WITH (
+  'connector' = 'hudi',
+ -- 如果已经给出了hudi catalog，那么这里可以不用设置path，hudi会在catalog的catalog.path/current_database目录下创建hudi表文件夹，在这里也就是在/my-hudi/hudi_catalog/dev_db文件夹下创建hudi_hello_world文件夹，作为该表的存储目录
+ 'path' = 'hdfs://namenode:9000/my-hudi/hudi_catalog/dev_db/hudi_hello_world',
+  'payload.class' = 'org.apache.hudi.common.model.PartialUpdateAvroPayload',
+  'hoodie.payload.ordering.field' = 'ts',
+  'table.type' = 'MERGE_ON_READ',
+  'hoodie.datasource.query.type'='snapshot',
+  'read.streaming.enabled'='true',
+  'read.start-commit'='earliest',
+  'read.streaming.check-interval'='5',
+  'read.streaming.skip_compaction'='false',
+  'read.streaming.skip_clustering'='false',
+  'index.bootstrap.enabled'='true',
+  'index.type'='BUCKET',
+  'hoodie.index.bucket.engine'='SIMPLE',
+  'hoodie.bucket.index.num.buckets'='5',
+  'index.state.ttl'='-1',
+  'index.global.enabled'='true',
+  'write.operation'='upsert',
+  'write.precombine'='true',
+  'write.tasks'='4',
+  'write.task.max.size'='1024',
+  'write.batch.size'='256',
+-- bulk insert的配置，数据从上游source到下游writer时，是否要进行shuffle，将相同partition的数据发送到同一个writer的subTask中，可以保证相同分区的数据交由同一个writer的subTask写，减少产生的文件数量（如果同一个分区的数据交由多个writer的subTask，每个subTask都会产生一个parquet文件）。
+  'write.bulk_insert.shuffle_input'='true',
+-- bulk insert的配置，数据在从source shuffle过来后，交由writer写入前，是否要对数据进行排序，以让相同分区或相同分区、hoodie key的数据排在一起。
+  'write.bulk_insert.sort_input'='true',
+-- bulk insert的配置，如果需要对shuffle过来的数据进行排序，那么该配置决定是按partition排序还是按partition加hoodie key排序。如果为false是按partition排序，否则是按partition加hoodie key排序。
+  'write.bulk_insert.sort_input.by_record_key'='true',
+-- bulk insert的配置，如果需要对shuffle过来的数据进行排序，那么该配置决定排序动作使用的内存大小。注意：这块内存使用的是flink的托管内存(managed memory)。
+  'write.sort.memory'='128',
+  'precombine.field'='ts',
+    'compaction.trigger.strategy'='num_commits',
+    'compaction.delta_commits'='2',
+    'compaction.schedule.enabled'='true',
+    'compaction.async.enabled'='true',
+    'clustering.schedule.enabled'='true',
+    'clustering.async.enabled'='false',
+    'clustering.delta_commits'='2',
+    'clean.async.enabled'='true',
+    'clean.policy'='KEEP_LATEST_FILE_VERSIONS',
+    'clean.retain_commits'='1',
+    'clean.retain_hours'='24',
+    'clean.retain_file_versions'='2',
+    'hadoop.dfs.replication'='1',
+    'hadoop.dfs.client.block.write.replace-datanode-on-failure.policy'='NEVER',
+    'hoodie.logfile.data.block.format'='avro',
+    'hoodie.metadata.enable'='false',
+    'changelog.enabled'='false',
+    'hive_sync.enable' = 'true',     -- Required. To enable hive synchronization
+  'hive_sync.mode' = 'hms',       -- Required. Setting hive sync mode to hms, default jdbc
+  'hive_sync.metastore.uris' = 'thrift://hive-metastore:9083', -- Required. The port need set on hive-site.xml
+--   'hive_sync.jdbc_url' = 'jdbc:postgresql://hive-metastore-postgresql/metastore', -- Required. The port need set on hive-site.xml
+--   'hive_sync.username' = 'hive', -- Required. The port need set on hive-site.xml
+--   'hive_sync.password' = 'hive', -- Required. The port need set on hive-site.xml
+  'hive_sync.db'='hello_hudi',                        -- required, hive database name
+  'hive_sync.table'='hudi_hello_world'               -- required, hive table name
+);
+
+-- 注意：在使用hudi catalog时，不能创建除了hudi以外的connector的表，否则hudi catalog会把所有表的connector修改为hudi
+create table default_catalog.default_database.hello_kafka(
+    waybillCode string,
+    waybillSign string,
+    siteCode string,
+    siteName string,
+    `timeStamp` bigint,
+    dt string
+)with(
+     'connector'='kafka',
+     'properties.bootstrap.servers'='kafka-1:9092',
+     'topic'='waybill-c',
+     'key.format'='raw',
+     'key.fields'='waybillCode',
+     'value.format'='json',
+     'scan.startup.mode'='latest-offset'
+ );
+
+-- 注意：在使用hudi catalog时，不能创建除了hudi以外的connector的表，否则hudi catalog会把所有表的connector修改为hudi
+create table default_catalog.default_database.hello_filesystem(
+    waybillCode string,
+    waybillSign string,
+    siteCode string,
+    siteName string,
+    `timeStamp` bigint,
+    dt string
+)
+partitioned by(dt)
+with(
+     'connector'='filesystem',
+     'path'='file:///my-hudi/file_table',
+     'format'='json',
+    'sink.partition-commit.trigger'='process-time',
+    'sink.partition-commit.delay'='0 s',
+    'sink.partition-commit.policy.kind'='success-file'
+ );
+
+set execution.runtime-mode=streaming;
+set execution.runtime-mode=batch;
+insert into hudi_hello_world select * from hello_filesystem;
+insert into hudi_hello_world select * from default_catalog.default_database.hello_kafka;
+insert into default_catalog.default_database.hello_filesystem select * from default_catalog.default_database.hello_kafka;
+
+insert into hudi_hello_world values('500','zhang san',cast(null as int),100,'2023-05-27'),('500',cast(null as string),88,200,'2023-05-27');
+insert into hudi_hello_world values('700','niu niu',80,2000,'2023-06-07'),('700',cast(null as string),60,2100,'2023-06-07');
+
+select * from my_hudi_table where dt='2023-05-02'
+
+    insert into hudi_hello_world values('500','zhang san','s1','s1_name',100,'2023-05-27'),('500',cast(null as string),'s2','s2_name',200,'2023-05-27');
+set sql-client.execution.result-mode=TABLEAU;
+
+{"waybillCode":"JD0000000092","dt":"2023-06-23","waybillSign":"11001","timeStamp":1687241160801}
+{"waybillCode":"JD0000000077","dt":"2023-06-21","siteCode":"111","timeStamp":1687318133562}
+{"waybillCode":"JD0000000004","dt":"2023-06-14","siteName":"888站点","timeStamp":1687241160803}
+{"waybillCode":"JD000000000100","dt":"2023-06-14","waybillSign":"01000","timeStamp":1687276800008}
+
+update hudi_hello_world /*+ options('read.streaming.enabled'='false') */ set waybillSign='11111000' where waybillCode='JD0000000005';
+select * from hudi_hello_world /*+ options('read.streaming.enabled'='false') */ where dt='2023-06-21';
+select waybillCode,count(*) from hudi_hello_world /*+ options('read.streaming.enabled'='false') */ group by waybillCode having  count(*)>1;
+select waybillCode,count(*) from hudi_hello_world group by waybillCode having  count(*)>1;
+select * from hudi_hello_world /*+ options('read.streaming.enabled'='false','read.start-commit'='20230621092035274') */;

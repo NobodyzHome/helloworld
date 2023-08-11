@@ -93,7 +93,8 @@ services:
     # 把宿主机的存储job jar包的目录挂载到虚拟机的一个目录上，这样就可以进入到jobManager中使用flink命令进行任务的提交了
     volumes:
       - "/Users/maziqiang/IdeaProjects/helloworld/hello-flink/target:/my-volume"
-      - "/Users/maziqiang/Documents/my-libs:/my-repository"
+      - "/Users/maziqiang/Documents/my-libs/flink-libs:/flink-libs"
+      - "/Users/maziqiang/Documents/my-hudi:/my-hudi"
     networks:
       - my-network
     # 默认情况下，镜像flink的docker-file执行的command的是help，我们要通过覆盖这个命令，覆盖为jobManager，告诉flink镜像，应该执行创建jobManager的命令
@@ -113,9 +114,8 @@ services:
         restart-strategy.fixed-delay.attempts: 3
         restart-strategy.fixed-delay.delay: 5 s
         execution.checkpointing.mode: EXACTLY_ONCE
-        execution.checkpointing.timeout: 10 s
-        execution.checkpointing.interval: 2 s
-        classloader.resolve-order: child-first
+        execution.checkpointing.timeout: 10 min
+        classloader.resolve-order: parent-first
         rest.flamegraph.enabled: true
         execution.checkpointing.interval: 2 min
 
@@ -136,9 +136,8 @@ services:
         restart-strategy.fixed-delay.attempts: 3
         restart-strategy.fixed-delay.delay: 5 s
         execution.checkpointing.mode: EXACTLY_ONCE
-        execution.checkpointing.timeout: 10 s
-        execution.checkpointing.interval: 2 s
-        classloader.resolve-order: child-first
+        execution.checkpointing.timeout: 10 min
+        classloader.resolve-order: parent-first
         rest.flamegraph.enabled: true
         execution.checkpointing.interval: 2 min
     depends_on:
@@ -151,7 +150,8 @@ services:
       - 6122
     volumes:
       - "/Users/maziqiang/IdeaProjects/helloworld/hello-hadoop/target:/my-volume"
-      - "/Users/maziqiang/Documents/my-libs:/my-repository"
+      - "/Users/maziqiang/Documents/my-libs/flink-libs:/flink-libs"
+      - "/Users/maziqiang/Documents/my-hudi:/my-hudi"
 
   # 配置第二个taskManager
   flink-taskmanager-2:
@@ -171,9 +171,8 @@ services:
         restart-strategy.fixed-delay.attempts: 3
         restart-strategy.fixed-delay.delay: 5 s
         execution.checkpointing.mode: EXACTLY_ONCE
-        execution.checkpointing.timeout: 10 s
-        execution.checkpointing.interval: 2 s
-        classloader.resolve-order: child-first
+        execution.checkpointing.timeout: 10 min
+        classloader.resolve-order: parent-first
         rest.flamegraph.enabled: true
         execution.checkpointing.interval: 2 min
     expose:
@@ -184,7 +183,8 @@ services:
     command: taskmanager
     volumes:
       - "/Users/maziqiang/IdeaProjects/helloworld/hello-hadoop/target:/my-volume"
-      - "/Users/maziqiang/Documents/my-libs:/my-repository"
+      - "/Users/maziqiang/Documents/my-libs/flink-libs:/flink-libs"
+      - "/Users/maziqiang/Documents/my-hudi:/my-hudi"
 
   my-redis:
     image: redis
@@ -295,6 +295,8 @@ services:
       - "50075:50075"
       # 50010是datanode对外提供读写服务的端口，用户程序连接datanode，获取文件的数据
       - "50010:50010"
+      # 50020是datanode对外ipc端口(dfs.datanode.ipc.address)
+      - "50020:50020"
     environment:
       SERVICE_PRECONDITION: "namenode:50070"
     env_file:
@@ -318,7 +320,7 @@ services:
     env_file:
       - ./hadoop.env
     volumes:
-      - /Users/maziqiang/Documents/my-libs:/my-libs
+      - "/Users/maziqiang/Documents/my-libs:/my-libs"
     networks:
       - my-network
 
@@ -333,6 +335,8 @@ services:
       - resourcemanager
     networks:
       - my-network
+    volumes:
+      - "/Users/maziqiang/Documents/my-libs:/my-libs"
 
   nodemanager2:
     image: bde2020/hadoop-nodemanager:2.0.0-hadoop2.7.4-java8
@@ -345,6 +349,8 @@ services:
       - resourcemanager
     networks:
       - my-network
+    volumes:
+      - "/Users/maziqiang/Documents/my-libs:/my-libs"
 
   historyserver:
     image: bde2020/hadoop-historyserver:2.0.0-hadoop2.7.4-java8
@@ -370,6 +376,9 @@ services:
       - "10000:10000"
     networks:
       - my-network
+    volumes:
+      - "/Users/maziqiang/Documents/my-libs:/my-libs"
+
   hive-metastore:
     image: bde2020/hive:2.3.2-postgresql-metastore
     env_file:
@@ -508,9 +517,9 @@ volumes:
 
 # docker compose up -d flink-jobmanager flink-taskmanager-1 namenode datanode resourcemanager nodemanager1 historyserver hive-server hive-metastore hive-metastore-postgresql presto-coordinator spark-master spark-worker-1 spark-worker-2
 # docker compose up -d namenode datanode resourcemanager nodemanager1 historyserver hive-server hive-metastore hive-metastore-postgresql presto-coordinator spark-master spark-worker-1
-# docker compose up -d flink-jobmanager flink-taskmanager-1 flink-taskmanager-2
 # docker compose up -d spark-master spark-worker-1 namenode datanode
 # docker compose up -d flink-jobmanager flink-taskmanager-1 zookeeper namenode datanode resourcemanager nodemanager1 historyserver hive-server hive-metastore hive-metastore-postgresql presto-coordinator hbase-master hbase-region
 # docker compose up -d zookeeper namenode datanode resourcemanager nodemanager1 hive-server hive-metastore hive-metastore-postgresql presto-coordinator hbase-master hbase-region spark-master spark-worker-1
 # docker compose up -d flink-taskmanager-1 kafka-1 namenode datanode resourcemanager nodemanager1 hive-server hive-metastore hive-metastore-postgresql presto-coordinator
 # docker compose up -d flink-jobmanager flink-taskmanager-1 zookeeper namenode datanode resourcemanager nodemanager1 hbase-master hbase-region hbase-region1 hive-server hive-metastore hive-metastore-postgresql presto-coordinator
+# docker compose up -d flink-jobmanager flink-taskmanager-1 flink-taskmanager-2 kafka-1 namenode datanode hive-server hive-metastore hive-metastore-postgresql resourcemanager nodemanager1

@@ -395,7 +395,7 @@ public class ProducerTest {
          * 因此我们就要设置对应的key和value类型的Serializer，让KafkaProducer可以对key和value这两种类型的对象进行二进制字节码转换。
          */
         properties.setProperty(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
-        properties.setProperty(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, DeepCopySerializer.class.getName());
+        properties.setProperty(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class.getName());
         properties.setProperty(ProducerConfig.CLIENT_ID_CONFIG, "my-producer");
         properties.setProperty(ProducerConfig.BATCH_SIZE_CONFIG, String.valueOf(DataSize.ofKilobytes(5).toBytes()));
         properties.setProperty(ProducerConfig.BUFFER_MEMORY_CONFIG, String.valueOf(DataSize.ofMegabytes(10).toBytes()));
@@ -412,35 +412,33 @@ public class ProducerTest {
 
         try (KafkaProducer<String, WaybillC> kafkaProducer = new KafkaProducer<>(properties)) {
             List<WaybillC> waybillCList = GenerateDomainUtils.generateWaybillc(20);
-            String waybillCode = waybillCList.get(0).getWaybillCode();
-            waybillCList.forEach(waybillC -> waybillC.setWaybillCode(waybillCode));
             for (WaybillC waybillC : waybillCList) {
                 ProducerRecord<String, WaybillC> producerRecord = new ProducerRecord<>("waybill-c", waybillC.getWaybillCode(), waybillC);
                 kafkaProducer.send(producerRecord);
             }
         }
 
-        Properties consumerConfig = new Properties();
-        consumerConfig.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
-        consumerConfig.setProperty(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
-        consumerConfig.setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, DeepCopyDeserializer.class.getName());
-        consumerConfig.setProperty(ConsumerConfig.GROUP_ID_CONFIG, "my-group");
-        consumerConfig.setProperty(ConsumerConfig.CLIENT_ID_CONFIG, "my-client");
-        consumerConfig.setProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-        consumerConfig.setProperty(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "true");
-        consumerConfig.setProperty(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG, String.valueOf(Duration.ofSeconds(1).toMillis()));
-
-        try (KafkaConsumer<String, WaybillC> kafkaConsumer = new KafkaConsumer<>(consumerConfig)) {
-            kafkaConsumer.subscribe(Collections.singleton("waybill-c"));
-            ConsumerRecords<String, WaybillC> consumerRecords = kafkaConsumer.poll(Duration.ofSeconds(2));
-            Set<TopicPartition> partitions = consumerRecords.partitions();
-            for (TopicPartition topicPartition : partitions) {
-                List<ConsumerRecord<String, WaybillC>> partitionRecords = consumerRecords.records(topicPartition);
-                log.info(StringUtils.center("====partition:" + topicPartition.partition() + "====", 50));
-                partitionRecords.forEach(consumerRecord -> log.info("consumer record.topic={},partition={},offset={},key={},value={}"
-                        , consumerRecord.topic(), consumerRecord.partition(), consumerRecord.offset(), consumerRecord.key(), consumerRecord.value()));
-            }
-        }
+//        Properties consumerConfig = new Properties();
+//        consumerConfig.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+//        consumerConfig.setProperty(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
+//        consumerConfig.setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeSerializer.class.getName());
+//        consumerConfig.setProperty(ConsumerConfig.GROUP_ID_CONFIG, "my-group");
+//        consumerConfig.setProperty(ConsumerConfig.CLIENT_ID_CONFIG, "my-client");
+//        consumerConfig.setProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+//        consumerConfig.setProperty(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "true");
+//        consumerConfig.setProperty(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG, String.valueOf(Duration.ofSeconds(1).toMillis()));
+//
+//        try (KafkaConsumer<String, WaybillC> kafkaConsumer = new KafkaConsumer<>(consumerConfig)) {
+//            kafkaConsumer.subscribe(Collections.singleton("waybill-c"));
+//            ConsumerRecords<String, WaybillC> consumerRecords = kafkaConsumer.poll(Duration.ofSeconds(2));
+//            Set<TopicPartition> partitions = consumerRecords.partitions();
+//            for (TopicPartition topicPartition : partitions) {
+//                List<ConsumerRecord<String, WaybillC>> partitionRecords = consumerRecords.records(topicPartition);
+//                log.info(StringUtils.center("====partition:" + topicPartition.partition() + "====", 50));
+//                partitionRecords.forEach(consumerRecord -> log.info("consumer record.topic={},partition={},offset={},key={},value={}"
+//                        , consumerRecord.topic(), consumerRecord.partition(), consumerRecord.offset(), consumerRecord.key(), consumerRecord.value()));
+//            }
+//        }
 
     }
 
@@ -709,5 +707,22 @@ public class ProducerTest {
             }
 
         }
+    }
+
+    @Test
+    public void testProduceRecords() {
+        Properties consumerConfig = new Properties();
+        consumerConfig.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "kafka-1:9092");
+        consumerConfig.setProperty(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
+        consumerConfig.setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
+        consumerConfig.setProperty(ConsumerConfig.GROUP_ID_CONFIG, "tx-group");
+        consumerConfig.setProperty(ConsumerConfig.CLIENT_ID_CONFIG, "tx-client");
+        consumerConfig.setProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
+        // 事务的处理不只包含生产者，也包含消费者。消费者需要设置事务隔离级别为read_committed，让消费者拉取不到未提交事务中发送的record。
+        // consumer默认的事务隔离级别是read_uncommitted，所以生产者以事务的形式往一个topic里发送record时，所有consumer在消费这个topic也需要设置事务隔离级别为read_committed。
+        consumerConfig.setProperty(ConsumerConfig.ISOLATION_LEVEL_CONFIG, "read_committed");
+        consumerConfig.setProperty(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
+
+
     }
 }

@@ -52,7 +52,7 @@ public class GenerateDomainUtils {
     }
 
     public static String generateOrderCode(String prefix) {
-        return prefix + StringUtils.leftPad(String.valueOf(RandomUtils.nextInt(1, 10000)), 10, "0");
+        return prefix + StringUtils.leftPad(String.valueOf(RandomUtils.nextInt(1, 100)), 10, "0");
     }
 
     public static String generateSign() {
@@ -66,12 +66,20 @@ public class GenerateDomainUtils {
     public static WaybillC generateWaybillc() {
         WaybillC waybillC = new WaybillC();
         waybillC.setWaybillCode(generateOrderCode("JD"));
-        waybillC.setWaybillSign(generateSign());
-        waybillC.setSiteCode(String.valueOf(RandomUtils.nextInt(100, 1000)));
-        waybillC.setSiteName(waybillC.getSiteCode() + "站点");
         waybillC.setTimeStamp(System.currentTimeMillis());
         waybillC.setWatermark(waybillC.getTimeStamp() - RandomUtils.nextInt(1000, 10000));
+        String[] partitions = {"2023-06-21","2023-06-22","2023-06-23"};
+        int code = Integer.parseInt(waybillC.getWaybillCode().substring(2));
+        waybillC.setDt(partitions[code % partitions.length]);
 
+        if (RandomUtils.nextBoolean()) {
+            waybillC.setWaybillSign(generateSign());
+        }
+
+        if (RandomUtils.nextBoolean()) {
+            waybillC.setSiteCode(String.valueOf(RandomUtils.nextInt(100, 1000)));
+            waybillC.setSiteName(waybillC.getSiteCode() + "站点");
+        }
         return waybillC;
     }
 

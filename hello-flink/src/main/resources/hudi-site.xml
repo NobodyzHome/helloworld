@@ -1,0 +1,275 @@
+<configuration>
+    <!-- 负载实现类 -->
+    <property>
+        <name>payload.class</name>
+        <value>org.apache.hudi.common.model.PartialUpdateAvroPayload</value>
+        <description>Payload class used. Override this, if you like to roll your own merge logic, when upserting/inserting. This will render any value set for the option in-effective</description>
+        <default>org.apache.hudi.common.model.EventTimeAvroPayload</default>
+    </property>
+
+    <!-- hudi表的存储路径。如果已经给出了hudi catalog，那么这里可以不用设置path，hudi会在catalog的catalog.path/current_database目录下创建hudi表文件夹，在这里也就是在/my-hudi/hudi_catalog/dev_db文件夹下创建hudi_hello_world文件夹，作为该表的存储目录 -->
+    <property>
+        <name>path</name>
+        <value>hdfs://namenode:9000/my-hudi/hudi_catalog/dev_db/hudi_hello_world</value>
+        <description>Base path for the target hoodie table. The path would be created if it does not exist, otherwise a Hoodie table expects to be initialized successfully</description>
+        <default>N/A</default>
+        <Required/>
+    </property>
+
+    <!-- 两个payload合并时，使用该字段的值来判断哪个payload更新一些。该配置的优先级比precombine.field高，也就是说同时配置了这两个参数的话，用这个配置指定的字段作为payload比较字段 -->
+    <property>
+        <name>hoodie.payload.ordering.field</name>
+        <value>ts</value>
+        <description>Table column/field name to order records that have the same key, before merging and writing to storage.</description>
+        <default>ts</default>
+    </property>
+
+    <!-- hudi表类型 -->
+    <property>
+        <name>table.type</name>
+        <value>MERGE_ON_READ</value>
+        <description>Type of table to write. COPY_ON_WRITE (or) MERGE_ON_READ</description>
+        <default>COPY_ON_WRITE</default>
+    </property>
+
+    <!-- hudi表的查询类型，主要为
+     1.incremental: 查询每个instant的新数据，不会将新instant的数据和已有数据进行合并，就是将新instant中的数据下发出去，此时类似于kafka
+     2.Read Optimized: 优化读，读全表（或指定分区）下的每一个file group中的最新的data slice的parquet文件，而不读log文件，因此不需要数据合并，查询效率高，但具有延迟性（最新数据在log中）
+     3.snapshot：快照读，读全表（或指定分区）下的每一个file group中的最新的data slice的parquet和log文件，将相同hoodie key的数据进行合并。由于在读取时需要进行数据合并，查询效率较差，但延迟性低
+     -->
+    <property>
+        <name>hoodie.datasource.query.type</name>
+        <value>snapshot</value>
+        <description>Whether data needs to be read, in incremental mode (new data since an instantTime) (or) Read Optimized mode (obtain latest view, based on base files) (or) Snapshot mode (obtain latest view, by merging base and (if any) log files)</description>
+        <default>snapshot</default>
+    </property>
+
+    <!-- 是否开启流读 -->
+    <property>
+        <name>read.streaming.enabled</name>
+        <value>true</value>
+        <description>Whether to read as streaming source, default false</description>
+        <default>false</default>
+    </property>
+
+    <!-- 从哪个instant开始读取数据，类似于kafka的位点 -->
+    <property>
+        <name>read.start-commit</name>
+        <value>earliest</value>
+        <description>Start commit instant for reading, the commit time format should be 'yyyyMMddHHmmss', by default reading from the latest instant for streaming read</description>
+        <default>N/A</default>
+        <Required/>
+    </property>
+
+    <!-- 读到哪个instant结束 -->
+    <property>
+        <name>read.end-commit</name>
+        <value>20230705130558</value>
+        <description>End commit instant for reading, the commit time format should be 'yyyyMMddHHmmss'</description>
+        <default>N/A</default>
+        <Required/>
+    </property>
+
+    <!-- 开启流读时，检查是否有新的instant的间隔（单位：秒） -->
+    <property>
+        <name>read.streaming.check-interval</name>
+        <value>5</value>
+        <description>Check interval for streaming read of SECOND, default 1 minute</description>
+        <default>60</default>
+    </property>
+
+    <!-- 开启流读时，是否忽略compaction instant中的数据 -->
+    <property>
+        <name>read.streaming.skip_compaction</name>
+        <value>false</value>
+        <description>
+            Whether to skip compaction instants for streaming read, there are two cases that this option can be used to avoid reading duplicates: 1) you are definitely sure that the consumer reads faster than any compaction instants,
+            usually with delta time compaction strategy that is long enough, for e.g, one week; 2) changelog mode is enabled, this option is a solution to keep data integrity
+        </description>
+        <default>false</default>
+    </property>
+
+    <!-- 开启流读时，是否忽略cluster instant中的数据 -->
+    <property>
+        <name>read.streaming.skip_clustering</name>
+        <value>false</value>
+        <description>Whether to skip clustering instants for streaming read, to avoid reading duplicates</description>
+        <default>false</default>
+    </property>
+
+    <!-- 从已有hudi表中读取数据时，是否启用index bootstrap，就是说在启动时，记录当前hudi表已有数据中，hoodie key和file group的对应关系，流写启动后，新来的相同hoodie key的数据写到其他file group中 -->
+    <property>
+        <name>index.bootstrap.enabled</name>
+        <value>true</value>
+        <description>Whether to bootstrap the index state from existing hoodie table, default false</description>
+        <default>false</default>
+    </property>
+
+    <!-- 是否开启全局index，即跨分区的index。当hudi表中2023-07-13这个分区已有JDA这个hoodie key的数据时，如果再来一条JDA的2023-07-14这个分区的数据时，如果启动了全局index，
+        会在老分区（2023-07-13）下创建一条该key的delete数据，然后再在新分区的file group下创建一条新的数据，避免相同hoodie key的数据落到两个分区中，造成数据重复。 -->
+    <property>
+        <name>index.global.enabled</name>
+        <value>true</value>
+        <description>Whether to update index for the old partition path if same key record with different partition path came in, default true</description>
+        <default>true</default>
+    </property>
+
+    <!-- 当使用flink state来记录hoodie key和file group的对应关系时，state的存储有效时间，默认是永久有效 -->
+    <property>
+        <name>index.state.ttl</name>
+        <value>0.0</value>
+        <description>Index state ttl in days, default stores the index permanently</description>
+        <default>0.0</default>
+    </property>
+
+    <!-- upsert流写时，使用哪种方式计算hoodie key和file group的对应关系。默认实现方案是用flink state存储hoodie key和file group的对应关系。 -->
+    <property>
+        <name>index.type</name>
+        <value>BUCKET</value>
+        <description>Index type of Flink write job, default is using state backed index.</description>
+        <default>FLINK_STATE</default>
+    </property>
+
+    <!-- 当index.type设置为BUCKET时，使用bucket的哪种计算引擎进行bucket分配。SIMPLE则是简单根据hoodie key的hashcode和bucket数量取余数，而CONSISTENT_HASHING会根据当前分区的bucket数量进行动态的bucket合并和拆分，减少因为hash导致的不同bucket数据倾斜的问题。 -->
+    <property>
+        <name>hoodie.index.bucket.engine</name>
+        <value>SIMPLE</value>
+        <description>
+            Type of bucket index engine to use. Default is SIMPLE bucket index, with fixed number of bucket.Possible options are [SIMPLE | CONSISTENT_HASHING].Consistent hashing supports dynamic resizing of the number of bucket
+            , solving potential data skew and file size issues of the SIMPLE hashing engine. Consistent hashing only works with MOR tables, only use simple hashing on COW tables.
+        </description>
+        <default>FLINK_STATE</default>
+    </property>
+
+    <!-- 当index.type设置为BUCKET时，hoodie.index.bucket.engine设置为SIMPLE时，指定每个分区的bucket数量。 -->
+    <property>
+        <name>hoodie.bucket.index.num.buckets</name>
+        <value>5</value>
+        <description>Hudi bucket number per partition. Only affected if using Hudi bucket index.</description>
+        <default>4</default>
+    </property>
+
+    <!-- hudi数据写入类型，不同类型的写入适配不同的场景，默认为upsert，即适配实时数据写入场景（写入的数据均为增量型数据） -->
+    <property>
+        <name>write.operation</name>
+        <value>upsert</value>
+        <description>The write operation, that this write should do</description>
+        <default>upsert</default>
+    </property>
+
+    <!-- 在upsert写入场景中，writer会将要写入的数据写入被分配的bucket的内存缓冲buffer，当buffer到达一定值后，会将buffer中的数据flush到hdfs。该配置用来指定，在flush时，是否将相同hoodie key的数据进行合并，以减少刷写到hdfs的数据量。 -->
+    <property>
+        <name>write.precombine</name>
+        <value>true</value>
+        <description>Flag to indicate whether to drop duplicates before insert/upsert. By default these cases will accept duplicates, to gain extra performance: 1) insert operation; 2) upsert for MOR table, the MOR table deduplicate on reading</description>
+        <default>false</default>
+    </property>
+
+    <!-- writer中每一个bucket的内存缓冲阈值，当任意一个bucket的buffer使用量超过了该配置，则将该buffer的数据flush到hdfs。 -->
+    <property>
+        <name>write.batch.size</name>
+        <value>256.0</value>
+        <description>Batch buffer size in MB to flush data into the underneath filesystem, default 256MB</description>
+        <default>256.0</default>
+    </property>
+
+    <!-- writer中所有bucket的内存缓冲阈值，当所有bucket的buffer使用量加起来超过来该配置，则挑选出buffer使用量最大的那个bucket进行flush。 -->
+    <property>
+        <name>write.batch.size</name>
+        <value>1024.0</value>
+        <description>Maximum memory in MB for a write task, when the threshold hits, it flushes the max size data bucket to avoid OOM, default 1GB</description>
+        <default>1024.0</default>
+    </property>
+
+    <!-- writer的并行度，默认与flink运行环境的默认并行度相同 -->
+    <property>
+        <name>write.tasks</name>
+        <value>4</value>
+        <description>Parallelism of tasks that do actual write, default is the parallelism of the execution environment</description>
+        <default>N/A</default>
+        <Required/>
+    </property>
+
+    <!-- bulk insert的配置，数据从上游source到下游writer时，是否要进行shuffle，将相同partition的数据发送到同一个writer的subTask中，可以保证相同分区的数据交由同一个writer的subTask写，减少产生的文件数量（如果同一个分区的数据交由多个writer的subTask，每个subTask都会产生一个parquet文件） -->
+    <property>
+        <name>write.bulk_insert.shuffle_input</name>
+        <value>true</value>
+        <description>Whether to shuffle the inputs by specific fields for bulk insert tasks, default true</description>
+        <default>true</default>
+    </property>
+
+    <!-- bulk insert的配置，数据在从source shuffle过来后，交由writer写入前，是否要对数据进行排序，以让相同分区或相同分区、hoodie key的数据排在一起 -->
+    <property>
+        <name>write.bulk_insert.sort_input</name>
+        <value>true</value>
+        <description>Whether to sort the inputs by specific fields for bulk insert tasks, default true</description>
+        <default>true</default>
+    </property>
+
+    <!-- bulk insert的配置，如果需要对shuffle过来的数据进行排序，那么该配置决定是按partition排序还是按partition加hoodie key排序。如果为false是按partition排序，否则是按partition加hoodie key排序 -->
+    <property>
+        <name>write.bulk_insert.sort_input.by_record_key</name>
+        <value>true</value>
+        <description>Whether to sort the inputs by record keys for bulk insert tasks, default false</description>
+        <default>false</default>
+    </property>
+
+    <!-- bulk insert的配置，如果需要对shuffle过来的数据进行排序，那么该配置决定排序动作使用的内存大小。注意：这块内存使用的是flink的托管内存(managed memory) -->
+    <property>
+        <name>write.sort.memory</name>
+        <value>128</value>
+        <description>Sort memory in MB, default 128MB</description>
+        <default>128</default>
+    </property>
+
+    <!-- 在进行预合并时，比较两个payload哪个更新的字段 -->
+    <property>
+        <name>precombine.field</name>
+        <value>ts</value>
+        <description>Field used in preCombining before actual write. When two records have the same key value, we will pick the one with the largest value for the precombine field, determined by Object.compareTo(..)</description>
+        <default>ts</default>
+    </property>
+
+    <!-- 在进行预合并时，比较两个payload哪个更新的字段 -->
+    <property>
+        <name>compaction.trigger.strategy</name>
+        <value>num_commits</value>
+        <description>
+            Strategy to trigger compaction, options are
+            'num_commits': trigger compaction when reach N delta commits;
+            'time_elapsed': trigger compaction when time elapsed > N seconds since last compaction;
+            'num_and_time': trigger compaction when both NUM_COMMITS and TIME_ELAPSED are satisfied;
+            'num_or_time': trigger compaction when NUM_COMMITS or TIME_ELAPSED is satisfied.
+            Default is 'num_commits'
+        </description>
+        <default>num_commits</default>
+    </property>
+
+
+
+    'compaction.trigger.strategy'='num_commits',
+    'compaction.delta_commits'='2',
+    'compaction.schedule.enabled'='true',
+    'compaction.async.enabled'='true',
+    'clustering.schedule.enabled'='true',
+    'clustering.async.enabled'='false',
+    'clustering.delta_commits'='2',
+    'clean.async.enabled'='true',
+    'clean.policy'='KEEP_LATEST_FILE_VERSIONS',
+    'clean.retain_commits'='1',
+    'clean.retain_hours'='24',
+    'clean.retain_file_versions'='2',
+    'hadoop.dfs.replication'='1',
+    'hadoop.dfs.client.block.write.replace-datanode-on-failure.policy'='NEVER',
+    'hoodie.logfile.data.block.format'='avro',
+    'hoodie.metadata.enable'='false',
+    'changelog.enabled'='false',
+    'hive_sync.enable' = 'true',     -- Required. To enable hive synchronization
+    'hive_sync.mode' = 'hms',       -- Required. Setting hive sync mode to hms, default jdbc
+    'hive_sync.metastore.uris' = 'thrift://hive-metastore:9083', -- Required. The port need set on hive-site.xml
+    --   'hive_sync.jdbc_url' = 'jdbc:postgresql://hive-metastore-postgresql/metastore', -- Required. The port need set on hive-site.xml
+    --   'hive_sync.username' = 'hive', -- Required. The port need set on hive-site.xml
+    --   'hive_sync.password' = 'hive', -- Required. The port need set on hive-site.xml
+    'hive_sync.db'='hello_hudi',                        -- required, hive database name
+    'hive_sync.table'='hudi_hello_world'               -- required, hive table name
+</configuration>
