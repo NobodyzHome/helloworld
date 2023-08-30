@@ -1,12 +1,6 @@
 <configuration>
-    <!-- 负载实现类 -->
-    <property>
-        <name>payload.class</name>
-        <value>org.apache.hudi.common.model.PartialUpdateAvroPayload</value>
-        <description>Payload class used. Override this, if you like to roll your own merge logic, when upserting/inserting. This will render any value set for the option in-effective</description>
-        <default>org.apache.hudi.common.model.EventTimeAvroPayload</default>
-    </property>
 
+    <!-- hudi通用的配置：start -->
     <!-- hudi表的存储路径。如果已经给出了hudi catalog，那么这里可以不用设置path，hudi会在catalog的catalog.path/current_database目录下创建hudi表文件夹，在这里也就是在/my-hudi/hudi_catalog/dev_db文件夹下创建hudi_hello_world文件夹，作为该表的存储目录 -->
     <property>
         <name>path</name>
@@ -14,14 +8,6 @@
         <description>Base path for the target hoodie table. The path would be created if it does not exist, otherwise a Hoodie table expects to be initialized successfully</description>
         <default>N/A</default>
         <Required/>
-    </property>
-
-    <!-- 两个payload合并时，使用该字段的值来判断哪个payload更新一些。该配置的优先级比precombine.field高，也就是说同时配置了这两个参数的话，用这个配置指定的字段作为payload比较字段 -->
-    <property>
-        <name>hoodie.payload.ordering.field</name>
-        <value>ts</value>
-        <description>Table column/field name to order records that have the same key, before merging and writing to storage.</description>
-        <default>ts</default>
     </property>
 
     <!-- hudi表类型 -->
@@ -32,11 +18,33 @@
         <default>COPY_ON_WRITE</default>
     </property>
 
+    <!-- 是否保留数据的中间记录，我们知道hudi会对相同key的数据进行合并，形成该key的最新数据。但有时我们需要这个key的变化过程，此时就可以开启该配置，在数据写入时不进行合并，在compaction时才对key的多条数据进行合并。 -->
+    <property>
+        <name>changelog.enabled</name>
+        <value>false</value>
+        <description>
+            Whether to keep all the intermediate changes, we try to keep all the changes of a record when enabled: 1). The sink accept the UPDATE_BEFORE message;
+            2). The source try to emit every changes of a record. The semantics is best effort because the compaction job would finally merge all changes of a record into one. default false to have UPSERT semantics
+        </description>
+        <default>false</default>
+    </property>
+
+    <!-- 是否启动元数据table，如果启动的话，可以加速查询裁剪，但是会在当前table目录下再创建一个元数据table，文件数据直接翻倍了，所以一般不启动。 -->
+    <property>
+        <name>hoodie.metadata.enable</name>
+        <value>false</value>
+        <description>
+            Enable the internal metadata table which serves table metadata like level file listings
+        </description>
+        <default>true</default>
+    </property>
+    <!-- hudi通用的配置：end -->
+
+    <!-- 查询配置：start -->
     <!-- hudi表的查询类型，主要为
      1.incremental: 查询每个instant的新数据，不会将新instant的数据和已有数据进行合并，就是将新instant中的数据下发出去，此时类似于kafka
      2.Read Optimized: 优化读，读全表（或指定分区）下的每一个file group中的最新的data slice的parquet文件，而不读log文件，因此不需要数据合并，查询效率高，但具有延迟性（最新数据在log中）
-     3.snapshot：快照读，读全表（或指定分区）下的每一个file group中的最新的data slice的parquet和log文件，将相同hoodie key的数据进行合并。由于在读取时需要进行数据合并，查询效率较差，但延迟性低
-     -->
+     3.snapshot：快照读，读全表（或指定分区）下的每一个file group中的最新的data slice的parquet和log文件，将相同hoodie key的数据进行合并。由于在读取时需要进行数据合并，查询效率较差，但延迟性低 -->
     <property>
         <name>hoodie.datasource.query.type</name>
         <value>snapshot</value>
@@ -97,6 +105,28 @@
         <default>false</default>
     </property>
 
+    <!-- 在hoodie.datasource.query.type=snapshot且table.type=MERGE_ON_READ时，控制读取该表时，是否要进行合并 -->
+    <property>
+        <name>hoodie.datasource.merge.type</name>
+        <value>false</value>
+        <description>
+            For Snapshot query on merge on read table. Use this key to define how the payloads are merged, in
+            1) skip_merge: read the base file records plus the log file records;
+            2) payload_combine: read the base file records first, for each record in base file, checks whether the key is in the log file records(combines the two records with same key for base and log file records), then read the left log file records
+        </description>
+        <default>false</default>
+    </property>
+
+    <!-- read算子的并发度 -->
+    <property>
+        <name>read.tasks</name>
+        <value>10</value>
+        <description>Parallelism of tasks that do actual read, default is the parallelism of the execution environment</description>
+        <default/>
+    </property>
+    <!-- 查询配置：end -->
+
+    <!-- 写入index配置：start -->
     <!-- 从已有hudi表中读取数据时，是否启用index bootstrap，就是说在启动时，记录当前hudi表已有数据中，hoodie key和file group的对应关系，流写启动后，新来的相同hoodie key的数据写到其他file group中 -->
     <property>
         <name>index.bootstrap.enabled</name>
@@ -148,21 +178,15 @@
         <description>Hudi bucket number per partition. Only affected if using Hudi bucket index.</description>
         <default>4</default>
     </property>
+    <!-- 写入index配置：end -->
 
+    <!-- 写入数据配置：start -->
     <!-- hudi数据写入类型，不同类型的写入适配不同的场景，默认为upsert，即适配实时数据写入场景（写入的数据均为增量型数据） -->
     <property>
         <name>write.operation</name>
         <value>upsert</value>
         <description>The write operation, that this write should do</description>
         <default>upsert</default>
-    </property>
-
-    <!-- 在upsert写入场景中，writer会将要写入的数据写入被分配的bucket的内存缓冲buffer，当buffer到达一定值后，会将buffer中的数据flush到hdfs。该配置用来指定，在flush时，是否将相同hoodie key的数据进行合并，以减少刷写到hdfs的数据量。 -->
-    <property>
-        <name>write.precombine</name>
-        <value>true</value>
-        <description>Flag to indicate whether to drop duplicates before insert/upsert. By default these cases will accept duplicates, to gain extra performance: 1) insert operation; 2) upsert for MOR table, the MOR table deduplicate on reading</description>
-        <default>false</default>
     </property>
 
     <!-- writer中每一个bucket的内存缓冲阈值，当任意一个bucket的buffer使用量超过了该配置，则将该buffer的数据flush到hdfs。 -->
@@ -175,10 +199,18 @@
 
     <!-- writer中所有bucket的内存缓冲阈值，当所有bucket的buffer使用量加起来超过来该配置，则挑选出buffer使用量最大的那个bucket进行flush。 -->
     <property>
-        <name>write.batch.size</name>
+        <name>write.task.max.size</name>
         <value>1024.0</value>
         <description>Maximum memory in MB for a write task, when the threshold hits, it flushes the max size data bucket to avoid OOM, default 1GB</description>
         <default>1024.0</default>
+    </property>
+
+    <!-- write task写入数据后，会先将数据写入到内存中。一批数据写入到一个LogBlock内存块中，该配置就是控制每一个LogBlock内存块的大小。 -->
+    <property>
+        <name>write.log_block.size</name>
+        <value>128</value>
+        <description>Max log block size in MB for log file, default 128MB</description>
+        <default>128</default>
     </property>
 
     <!-- writer的并行度，默认与flink运行环境的默认并行度相同 -->
@@ -188,6 +220,22 @@
         <description>Parallelism of tasks that do actual write, default is the parallelism of the execution environment</description>
         <default>N/A</default>
         <Required/>
+    </property>
+
+    <!-- 在写入COW表时，会将本次写入的内容和上一个file slice的内容进行合并，在合并时会将KV数据都写到Map中，这个Map是可溢写的(spill)，当超过Map使用的内存超过该配置后，就会溢写到磁盘。 -->
+    <property>
+        <name>write.merge.max_memory</name>
+        <value>100</value>
+        <description>Max memory in MB for merge, default 100MB</description>
+        <default>100</default>
+    </property>
+
+    <!-- upsert写入时，bucket assigner算子的并行度 -->
+    <property>
+        <name>write.bucket_assign.tasks</name>
+        <value>4</value>
+        <description>Parallelism of tasks that do bucket assign, default same as the write task parallelism</description>
+        <default/>
     </property>
 
     <!-- bulk insert的配置，数据从上游source到下游writer时，是否要进行shuffle，将相同partition的数据发送到同一个writer的subTask中，可以保证相同分区的数据交由同一个writer的subTask写，减少产生的文件数量（如果同一个分区的数据交由多个writer的subTask，每个subTask都会产生一个parquet文件） -->
@@ -222,15 +270,60 @@
         <default>128</default>
     </property>
 
-    <!-- 在进行预合并时，比较两个payload哪个更新的字段 -->
+    <!-- 在upsert写入场景中，writer会将要写入的数据写入被分配的bucket的内存缓冲buffer，当buffer到达一定值后，会将buffer中的数据flush到hdfs。该配置用来指定，在flush时，是否将相同hoodie key的数据进行合并，以减少刷写到hdfs的数据量。 -->
+    <property>
+        <name>write.precombine</name>
+        <value>true</value>
+        <description>Flag to indicate whether to drop duplicates before insert/upsert. By default these cases will accept duplicates, to gain extra performance: 1) insert operation; 2) upsert for MOR table, the MOR table deduplicate on reading</description>
+        <default>false</default>
+    </property>
+
+    <!-- 如果启动了预合并，该配置指出在与合并时，使用数据中哪个字段来作为数据新旧的判断依据。 -->
     <property>
         <name>precombine.field</name>
         <value>ts</value>
         <description>Field used in preCombining before actual write. When two records have the same key value, we will pick the one with the largest value for the precombine field, determined by Object.compareTo(..)</description>
         <default>ts</default>
     </property>
+    <!-- 写入数据配置：end -->
 
-    <!-- 在进行预合并时，比较两个payload哪个更新的字段 -->
+    <!-- payload配置:start -->
+    <!-- 负载实现类 -->
+    <property>
+        <name>payload.class</name>
+        <value>org.apache.hudi.common.model.PartialUpdateAvroPayload</value>
+        <description>Payload class used. Override this, if you like to roll your own merge logic, when upserting/inserting. This will render any value set for the option in-effective</description>
+        <default>org.apache.hudi.common.model.EventTimeAvroPayload</default>
+    </property>
+
+    <!-- 用于指定数据中，哪个字段能够代表这个数据的发生时间 -->
+    <property>
+        <name>hoodie.payload.event.time.field</name>
+        <value>ts</value>
+        <description>Table column/field name to derive timestamp associated with the records. This canbe useful for e.g, determining the freshness of the table.</description>
+        <default>ts</default>
+    </property>
+    <!-- 用于指定数据中，哪个字段能够代表这个数据的新旧。与precombine.field不同的是，precombine.field只用在写入的预合并，而该配置还会用在数据读取的合并时。
+        该配置的优先级比precombine.field高，也就是说同时配置了这两个参数的话，用这个配置指定的字段作为payload比较字段
+        一般来说：precombine.field、hoodie.payload.event.time.field、hoodie.payload.ordering.field这三个配置的字段都是一样的。 -->
+    <property>
+        <name>hoodie.payload.ordering.field</name>
+        <value>ts</value>
+        <description>Table column/field name to order records that have the same key, before merging and writing to storage.</description>
+        <default>ts</default>
+    </property>
+    <!-- payload配置:end -->
+
+    <!-- 合并的配置(仅用在MOR表中)：start -->
+    <!-- compaction算子的并发度 -->
+    <property>
+        <name>compaction.tasks</name>
+        <value>4</value>
+        <description>Parallelism of tasks that do actual compaction, default same as the write task parallelism</description>
+        <default/>
+    </property>
+
+    <!-- 合并的触发策略，控制怎么来判断是否应该触发compaction -->
     <property>
         <name>compaction.trigger.strategy</name>
         <value>num_commits</value>
@@ -245,31 +338,232 @@
         <default>num_commits</default>
     </property>
 
+    <!-- 当合并触发策略为num_commits时，决定经过几个delta commit就触发一次compaction -->
+    <property>
+        <name>compaction.delta_commits</name>
+        <value>2</value>
+        <description>
+            Max delta commits needed to trigger compaction, default 5 commits
+        </description>
+        <default>5</default>
+    </property>
 
+    <!-- 当合并触发策略为time_elapsed时，决定两次compaction之间的间隔 -->
+    <property>
+        <name>compaction.delta_seconds</name>
+        <value>3600</value>
+        <description>
+            Max delta seconds time needed to trigger compaction, default 1 hour
+        </description>
+        <default>3600</default>
+    </property>
 
-    'compaction.trigger.strategy'='num_commits',
-    'compaction.delta_commits'='2',
-    'compaction.schedule.enabled'='true',
-    'compaction.async.enabled'='true',
-    'clustering.schedule.enabled'='true',
-    'clustering.async.enabled'='false',
-    'clustering.delta_commits'='2',
-    'clean.async.enabled'='true',
-    'clean.policy'='KEEP_LATEST_FILE_VERSIONS',
-    'clean.retain_commits'='1',
-    'clean.retain_hours'='24',
-    'clean.retain_file_versions'='2',
-    'hadoop.dfs.replication'='1',
-    'hadoop.dfs.client.block.write.replace-datanode-on-failure.policy'='NEVER',
-    'hoodie.logfile.data.block.format'='avro',
-    'hoodie.metadata.enable'='false',
-    'changelog.enabled'='false',
-    'hive_sync.enable' = 'true',     -- Required. To enable hive synchronization
-    'hive_sync.mode' = 'hms',       -- Required. Setting hive sync mode to hms, default jdbc
-    'hive_sync.metastore.uris' = 'thrift://hive-metastore:9083', -- Required. The port need set on hive-site.xml
-    --   'hive_sync.jdbc_url' = 'jdbc:postgresql://hive-metastore-postgresql/metastore', -- Required. The port need set on hive-site.xml
-    --   'hive_sync.username' = 'hive', -- Required. The port need set on hive-site.xml
-    --   'hive_sync.password' = 'hive', -- Required. The port need set on hive-site.xml
-    'hive_sync.db'='hello_hudi',                        -- required, hive database name
-    'hive_sync.table'='hudi_hello_world'               -- required, hive table name
+    <!-- 控制在写hudi任务中，是否要调度生成compaction，compaction的触发规则则上面compaction.trigger.strategy决定的 -->
+    <property>
+        <name>compaction.schedule.enabled</name>
+        <value>true</value>
+        <description>
+            Schedule the compaction plan, enabled by default for MOR
+        </description>
+        <default>true</default>
+    </property>
+
+    <!-- 控制是否在写任务中执行compaction操作，如果是的话，写任务的拓扑中会增加compaction相关的算子。在调度一个compaction后，compaction算子会读取compaction计算并进行文件合并 -->
+    <property>
+        <name>compaction.async.enabled</name>
+        <value>true</value>
+        <description>
+            Async Compaction, enabled by default for MOR
+        </description>
+        <default>true</default>
+    </property>
+
+    <!-- 在MOR表中，会定期进行compaction，compaction时会读取出base file和log file的数据，将KV数据写入到Map，然后进行合并。这个Map可以在内存超过一定量时，溢写到磁盘。该配置就是控制Map在内存达到多少时溢写磁盘。 -->
+    <property>
+        <name>compaction.max_memory</name>
+        <value>100</value>
+        <description>
+            Max memory in MB for compaction spillable map, default 100MB
+        </description>
+        <default/>
+    </property>
+    <!-- 合并的配置(仅用在MOR表中)：end -->
+
+    <!-- 文件聚集cluster的配置（一般和insert写入联合使用）：start -->
+    <!-- 控制是否在写任务中调度cluster plan，如果是的话，在checkpoint完成后，会根据触发策略，判断是否应该调度一个cluster，如果是的话，则创建一个cluster的instant -->
+    <property>
+        <name>clustering.schedule.enabled</name>
+        <value>true</value>
+        <description>
+            Schedule the cluster plan, default false
+        </description>
+        <default>false</default>
+    </property>
+
+    <!-- 控制在写任务中是否要执行cluster，如果是的话，拓扑中会增加cluster相关算子，读取cluster instant中的执行计划，并按照计划进行文件聚集 -->
+    <property>
+        <name>clustering.async.enabled</name>
+        <value>true</value>
+        <description>
+            Async Clustering, default false
+        </description>
+        <default>false</default>
+    </property>
+
+    <!-- 控制写入任务在几个commit后做调度生成一次cluster计划 -->
+    <property>
+        <name>clustering.delta_commits</name>
+        <value>4</value>
+        <description>
+            Max delta commits needed to trigger clustering, default 4 commits
+        </description>
+        <default>4</default>
+    </property>
+    <!-- 文件聚集cluster的配置（一般和insert写入联合使用）：end -->
+
+    <!-- instant清理的配置：start -->
+    <!-- 控制写入任务在每次cp完成后，是否要执行clean操作，删除不再需要的commit中的文件 -->
+    <property>
+        <name>clean.async.enabled</name>
+        <value>true</value>
+        <description>
+            Whether to cleanup the old commits immediately on new commits, enabled by default
+        </description>
+        <default>true</default>
+    </property>
+
+    <!-- 清理策略，不同的清理策略按照不同的方式来寻找可以清理的commit，清理对应commit中的文件 -->
+    <property>
+        <name>clean.policy</name>
+        <value>KEEP_LATEST_COMMITS</value>
+        <description>
+            Clean policy to manage the Hudi table. Available option: KEEP_LATEST_COMMITS, KEEP_LATEST_FILE_VERSIONS, KEEP_LATEST_BY_HOURS.Default is KEEP_LATEST_COMMITS.
+        </description>
+        <default>KEEP_LATEST_COMMITS</default>
+    </property>
+
+    <!-- 当清理策略为KEEP_LATEST_COMMITS时，控制最多保留多少个commit -->
+    <property>
+        <name>clean.retain_commits</name>
+        <value>30</value>
+        <description>
+            Number of commits to retain. So data will be retained for num_of_commits * time_between_commits (scheduled).
+            This also directly translates into how much you can incrementally pull on this table, default 30
+        </description>
+        <default>30</default>
+    </property>
+
+    <!-- 当清理策略为KEEP_LATEST_BY_HOURS时，控制最多保留多长时间内的commit -->
+    <property>
+        <name>clean.retain_hours</name>
+        <value>24</value>
+        <description>
+            Number of hours for which commits need to be retained. This config provides a more flexible option ascompared to number of commits retained for cleaning service.
+            Setting this property ensures all the files, but the latest in a file group, corresponding to commits with commit times older than the configured number of hours to be retained are cleaned.
+        </description>
+        <default>24</default>
+    </property>
+
+    <!-- 当清理策略为KEEP_LATEST_FILE_VERSIONS时，控制每个file group最多保留几个file slice -->
+    <property>
+        <name>clean.retain_file_versions</name>
+        <value>5</value>
+        <description>
+            Number of file versions to retain. default 5
+        </description>
+        <default>5</default>
+    </property>
+    <!-- instant清理的配置：end -->
+
+    <!-- hudi元数据同步至hive的配置：start -->
+    <!-- 是否启动hudi表元数据同步，同步至hive的metastore -->
+    <property>
+        <name>hive_sync.enable</name>
+        <value>true</value>
+        <description>
+            Asynchronously sync Hive meta to HMS, default false
+        </description>
+        <default>false</default>
+    </property>
+
+    <!-- 元数据同步的实现方式，分别为hms或jdbc。使用hms的话，就是将元数据发送至hive metastore服务，由其来写入元数据的数据库。使用jdbc的话，就是直接向元数据的数据库插入数据。 -->
+    <property>
+        <name>hive_sync.mode</name>
+        <value>hms</value>
+        <description>
+            Mode to choose for Hive ops. Valid values are hms, jdbc and hiveql, default 'jdbc'
+        </description>
+        <default>jdbc</default>
+    </property>
+
+    <!-- hive_sync.mode为hms时，hive元数据服务的地址 -->
+    <property>
+        <name>hive_sync.metastore.uris</name>
+        <value>thrift://hive-metastore:9083</value>
+        <description>
+            Metastore uris for hive sync, default ''
+        </description>
+        <default/>
+    </property>
+
+    <!-- hive_sync.mode为jdbc时，hive元数据的数据库的地址 -->
+    <property>
+        <name>hive_sync.jdbc_url</name>
+        <value>jdbc:postgresql://hive-metastore-postgresql/metastore</value>
+        <description>
+            Jdbc URL for hive sync, default 'jdbc:hive2://localhost:10000'
+        </description>
+        <default>jdbc:hive2://localhost:10000</default>
+    </property>
+
+    <!-- hive_sync.mode为jdbc时，hive元数据的数据库的用户名 -->
+    <property>
+        <name>hive_sync.username</name>
+        <value>hive</value>
+        <description>
+            Username for hive sync, default 'hive'
+        </description>
+        <default>hive</default>
+    </property>
+
+    <!-- hive_sync.mode为jdbc时，hive元数据的数据库的密码 -->
+    <property>
+        <name>hive_sync.password</name>
+        <value>hive</value>
+        <description>
+            hive password to use
+        </description>
+        <default>hive</default>
+    </property>
+
+    <!-- 控制hudi表元数据同步到hive元数据的哪个database中 -->
+    <property>
+        <name>hive_sync.db</name>
+        <value>hello_hudi</value>
+        <description>
+            Database name for hive sync, default 'default'
+        </description>
+        <default>default</default>
+    </property>
+
+    <!-- 控制hudi表元数据同步到hive元数据的哪个table中，实际同步到hive中，会生成以该表名为前缀的两张表，一张表后缀是rt，另一张表后缀是ro。后缀为ro的表使用优化读的方式来读取hudi数据，而后缀为rt的表则使用合并的读取方式。 -->
+    <property>
+        <name>hive_sync.table</name>
+        <value>hudi_hello_world</value>
+        <description>
+            Table name for hive sync, default 'unknown'
+        </description>
+        <default>unknown</default>
+    </property>
+
+    <!-- 控制hudi向hive同步元数据时，向hive创建的表。如果为ALL则创建后缀为RO、RT两张表，如果为RO则只创建后缀为RO的表，如果为RT则只创建后缀为RT的表。 -->
+    <property>
+        <name>hive_sync.table.strategy</name>
+        <value>ALL</value>
+        <description>
+            Hive table synchronization strategy. Available option: RO, RT, ALL.
+        </description>
+        <default>ALL</default>
+    </property>
+    <!-- hudi元数据同步至hive的配置：end -->
 </configuration>

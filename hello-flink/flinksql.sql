@@ -1054,6 +1054,7 @@ select if(json_value('','$.b') <> '',true,false);
 
 CREATE CATALOG my_hudi WITH ('type'='hudi','mode'='dfs','catalog.path'='/my-hudi/hudi_catalog','default-database'='dev_db');
 use catalog my_hudi;
+create database dev_db;
 use dev_db;
 
 CREATE TABLE hudi_hello_world(
@@ -1126,6 +1127,102 @@ WITH (
   'hive_sync.table'='hudi_hello_world'               -- required, hive table name
 );
 
+create table hello_hudi(
+    id string primary key not enforced ,
+    age int,
+    name string,
+    dt string
+)partitioned by(dt)
+with(
+'payload.class' = 'org.apache.hudi.common.model.PartialUpdateAvroPayload',
+  'hoodie.payload.ordering.field' = 'ts',
+  'table.type' = 'MERGE_ON_READ',
+  'hoodie.datasource.query.type'='snapshot',
+  'read.streaming.enabled'='true',
+  'read.start-commit'='earliest',
+  'read.streaming.check-interval'='5',
+  'read.streaming.skip_compaction'='false',
+  'read.streaming.skip_clustering'='false',
+  'index.bootstrap.enabled'='true',
+  'index.type'='BUCKET',
+  'hoodie.index.bucket.engine'='SIMPLE',
+  'hoodie.bucket.index.num.buckets'='5',
+  'index.state.ttl'='-1',
+  'index.global.enabled'='true',
+  'write.operation'='upsert',
+  'precombine.field'='ts',
+    'compaction.trigger.strategy'='num_commits',
+    'compaction.delta_commits'='2',
+    'compaction.schedule.enabled'='true',
+    'compaction.async.enabled'='true',
+    'clustering.schedule.enabled'='true',
+    'clustering.async.enabled'='false',
+    'clustering.delta_commits'='2',
+    'clean.async.enabled'='true',
+    'clean.policy'='KEEP_LATEST_FILE_VERSIONS',
+    'clean.retain_commits'='1',
+    'clean.retain_hours'='24',
+    'clean.retain_file_versions'='2',
+    'changelog.enabled'='false',
+    'cdc.enabled'='false',
+    'metadata.enabled'='false'
+);
+
+insert into hello_hudi values('1',10,cast(null as string),'2023-10-11');
+insert into hello_hudi values('1',cast(null as int),'hello','2023-10-11');
+insert into hello_hudi values('1',cast(null as int),'hello hudi','2023-10-11');
+insert into hello_hudi values('1',cast(null as int),'hudi hello','2023-10-11');
+insert overwrite hello_hudi values('1',20,cast(null as string),'2023-10-11');
+update hello_hudi /*+ options('read.streaming.enabled'='false') */ set name='hello cdc' where id='1';
+select * from hello_hudi /*+ options('hoodie.datasource.query.type'='incremental') */;
+
+create table hello_hudi_insert(
+                                  id string primary key not enforced ,
+                                  age int,
+                                  name string,
+                                  dt string
+)partitioned by(dt)
+with(
+    'table.type' = 'MERGE_ON_READ',
+    'write.operation'='insert',
+    'write.bulk_insert.sort_input'='false',
+    'clustering.schedule.enabled'='true',
+    'clustering.async.enabled'='true',
+    'clustering.delta_commits'='2',
+    'clean.async.enabled'='true',
+    'clean.policy'='KEEP_LATEST_COMMITS',
+    'clean.retain_commits'='1',
+    'changelog.enabled'='false',
+    'cdc.enabled'='false',
+    'metadata.enabled'='false'
+);
+
+insert into hello_hudi_insert values('1',10,cast(null as string),'2023-10-11');
+insert into hello_hudi_insert values('1',cast(null as int),'hello','2023-10-11');
+insert into hello_hudi_insert values('1',cast(null as int),'hello hudi','2023-10-11');
+insert into hello_hudi_insert values('1',cast(null as int),'hudi hello','2023-10-11');
+
+create table default_catalog.default_database.kafka_hello_hudi(
+                                                                  id string primary key not enforced ,
+                                                                  age int,
+                                                                  name string,
+                                                                  dt string
+)with(
+     'connector'='upsert-kafka',
+     'properties.bootstrap.servers'='kafka-1:9092',
+     'topic'='hello-hudi',
+     'key.format'='raw',
+     'value.format'='json'
+     );
+
+insert into hello_hudi_insert select * from default_catalog.default_database.kafka_hello_hudi;
+
+{"id":"1","dt":"2023-10-11","age":10}
+{"id":"1","dt":"2023-10-11","age":30}
+{"id":"1","dt":"2023-10-11","name":"hello"}
+{"id":"1","dt":"2023-10-11","name":"hello hudi","age":20}
+{"id":"1","dt":"2023-10-11","name":"hello hudi world","age":35}
+
 -- 注意：在使用hudi catalog时，不能创建除了hudi以外的connector的表，否则hudi catalog会把所有表的connector修改为hudi
 create table default_catalog.default_database.hello_kafka(
     waybillCode string,
@@ -1143,6 +1240,8 @@ create table default_catalog.default_database.hello_kafka(
      'value.format'='json',
      'scan.startup.mode'='latest-offset'
  );
+
+
 
 -- 注意：在使用hudi catalog时，不能创建除了hudi以外的connector的表，否则hudi catalog会把所有表的connector修改为hudi
 create table default_catalog.default_database.hello_filesystem(
@@ -1187,3 +1286,35 @@ select * from hudi_hello_world /*+ options('read.streaming.enabled'='false') */ 
 select waybillCode,count(*) from hudi_hello_world /*+ options('read.streaming.enabled'='false') */ group by waybillCode having  count(*)>1;
 select waybillCode,count(*) from hudi_hello_world group by waybillCode having  count(*)>1;
 select * from hudi_hello_world /*+ options('read.streaming.enabled'='false','read.start-commit'='20230621092035274') */;
+
+CREATE CATALOG my_catalog WITH (
+    'type' = 'paimon',
+    'warehouse' = '/my-paimon'
+);
+
+create table paimon_hello_world(
+                                   id string primary key not enforced ,
+                                   age int,
+                                   name string
+)with(
+     'merge-engine'='partial-update',
+    -- 会产生changelog，例如先插入一条+I的数据，再插入相同key的+I数据的话，实际会产生两条数据，一条是-U，代表更新前的数据，另一条是+U，代表更新后的数据（更新的字段和未更新的字段都会有值）
+    'changelog-producer'='full-compaction',
+    'snapshot.num-retained.min'='1',
+    'snapshot.num-retained.max'='3'
+     );
+
+insert into paimon_hello_world values('1',10,cast(null as string));
+insert into paimon_hello_world values('1',cast(null as int),'hello');
+insert into paimon_hello_world values('1',30,cast(null as string));
+insert into paimon_hello_world values('1',50,'world');
+insert into paimon_hello_world values('1',60,'hello world');
+insert into paimon_hello_world values('1',80,'hello world paimon');
+
+set execution.runtime-mode=batch;
+set execution.runtime-mode=streaming;
+SELECT * FROM paimon_hello_world /*+ OPTIONS('scan.mode'='from-snapshot','scan.snapshot-id'='1') */;
+SELECT * FROM paimon_hello_world /*+ OPTIONS('scan.mode'='compacted-full') */;
+SELECT * FROM paimon_hello_world$audit_log;
+
+flink run -Dexecution.runtime-mode=batch ./lib/paimon-flink-action-0.4.0-incubating.jar compact --warehouse /my-paimon --database default --table paimon_hello_world

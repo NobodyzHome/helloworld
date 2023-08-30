@@ -95,6 +95,7 @@ services:
       - "/Users/maziqiang/IdeaProjects/helloworld/hello-flink/target:/my-volume"
       - "/Users/maziqiang/Documents/my-libs/flink-libs:/flink-libs"
       - "/Users/maziqiang/Documents/my-hudi:/my-hudi"
+      - "/Users/maziqiang/Documents/my-paimon:/my-paimon"
     networks:
       - my-network
     # 默认情况下，镜像flink的docker-file执行的command的是help，我们要通过覆盖这个命令，覆盖为jobManager，告诉flink镜像，应该执行创建jobManager的命令
@@ -152,6 +153,7 @@ services:
       - "/Users/maziqiang/IdeaProjects/helloworld/hello-hadoop/target:/my-volume"
       - "/Users/maziqiang/Documents/my-libs/flink-libs:/flink-libs"
       - "/Users/maziqiang/Documents/my-hudi:/my-hudi"
+      - "/Users/maziqiang/Documents/my-paimon:/my-paimon"
 
   # 配置第二个taskManager
   flink-taskmanager-2:
@@ -185,6 +187,7 @@ services:
       - "/Users/maziqiang/IdeaProjects/helloworld/hello-hadoop/target:/my-volume"
       - "/Users/maziqiang/Documents/my-libs/flink-libs:/flink-libs"
       - "/Users/maziqiang/Documents/my-hudi:/my-hudi"
+      - "/Users/maziqiang/Documents/my-paimon:/my-paimon"
 
   my-redis:
     image: redis
