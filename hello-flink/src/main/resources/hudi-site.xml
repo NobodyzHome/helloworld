@@ -172,6 +172,8 @@
     </property>
 
     <!-- 当index.type设置为BUCKET时，hoodie.index.bucket.engine设置为SIMPLE时，指定每个分区的bucket数量。 -->
+    <!-- 注意：bucket数量与hudi表的并行写和并行读都有关系。如果bucket小，但writer的并行度大，那么writer算子中只有bucket数量的subTask才能接收数据并写入，其他subTask都在空跑，浪费了资源。
+       同理，在读hudi表时，是按照每个bucket生成一个split，如果bucket过少，导致split过少，进而导致reader算子中只有少量的subTask能接收到split并读取数据，其他subTask都在空跑，浪费了资源。 -->
     <property>
         <name>hoodie.bucket.index.num.buckets</name>
         <value>5</value>
