@@ -52,7 +52,7 @@ public class GenerateDomainUtils {
     }
 
     public static String generateOrderCode(String prefix) {
-        return prefix + StringUtils.leftPad(String.valueOf(RandomUtils.nextInt(1, 100)), 10, "0");
+        return prefix + StringUtils.leftPad(String.valueOf(RandomUtils.nextInt(1, 10)), 10, "0");
     }
 
     public static String generateSign() {
@@ -67,17 +67,18 @@ public class GenerateDomainUtils {
         WaybillC waybillC = new WaybillC();
         waybillC.setWaybillCode(generateOrderCode("JD"));
         waybillC.setTimeStamp(System.currentTimeMillis());
-        waybillC.setWatermark(waybillC.getTimeStamp() - RandomUtils.nextInt(1000, 10000));
-        String[] partitions = {"2023-06-21","2023-06-22","2023-06-23"};
+        waybillC.setWatermark(waybillC.getTimeStamp() - RandomUtils.nextInt(1, 10));
+//        String[] partitions = {"2023-09-07","2023-09-08","2023-09-09","2023-09-10"};
+        String[] partitions = {"2023-09-07"};
         int code = Integer.parseInt(waybillC.getWaybillCode().substring(2));
-        waybillC.setDt(partitions[code % partitions.length]);
+        waybillC.setDt(partitions[RandomUtils.nextInt(0,partitions.length)]);
 
         if (RandomUtils.nextBoolean()) {
             waybillC.setWaybillSign(generateSign());
         }
 
         if (RandomUtils.nextBoolean()) {
-            waybillC.setSiteCode(String.valueOf(RandomUtils.nextInt(100, 1000)));
+            waybillC.setSiteCode(String.valueOf(RandomUtils.nextInt(1, 11)));
             waybillC.setSiteName(waybillC.getSiteCode() + "站点");
         }
         return waybillC;
