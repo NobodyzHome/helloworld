@@ -29,6 +29,8 @@ import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * kafka基本概念
@@ -408,10 +410,10 @@ public class ProducerTest {
         properties.setProperty(ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, String.valueOf(Duration.ofSeconds(20).toMillis()));
         properties.setProperty(ProducerConfig.INTERCEPTOR_CLASSES_CONFIG, WaybillcInterceptor.class.getName());
         // 当前partitioner使用的是kafka提供的另一个Partitioner的实现，它不再是按照key来分区，而是随机分配，让每个分区的数据量大致一样
-        properties.setProperty(ProducerConfig.PARTITIONER_CLASS_CONFIG, RoundRobinPartitioner.class.getName());
+//        properties.setProperty(ProducerConfig.PARTITIONER_CLASS_CONFIG, RoundRobinPartitioner.class.getName());
 
         try (KafkaProducer<String, WaybillC> kafkaProducer = new KafkaProducer<>(properties)) {
-            List<WaybillC> waybillCList = GenerateDomainUtils.generateWaybillc(10);
+            List<WaybillC> waybillCList = GenerateDomainUtils.generateWaybillc(100);
             for (WaybillC waybillC : waybillCList) {
                 ProducerRecord<String, WaybillC> producerRecord = new ProducerRecord<>("waybill-c", waybillC.getWaybillCode(), waybillC);
                 kafkaProducer.send(producerRecord);

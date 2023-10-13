@@ -1,0 +1,319 @@
+<configuration>
+
+    <!-- 通用配置：start -->
+    <property>
+        <name>bucket</name>
+        <value>3</value>
+        <description>Bucket number for file store.</description>
+        <default>1</default>
+    </property>
+
+    <property>
+        <name>bucket-key</name>
+        <value>waybill_code</value>
+        <description>
+            Specify the paimon distribution policy. Data is assigned to each bucket according to the hash value of bucket-key.
+            If you specify multiple fields, delimiter is ','.
+            If not specified, the primary key will be used; if there is no primary key, the full row will be used.
+        </description>
+        <default>(none)</default>
+    </property>
+
+    <property>
+        <name>manifest.format</name>
+        <value>orc</value>
+        <description>
+            Specify the message format of manifest files.
+
+            Possible values:
+            "orc": ORC file format.
+            "parquet": Parquet file format.
+            "avro": Avro file format.
+        </description>
+        <default>avro</default>
+    </property>
+
+    <property>
+        <name>file.format</name>
+        <value>orc</value>
+        <description>
+            Specify the message format of data files, currently orc, parquet and avro are supported.
+            Possible values:
+            "orc": ORC file format.
+            "parquet": Parquet file format.
+            "avro": Avro file format.
+        </description>
+        <default>orc</default>
+    </property>
+    <!-- 通用配置：end -->
+
+    <!-- query配置：start -->
+    <property>
+        <name>scan.plan-sort-partition</name>
+        <value>true</value>
+        <description>
+            Whether to sort plan files by partition fields, this allows you to read according to the partition order, even if your partition writes are out of order.
+            It is recommended that you use this for streaming read of the 'append-only' table. By default, streaming read will read the full snapshot first. In order to avoid the disorder reading for partitions, you can open this option.
+        </description>
+        <default>false</default>
+    </property>
+
+    <property>
+        <name>scan.infer-parallelism</name>
+        <value>true</value>
+        <description>If it is false, parallelism of source are set by global parallelism. Otherwise, source parallelism is inferred from splits number (batch mode) or bucket number(streaming mode).</description>
+        <default>true</default>
+    </property>
+
+    <property>
+        <name>scan.push-down</name>
+        <value>true</value>
+        <description>
+            If true, flink will push down projection, filters, limit to the source. The cost is that it is difficult to reuse the source in a job. With flink 1.18 or higher version, it is possible to reuse the source even with projection push down.
+        </description>
+        <default>true</default>
+    </property>
+
+    <property>
+        <name>scan.mode</name>
+        <value>compacted-full</value>
+        <description>
+            Specify the scanning behavior of the source.
+
+            Possible values:
+            "default": Determines actual startup mode according to other table properties. If "scan.timestamp-millis" is set the actual startup mode will be "from-timestamp", and if "scan.snapshot-id" or "scan.tag-name" is set the actual startup mode will be "from-snapshot". Otherwise the actual startup mode will be "latest-full".
+            "latest-full": For streaming sources, produces the latest snapshot on the table upon first startup, and continue to read the latest changes. For batch sources, just produce the latest snapshot but does not read new changes.
+            "full": Deprecated. Same as "latest-full".
+            "latest": For streaming sources, continuously reads latest changes without producing a snapshot at the beginning. For batch sources, behaves the same as the "latest-full" startup mode.
+            "compacted-full": For streaming sources, produces a snapshot after the latest compaction on the table upon first startup, and continue to read the latest changes. For batch sources, just produce a snapshot after the latest compaction but does not read new changes. Snapshots of full compaction are picked when scheduled full-compaction is enabled.
+            "from-timestamp": For streaming sources, continuously reads changes starting from timestamp specified by "scan.timestamp-millis", without producing a snapshot at the beginning. For batch sources, produces a snapshot at timestamp specified by "scan.timestamp-millis" but does not read new changes.
+            "from-snapshot": For streaming sources, continuously reads changes starting from snapshot specified by "scan.snapshot-id", without producing a snapshot at the beginning. For batch sources, produces a snapshot specified by "scan.snapshot-id" or "scan.tag-name" but does not read new changes.
+            "from-snapshot-full": For streaming sources, produces from snapshot specified by "scan.snapshot-id" on the table upon first startup, and continuously reads changes. For batch sources, produces a snapshot specified by "scan.snapshot-id" but does not read new changes.
+            "incremental": Read incremental changes between start and end snapshot or timestamp.
+        </description>
+        <default>default</default>
+    </property>
+
+    <property>
+        <name>scan.snapshot-id</name>
+        <value>5</value>
+        <description>Optional snapshot id used in case of "from-snapshot" or "from-snapshot-full" scan mode</description>
+        <default>(none)	</default>
+        <Required/>
+    </property>
+
+    <property>
+        <name>scan.timestamp-millis</name>
+        <value>1697179963000</value>
+        <description>Optional timestamp used in case of "from-timestamp" scan mode.</description>
+        <default>(none)</default>
+    </property>
+    <!-- query配置：end -->
+
+    <!-- write配置：start -->
+    <!-- 控制写入的data file的大小，以及compaction形成的文件的大小，超出该配置则会生成一个新的data file -->
+    <property>
+        <name>target-file-size</name>
+        <value>1 gb</value>
+        <description>Target size of a file.</description>
+        <default>128 mb</default>
+    </property>
+
+    <!-- 控制writer的buffer的总大小。writer在写入时，每一个bucket拥有一个buffer，用于作lsm-tree的buffer。但所有bucket的buffer都共用writer buffer的内存池。也就是说，即使bucket再增加，writer中用于缓冲数据的内存总大小也不会增加。 -->
+    <property>
+        <name>write-buffer-size</name>
+        <value>1 gb</value>
+        <description>Amount of data to build up in memory before converting to a sorted on-disk file.</description>
+        <default>256 mb</default>
+    </property>
+
+    <!-- 控制writer的写入模型，也就是该table是primary key table还是append only table。一般不用配置，paimon通过table定义中是否有主键，来决定该table的类型。 -->
+    <property>
+        <name>write-mode</name>
+        <value>auto</value>
+        <description>
+            Specify the write mode for table.
+            Possible values:
+            "auto": The change-log for table with primary key, append-only for table without primary key.
+            "append-only": The table can only accept append-only insert operations. Neither data deduplication nor any primary key constraints will be done when inserting rows into paimon.
+            "change-log": The table can accept insert/delete/update operations.
+        </description>
+        <default>auto</default>
+    </property>
+
+    <!-- 是否写入任务中将compaction内容去除，一般在writer中，会定期触发compaction，让CompactManager来进行文件合并。也就是在writer任务中，既负责数据写入，也负责文件合并。
+      开启该配置后，任务则只负责数据写入，不再负责文件合并，也就是writer不再触发compaction。而是提交一个专门的文件合并任务(paimon action jar包)，来进行文件合并。从而减少写入任务的负担。 -->
+    <property>
+        <name>write-only</name>
+        <value>false</value>
+        <description>If set to true, compactions and snapshot expiration will be skipped. This option is used along with dedicated compact jobs.</description>
+        <default>false</default>
+    </property>
+    <!-- write配置：end -->
+
+    <!-- compaction配置：start   -->
+    <property>
+        <name>merge-engine</name>
+        <value>partial-update</value>
+        <description>deduplicate</description>
+        <default>
+            Specify the merge engine for table with primary key.
+            Possible values:
+                "deduplicate": De-duplicate and keep the last row.
+                "partial-update": Partial update non-null fields.
+                "aggregation": Aggregate fields with same primary key.
+                "first-row": De-duplicate and keep the first row.
+        </default>
+    </property>
+
+    <property>
+        <name>changelog-producer</name>
+        <value>full-compaction</value>
+        <description>
+            Whether to double write to a changelog file. This changelog file keeps the details of data changes, it can be read directly during stream reads. This can be applied to tables with primary keys.
+
+            Possible values:
+            "none": No changelog file.
+            "input": Double write to a changelog file when flushing memory table, the changelog is from input.
+            "full-compaction": Generate changelog files with each full compaction.
+            "lookup": Generate changelog files through 'lookup' before committing the data writing.
+        </description>
+        <default>none</default>
+    </property>
+
+    <property>
+        <name>full-compaction.delta-commits</name>
+        <value>5</value>
+        <description>Full compaction will be constantly triggered after delta commits.</description>
+        <default>(none)</default>
+    </property>
+
+    <property>
+        <name>sequence.field</name>
+        <value>ts</value>
+        <description>
+            The field that generates the sequence number for primary key table, the sequence number determines which data is the most recent.
+        </description>
+        <default>(none)</default>
+    </property>
+
+    <!-- 下面两个配置仅针对append-only表有效 -->
+    <property>
+        <name>compaction.min.file-num</name>
+        <value>3</value>
+        <description>
+            For file set [f_0,...,f_N], the minimum file number which satisfies sum(size(f_i)) >= targetFileSize to trigger a compaction for append-only table.
+            This value avoids almost-full-file to be compacted, which is not cost-effective.
+        </description>
+        <default>5</default>
+    </property>
+
+    <property>
+        <name>compaction.max.file-num</name>
+        <value>50</value>
+        <description>
+            For file set [f_0,...,f_N], the maximum file number to trigger a compaction for append-only table, even if sum(size(f_i)) less than targetFileSize.
+            This value avoids pending too much small files, which slows down the performance.
+        </description>
+        <default>50</default>
+    </property>
+
+    <!-- 下面三个配置，控制在触发compaction时，从bucket的lsm-tree中挑选的文件是否满足阈值。如果满足，则提交compaction task，如果不满足，则忽略此次compaction触发。 -->
+    <property>
+        <name>compaction.max-size-amplification-percent</name>
+        <value>200</value>
+        <description>
+            The size amplification is defined as the amount (in percentage) of additional storage needed to store a single byte of data in the merge tree for changelog mode table.
+        </description>
+        <default>200</default>
+    </property>
+
+    <property>
+        <name>compaction.size-ratio</name>
+        <value>1</value>
+        <description>
+            Percentage flexibility while comparing sorted run size for changelog mode table. If the candidate sorted run(s) size is 1% smaller than the next sorted run's size, then include next sorted run into this candidate set.
+        </description>
+        <default>1</default>
+    </property>
+
+    <property>
+        <name>num-sorted-run.compaction-trigger</name>
+        <value>5</value>
+        <description>The sorted run number to trigger compaction. Includes level0 files (one file one sorted run) and high-level runs (one level one sorted run).</description>
+        <default>5</default>
+    </property>
+
+    <!-- 当checkpoint完成时，writer需要将write buffer中的剩余内容flush到磁盘，形成一个新的sorted run。flush完成后，会触发compaction，在bucket的lsm-tree中进行文件挑选。如果满足阈值，则会提交compaction task。
+            该配置如果为true，writer就会处于阻塞中，等待compaction task执行完成后，再继续后续处理，也就是新的数据的写入。 -->
+    <property>
+        <name>commit.force-compact</name>
+        <value>false</value>
+        <description>Whether to force a compaction before commit.</description>
+        <default>false</default>
+        <Required/>
+    </property>
+
+    <!-- 该控制用来判断，writer在触发compaction前，是否要等待上一次提交的compaction task执行完成。以及writer在checkpoint完成时，提交了compaction task后，是否需要等待compaction task执行完成，再继续进行后续处理。 -->
+    <property>
+        <name>num-sorted-run.stop-trigger</name>
+        <value>10</value>
+        <description>The number of sorted runs that trigger the stopping of writes, the default value is 'num-sorted-run.compaction-trigger' + 1.</description>
+        <default>(none)</default>
+    </property>
+    <!-- compaction配置：end -->
+
+    <!-- snapshot过期配置:start  -->
+    <property>
+        <name>snapshot.num-retained.max</name>
+        <value>10</value>
+        <description>The maximum number of completed snapshots to retain. Should be greater than or equal to the minimum number.</description>
+        <default>2147483647</default>
+        <Required/>
+    </property>
+
+    <property>
+        <name>snapshot.num-retained.min</name>
+        <value>3</value>
+        <description>The minimum number of completed snapshots to retain. Should be greater than or equal to 1.</description>
+        <default>10</default>
+        <Required/>
+    </property>
+
+    <property>
+        <name>snapshot.time-retained</name>
+        <value>5 min</value>
+        <description>The maximum time of completed snapshots to retain.</description>
+        <default>1 h</default>
+        <Required/>
+    </property>
+    <!-- snapshot过期配置:end  -->
+</configuration>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -68,7 +68,7 @@ public class GenerateDomainUtils {
         waybillC.setWaybillCode(generateOrderCode("JD"));
         waybillC.setTimeStamp(System.currentTimeMillis());
         waybillC.setWatermark(waybillC.getTimeStamp() - RandomUtils.nextInt(1, 10));
-//        String[] partitions = {"2023-09-07","2023-09-08","2023-09-09","2023-09-10"};
+//        String[] partitions = {"2023-09-07","2023-09-08","2023-09-10","2023-09-11","2023-09-12","2023-09-13"};
         String[] partitions = {"2023-09-07"};
         int code = Integer.parseInt(waybillC.getWaybillCode().substring(2));
         waybillC.setDt(partitions[RandomUtils.nextInt(0,partitions.length)]);
