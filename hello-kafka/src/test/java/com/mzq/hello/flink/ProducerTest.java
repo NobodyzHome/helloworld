@@ -413,7 +413,7 @@ public class ProducerTest {
 //        properties.setProperty(ProducerConfig.PARTITIONER_CLASS_CONFIG, RoundRobinPartitioner.class.getName());
 
         try (KafkaProducer<String, WaybillC> kafkaProducer = new KafkaProducer<>(properties)) {
-            List<WaybillC> waybillCList = GenerateDomainUtils.generateWaybillc(100);
+            List<WaybillC> waybillCList = GenerateDomainUtils.generateWaybillc(10);
             for (WaybillC waybillC : waybillCList) {
                 ProducerRecord<String, WaybillC> producerRecord = new ProducerRecord<>("waybill-c", waybillC.getWaybillCode(), waybillC);
                 kafkaProducer.send(producerRecord);

@@ -430,3 +430,73 @@ with(
 insert into paimon_waybill_c_compacted_full_changelog select * from hello_kafka;
 select * from paimon_waybill_c_compacted_full_changelog /*+ OPTIONS('scan.mode'='latest-full') */;
 select * from paimon_waybill_c_compacted_full_changelog /*+ OPTIONS('scan.snapshot-id'='23') */;
+
+create table paimon_waybill_c_expire_partition(
+    waybillCode string,
+    waybillSign string,
+    siteCode string,
+    siteName string,
+    record_timestamp TIMESTAMP_LTZ,
+    record_partition bigint,
+    dt string,
+    primary key (dt,waybillCode) not enforced
+)
+partitioned by (dt)
+with(
+    'bucket'='3',
+    'merge-engine'='deduplicate',
+    'changelog-producer'='full-compaction',
+    'full-compaction.delta-commits'='20',
+    -- 分区过期时间，会用当前时间减去该值，看是否大于遍历的分区的时间，如果是的话，则删除该分区
+    'partition.expiration-time' = '1 d',
+    -- 分区过期的检查间隔，隔该配置的时间，才会再进行一次分区过期处理
+    'partition.expiration-check-interval' = '1 min',
+    -- 分区时间的格式，需要和partition.timestamp-pattern配合使用。假设dt字段的值是2023-10-18，那么formatter则应该是yyyy-MM-dd，用于将dt字段的值解析成时间
+    'partition.timestamp-formatter' = 'yyyy-MM-dd',
+    -- 将表中哪个字段作为分区时间解析的字段。假设表的分区字段是year,month,day这三个字段，那么该配置就可以配置为$year-$month-$day，然后partition.timestamp-formatter配置成yyyy-MM-dd
+    'partition.timestamp-pattern' = '$dt',
+    'snapshot.num-retained.max'='5',
+    'snapshot.num-retained.min'='2',
+    'snapshot.time-retained'='5 min',
+    'manifest.format'='orc'
+);
+
+drop table paimon_waybill_c_expire_partition;
+
+select * from paimon_waybill_c_expire_partition/*+ OPTIONS('scan.mode'='from-snapshot-full','scan.snapshot-id'='8') */;
+
+-- 当一个分区过期后，不是直接把分区的文件全部删除。而是创建一个OVERWRITE类型的snapshot，在里面写入的manifest-file中，记录了该过期分区的所有data file，这些data file的kink属性都是1，代表已经被删除了。
+-- 这样，读取该snapshot时，就不会读取delete类型的data file，实现了过期的分区无法被查询到的目的，但是过期的分区里，data file依然存在。
+-- 再配合snapshot过期，就可以实现把过期的分区的data file都删除的目的（因为这些file的kink=1）
+insert into paimon_waybill_c_expire_partition select * from hello_kafka;
+
+select * from paimon_waybill_c_expire_partition/*+ OPTIONS('streaming-read-overwrite'='false') */;
+
+create table paimon_waybill_c_overwrite(
+    id string,
+    name string,
+    dt string,
+    ts bigint,
+    primary key (dt,id) not enforced
+)
+    partitioned by (dt)
+with(
+    'bucket'='3',
+    'merge-engine'='partial-update',
+    'changelog-producer'='none',
+    'manifest.format'='orc'
+);
+
+insert into paimon_waybill_c_overwrite values('1','hello','2023-10-25',1),('2','paimon','2023-10-26',1);
+insert into paimon_waybill_c_overwrite values('3','zhangsan','2023-10-26',1),('3','lisi','2023-10-27',1);
+insert into paimon_waybill_c_overwrite values('4','wangwu','2023-10-26',1),('5','zhaoliu','2023-10-27',1);
+
+-- 注意：使用overwrite清理数据，并不是像hive那样直接把老数据删除。而是创建了一个新的OVERWRITE类型的snapshot，该snapshot对应的manifest file中，记录了哪些data file可以被删除（kind=1）。
+-- 在读取该table时，kind=1的data file是不会被读取的，也就达到了被overwrite的老数据被“清除”的效果
+-- 将dt='2023-10-25'、dt='2023-10-26'两个分区下的数据删除，然后在这两个分区下写入对应的新数据
+insert overwrite paimon_waybill_c_overwrite values('1','hello world','2023-10-25',2),('2','tt','2023-10-26',2);
+-- 清除一个分区下的数据
+insert overwrite paimon_waybill_c_overwrite /*+ OPTIONS('dynamic-partition-overwrite'='false') */  partition( dt='2023-10-25') select id,name,ts from paimon_waybill_c_overwrite where false;
+-- 清除全表的数据
+INSERT OVERWRITE paimon_waybill_c_overwrite /*+ OPTIONS('dynamic-partition-overwrite'='false') */ SELECT * FROM paimon_waybill_c_overwrite WHERE false;
+select * from paimon_waybill_c_overwrite;

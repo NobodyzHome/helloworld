@@ -48,6 +48,7 @@
     <!-- 通用配置：end -->
 
     <!-- query配置：start -->
+    <!-- 仅在流读append only表时有效，按partition的顺序来生成split。最终的效果是按分区顺序流读数据文件。 -->
     <property>
         <name>scan.plan-sort-partition</name>
         <value>true</value>
@@ -107,6 +108,14 @@
         <value>1697179963000</value>
         <description>Optional timestamp used in case of "from-timestamp" scan mode.</description>
         <default>(none)</default>
+    </property>
+
+    <!-- 在流读中，隔多长时间来发现新的snapshot -->
+    <property>
+        <name>continuous.discovery-interval</name>
+        <value>1 min</value>
+        <description>The discovery interval of continuous reading.</description>
+        <default>10 s</default>
     </property>
     <!-- query配置：end -->
 
@@ -288,6 +297,51 @@
         <Required/>
     </property>
     <!-- snapshot过期配置:end  -->
+
+    <!-- partition过期配置:start  -->
+    <!-- 分区过期时间，会用当前时间减去该值，看是否大于遍历的分区的时间，如果是的话，则删除该分区 -->
+    <property>
+        <name>partition.expiration-time</name>
+        <value>1 d</value>
+        <description>The expiration interval of a partition. A partition will be expired if it‘s lifetime is over this value. Partition time is extracted from the partition value.</description>
+        <default>(none)</default>
+    </property>
+
+    <!-- 分区过期的检查间隔，隔该配置的时间，才会再进行一次分区过期处理 -->
+    <property>
+        <name>partition.expiration-check-interval</name>
+        <value>1 min</value>
+        <description>The check interval of partition expiration.</description>
+        <default>(none)</default>
+    </property>
+
+    <!-- 分区时间的格式，需要和partition.timestamp-pattern配合使用。假设dt字段的值是2023-10-18，那么formatter则应该是yyyy-MM-dd，用于将dt字段的值解析成时间 -->
+    <property>
+        <name>partition.timestamp-formatter</name>
+        <value>yyyy-MM-dd</value>
+        <description>
+            The formatter to format timestamp from string. It can be used with 'partition.timestamp-pattern' to create a formatter using the specified value.
+                Default formatter is 'yyyy-MM-dd HH:mm:ss' and 'yyyy-MM-dd'.
+                Supports multiple partition fields like '$year-$month-$day $hour:00:00'.
+                The timestamp-formatter is compatible with Java's DateTimeFormatter.
+        </description>
+        <default>(none)</default>
+    </property>
+
+    <!-- 将表中哪个字段作为分区时间解析的字段。假设表的分区字段是year,month,day这三个字段，那么该配置就可以配置为$year-$month-$day，然后partition.timestamp-formatter配置成yyyy-MM-dd -->
+    <property>
+        <name>partition.timestamp-pattern</name>
+        <value>$dt</value>
+        <description>
+            You can specify a pattern to get a timestamp from partitions. The formatter pattern is defined by 'partition.timestamp-formatter'.
+                By default, read from the first field.
+                If the timestamp in the partition is a single field called 'dt', you can use '$dt'.
+                If it is spread across multiple fields for year, month, day, and hour, you can use '$year-$month-$day $hour:00:00'.
+                If the timestamp is in fields dt and hour, you can use '$dt $hour:00:00'.
+        </description>
+        <default>(none)</default>
+    </property>
+    <!-- partition过期配置:end  -->
 </configuration>
 
 
