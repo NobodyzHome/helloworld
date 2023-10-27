@@ -117,6 +117,14 @@
         <description>The discovery interval of continuous reading.</description>
         <default>10 s</default>
     </property>
+
+    <!-- 流读时是否读取OVERWRITE类型的snapshot -->
+    <property>
+        <name>streaming-read-overwrite</name>
+        <value>false</value>
+        <description>Whether to read the changes from overwrite in streaming mode.</description>
+        <default>false</default>
+    </property>
     <!-- query配置：end -->
 
     <!-- write配置：start -->
@@ -157,6 +165,32 @@
         <value>false</value>
         <description>If set to true, compactions and snapshot expiration will be skipped. This option is used along with dedicated compact jobs.</description>
         <default>false</default>
+    </property>
+
+    <!--
+        该参数用于控制在overwrite时，是否使用动态分区来overwrite。当该参数为true时，会根据insert的value中的分区字段的值，来决定要overwrite哪个分区。
+        insert overwrite paimon_waybill_c_overwrite values('1','hello world','2023-10-25',2),('2','tt','2023-10-26',2);
+
+        如果该参数为false，则根据insert语句中，partition( dt='2023-10-25')中给出的静态分区来决定要overwrite哪个分区，而不是再动态决定了。
+        insert overwrite paimon_waybill_c_overwrite /*+ OPTIONS('dynamic-partition-overwrite'='false') */  partition( dt='2023-10-25') select id,name,ts from paimon_waybill_c_overwrite where false;
+     -->
+    <property>
+        <name>dynamic-partition-overwrite</name>
+        <value>false</value>
+        <description>Whether only overwrite dynamic partition when overwriting a partitioned table with dynamic partition columns. Works only when the table has partition keys.</description>
+        <default>true</default>
+    </property>
+
+
+    <!-- 写data file文件时，攒一批数据(在内存中)一起写入的数量，减少该配置可以减少写入orc文件时使用的内存量。 -->
+    <property>
+        <name>orc.write.batch-size</name>
+        <value>1024</value>
+        <description>
+            write batch size for orc.
+            The memory consumed by writing columnar (ORC, Parquet, etc.) file. Decreasing the orc.write.batch-size option can reduce the consumption of memory for ORC format.
+        </description>
+        <default>1024</default>
     </property>
     <!-- write配置：end -->
 
@@ -264,11 +298,24 @@
     </property>
 
     <!-- 该控制用来判断，writer在触发compaction前，是否要等待上一次提交的compaction task执行完成。以及writer在checkpoint完成时，提交了compaction task后，是否需要等待compaction task执行完成，再继续进行后续处理。 -->
+    <!-- When the number of sorted runs is small, Paimon writers will perform compaction asynchronously in separated threads, so records can be continuously written into the table. However, to avoid unbounded growth of sorted runs, writers will pause writing when the number of sorted runs hits the threshold. The following table property determines the threshold. -->
     <property>
         <name>num-sorted-run.stop-trigger</name>
         <value>10</value>
         <description>The number of sorted runs that trigger the stopping of writes, the default value is 'num-sorted-run.compaction-trigger' + 1.</description>
         <default>(none)</default>
+    </property>
+
+    <!-- 在写任务中，当需要compaction时，需要读取data file（一般为orc格式）。该配置控制一批从data file读取多少行数据。减少该配置可以减少读取data file所使用的内存量。
+        默认值1024基本是最优的，可以不用动。This number is carefully chosen to minimize overhead and typically allows one VectorizedRowBatch to fit in cache.-->
+    <property>
+        <name>read.batch-size</name>
+        <value>1024</value>
+        <description>
+            Read batch size for orc and parquet.
+            If the row is very large, reading too many lines of data at once will consume a lot of memory when making a compaction. Reducing the read.batch-size option can alleviate the impact of this case.
+        </description>
+        <default>1024</default>
     </property>
     <!-- compaction配置：end -->
 

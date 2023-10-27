@@ -76,7 +76,7 @@ with(
     -- LSM-tree中超过几个文件后，进行一次compaction
     --'num-sorted-run.compaction-trigger'='3',
     -- 经过几个cp后，进行一次full compaction
-    'full-compaction.delta-commits'='2',
+    'full-compaction.delta-commits'='3',
     -- 会产生changelog，例如先插入一条+I的数据，再插入相同key的+I数据的话，实际会产生两条数据，一条是-U，代表更新前的数据，另一条是+U，代表更新后的数据（更新的字段和未更新的字段都会有值）
     'changelog-producer'='full-compaction',
     'manifest.format'='orc'
@@ -417,12 +417,12 @@ create table paimon_waybill_c_compacted_full_changelog(
     dt
 )
 with(
-    'bucket'='3',
+    'bucket'='2',
     'merge-engine'='partial-update',
     'changelog-producer'='full-compaction',
-    'full-compaction.delta-commits'='5',
-    'snapshot.num-retained.max'='10',
-    'snapshot.num-retained.min'='3',
+    'full-compaction.delta-commits'='3',
+    'snapshot.num-retained.max'='2',
+    'snapshot.num-retained.min'='1',
     'snapshot.time-retained'='5 min',
     'manifest.format'='orc'
 );
@@ -471,6 +471,7 @@ select * from paimon_waybill_c_expire_partition/*+ OPTIONS('scan.mode'='from-sna
 insert into paimon_waybill_c_expire_partition select * from hello_kafka;
 
 select * from paimon_waybill_c_expire_partition/*+ OPTIONS('streaming-read-overwrite'='false') */;
+select * from paimon_waybill_c_expire_partition/*+ OPTIONS('scan.mode'='from-snapshot','scan.snapshot-id'='5') */;
 
 create table paimon_waybill_c_overwrite(
     id string,
@@ -495,7 +496,8 @@ insert into paimon_waybill_c_overwrite values('4','wangwu','2023-10-26',1),('5',
 -- 在读取该table时，kind=1的data file是不会被读取的，也就达到了被overwrite的老数据被“清除”的效果
 -- 将dt='2023-10-25'、dt='2023-10-26'两个分区下的数据删除，然后在这两个分区下写入对应的新数据
 insert overwrite paimon_waybill_c_overwrite values('1','hello world','2023-10-25',2),('2','tt','2023-10-26',2);
--- 清除一个分区下的数据
+-- 清除一个分区下的数据。dynamic-partition-overwrite参数用于控制在overwrite时，是否使用动态分区来overwrite，也就是根据写入的value中的分区字段的值，来决定要overwrite哪个分区。
+-- 如果该参数为false，则根据partition( dt='2023-10-25')中给出的静态分区来决定要overwrite哪个分区，而不是再动态决定了
 insert overwrite paimon_waybill_c_overwrite /*+ OPTIONS('dynamic-partition-overwrite'='false') */  partition( dt='2023-10-25') select id,name,ts from paimon_waybill_c_overwrite where false;
 -- 清除全表的数据
 INSERT OVERWRITE paimon_waybill_c_overwrite /*+ OPTIONS('dynamic-partition-overwrite'='false') */ SELECT * FROM paimon_waybill_c_overwrite WHERE false;
