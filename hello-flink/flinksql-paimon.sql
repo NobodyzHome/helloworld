@@ -102,7 +102,7 @@ create TEMPORARY table hello_kafka(
      'scan.startup.mode'='latest-offset'
 );
 
-set execution.checkpointing.interval='60 s';
+set execution.checkpointing.interval='10 s';
 insert into paimon_waybill_c select * from hello_kafka;
 
 set execution.runtime-mode=batch;
@@ -421,8 +421,8 @@ with(
     'merge-engine'='partial-update',
     'changelog-producer'='full-compaction',
     'full-compaction.delta-commits'='3',
-    'snapshot.num-retained.max'='2',
-    'snapshot.num-retained.min'='1',
+    'snapshot.num-retained.max'='15',
+    'snapshot.num-retained.min'='8',
     'snapshot.time-retained'='5 min',
     'manifest.format'='orc'
 );
@@ -430,6 +430,7 @@ with(
 insert into paimon_waybill_c_compacted_full_changelog select * from hello_kafka;
 select * from paimon_waybill_c_compacted_full_changelog /*+ OPTIONS('scan.mode'='latest-full') */;
 select * from paimon_waybill_c_compacted_full_changelog /*+ OPTIONS('scan.snapshot-id'='23') */;
+SELECT * FROM paimon_waybill_c_compacted_full_changelog /*+ OPTIONS('scan.mode'='compacted-full') */;
 
 create table paimon_waybill_c_expire_partition(
     waybillCode string,
@@ -494,7 +495,8 @@ insert into paimon_waybill_c_overwrite values('4','wangwu','2023-10-26',1),('5',
 
 -- 注意：使用overwrite清理数据，并不是像hive那样直接把老数据删除。而是创建了一个新的OVERWRITE类型的snapshot，该snapshot对应的manifest file中，记录了哪些data file可以被删除（kind=1）。
 -- 在读取该table时，kind=1的data file是不会被读取的，也就达到了被overwrite的老数据被“清除”的效果
--- 将dt='2023-10-25'、dt='2023-10-26'两个分区下的数据删除，然后在这两个分区下写入对应的新数据
+-- 当该语句执行完成后，会生成两个snapshot，第一个是OVERWRITE类型的，对应的manifest file记录了哪些data file可以被删除（就是被覆盖的分区下的data file）。而第二个snapshot是APPEND类型的，记录了新写入的数据写到了哪个data file中。
+-- 此种方式是动态分区覆盖，即根据要写入的value中的分区字段，决定要覆盖哪个分区。在这里是将dt='2023-10-25'、dt='2023-10-26'两个分区覆盖。
 insert overwrite paimon_waybill_c_overwrite values('1','hello world','2023-10-25',2),('2','tt','2023-10-26',2);
 -- 清除一个分区下的数据。dynamic-partition-overwrite参数用于控制在overwrite时，是否使用动态分区来overwrite，也就是根据写入的value中的分区字段的值，来决定要overwrite哪个分区。
 -- 如果该参数为false，则根据partition( dt='2023-10-25')中给出的静态分区来决定要overwrite哪个分区，而不是再动态决定了

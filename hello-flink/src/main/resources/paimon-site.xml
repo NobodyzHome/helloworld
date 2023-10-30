@@ -118,7 +118,7 @@
         <default>10 s</default>
     </property>
 
-    <!-- 流读时是否读取OVERWRITE类型的snapshot -->
+    <!-- 流读时是否读取OVERWRITE类型的snapshot。如果为true，则会读取overwrite类型的snapshot，读取出被删除的data file中的RowData，这些RowData的类型都是-D，代表是被删除的数据。 -->
     <property>
         <name>streaming-read-overwrite</name>
         <value>false</value>
@@ -137,6 +137,7 @@
     </property>
 
     <!-- 控制writer的buffer的总大小。writer在写入时，每一个bucket拥有一个buffer，用于作lsm-tree的buffer。但所有bucket的buffer都共用writer buffer的内存池。也就是说，即使bucket再增加，writer中用于缓冲数据的内存总大小也不会增加。 -->
+    <!-- Writer’s memory buffer, shared and preempted by all writers of a single task. This memory value can be adjusted by the write-buffer-size table property. -->
     <property>
         <name>write-buffer-size</name>
         <value>1 gb</value>
@@ -241,6 +242,8 @@
     </property>
 
     <!-- 下面两个配置仅针对append-only表有效 -->
+    <!-- 在append only表中使用，用于控制一个bucket中至少有几个data file，当这些data file的文件大小超过阈值(target-file-size)时，才会触发compaction。 -->
+    <!-- 这个配置的目的是减少compaction的触发，因为假如一个bucket中每个新进入的data file的大小都超过了阈值，那么每新进入一个data file，就会触发一次compaction。有了该配置，进入bucket的data file的size即使超过了阈值，也不会马上进行compaction，而是等compaction.min.file-num凑齐 -->
     <property>
         <name>compaction.min.file-num</name>
         <value>3</value>
@@ -251,6 +254,8 @@
         <default>5</default>
     </property>
 
+    <!-- 在append only表中使用，用于控制一个bucket中最多有几个data file，即使这些文件的大小加起来都没有超过阈值(target-file-size)，也会触发compaction。 -->
+    <!-- 这个配置的目的是减少小文件数量，因为假设bucket中新进入的data file的size都很小，那么bucket中的data file会越来越多，而且这些文件加起来的大小也凑不到阈值。有了该配置，当bucket中的data file的大小即使一直很小，但是当数量超过了compaction.max.file-num，即使这些文件的大小加起来没有超过阈值，也会触发compaction。 -->
     <property>
         <name>compaction.max.file-num</name>
         <value>50</value>
@@ -280,6 +285,9 @@
         <default>1</default>
     </property>
 
+    <!-- Paimon uses LSM tree which supports a large number of updates. LSM organizes files in several sorted runs. When querying records from an LSM tree, all sorted runs must be combined to produce a complete view of all records. -->
+    <!-- One can easily see that too many sorted runs will result in poor query performance. To keep the number of sorted runs in a reasonable range, Paimon writers will automatically perform compactions. The following table property determines the minimum number of sorted runs to trigger a compaction. -->
+    <!-- Compaction will become less frequent when num-sorted-run.compaction-trigger becomes larger, thus improving writing performance. However, if this value becomes too large, more memory and CPU time will be needed when querying the table. This is a trade-off between writing and query performance. -->
     <property>
         <name>num-sorted-run.compaction-trigger</name>
         <value>5</value>
@@ -306,7 +314,7 @@
         <default>(none)</default>
     </property>
 
-    <!-- 在写任务中，当需要compaction时，需要读取data file（一般为orc格式）。该配置控制一批从data file读取多少行数据。减少该配置可以减少读取data file所使用的内存量。
+    <!-- 在写任务中，当需要compaction时，需要读取data file（一般为orc格式）。该配置控制从data file读取数据时，一批次读取多少行数据。减少该配置可以减少读取data file所使用的内存量。
         默认值1024基本是最优的，可以不用动。This number is carefully chosen to minimize overhead and typically allows one VectorizedRowBatch to fit in cache.-->
     <property>
         <name>read.batch-size</name>
