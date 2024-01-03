@@ -1051,3 +1051,21 @@ from (select *
 select cast(FLOOR((current_date - interval '1' year) + interval '1' month to month) as string) st,cast(ceil((current_date - interval '1' year) + interval '1' month to month) as string) ed;
 
 select if(json_value('','$.b') <> '',true,false);
+
+set sql-client.execution.result-mode=TABLEAU;
+
+CREATE TABLE test_table (
+                        id int,
+                        name string,
+                        age int,
+                        PRIMARY KEY(id) NOT ENFORCED
+) WITH (
+      'connector' = 'mysql-cdc',
+      'hostname' = 'my-mysql',
+      'port' = '3306',
+      'username' = 'root',
+      'password' = '123456',
+      'database-name' = 'test_database',
+      'table-name' = 'test_table');
+
+select age,count(*) from test_table group by age;

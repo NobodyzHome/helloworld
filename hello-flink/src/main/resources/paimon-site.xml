@@ -45,6 +45,14 @@
         </description>
         <default>orc</default>
     </property>
+
+    <!-- 每个lsm-tree的层数（包含第0层），如果设置为5，那么lsm-tree的层分别为0,1,2,3,4。如果不配置该值，那么lsm-tree的层数默认为num-sorted-run.compaction-trigger+1 -->
+    <property>
+        <name>num-levels</name>
+        <value>(none)</value>
+        <description>Total level number, for example, there are 3 levels, including 0,1,2 levels.</description>
+        <default>(none)</default>
+    </property>
     <!-- 通用配置：end -->
 
     <!-- query配置：start -->
@@ -100,7 +108,33 @@
         <value>5</value>
         <description>Optional snapshot id used in case of "from-snapshot" or "from-snapshot-full" scan mode</description>
         <default>(none)	</default>
-        <Required/>
+    </property>
+
+    <property>
+        <name>incremental-between</name>
+        <value>20,25</value>
+        <description>Read incremental changes between start snapshot (exclusive) and end snapshot, for example, '5,10' means changes between snapshot 5 and snapshot 10.</description>
+        <default>(none)</default>
+    </property>
+
+    <property>
+        <name>incremental-between-timestamp</name>
+        <value>1704263750108,1704274182534</value>
+        <description>Read incremental changes between start timestamp (exclusive) and end timestamp, for example, 't1,t2' means changes between timestamp t1 and timestamp t2.</description>
+        <default>(none)</default>
+    </property>
+
+    <property>
+        <name>incremental-between-scan-mode</name>
+        <value>delta</value>
+        <description>
+            Scan kind when Read incremental changes between start snapshot (exclusive) and end snapshot, 'delta' for scan newly changed files between snapshots, 'changelog' scan changelog files between snapshots.
+
+            Possible values:
+                "delta": Scan newly changed files between snapshots.
+                "changelog": Scan changelog files between snapshots.
+        </description>
+        <default>delta</default>
     </property>
 
     <property>
@@ -124,6 +158,16 @@
         <value>false</value>
         <description>Whether to read the changes from overwrite in streaming mode.</description>
         <default>false</default>
+    </property>
+
+    <!-- In the case of 'changelog-producer' = 'lookup', by default, the lookup will be completed at checkpointing, which will block the checkpoint. If you want an asynchronous lookup, you can use 'changelog-producer.lookup-wait' = 'false'. -->
+    <property>
+        <name>changelog-producer.lookup-wait</name>
+        <value>true</value>
+        <description>
+            When changelog-producer is set to LOOKUP, commit will wait for changelog generation by lookup.
+        </description>
+        <default>true</default>
     </property>
     <!-- query配置：end -->
 
@@ -196,18 +240,43 @@
     <!-- write配置：end -->
 
     <!-- compaction配置：start   -->
+    <!-- 不同的选项对应使用不同的org.apache.paimon.mergetree.compact.MergeFunction的实现类 -->
     <property>
         <name>merge-engine</name>
         <value>partial-update</value>
-        <description>deduplicate</description>
-        <default>
+        <description>
             Specify the merge engine for table with primary key.
             Possible values:
-                "deduplicate": De-duplicate and keep the last row.
-                "partial-update": Partial update non-null fields.
-                "aggregation": Aggregate fields with same primary key.
-                "first-row": De-duplicate and keep the first row.
-        </default>
+                "deduplicate": De-duplicate and keep the last row. 对应org.apache.paimon.mergetree.compact.DeduplicateMergeFunction
+                "partial-update": Partial update non-null fields.  对应org.apache.paimon.mergetree.compact.PartialUpdateMergeFunction
+                "aggregation": Aggregate fields with same primary key.  对应org.apache.paimon.mergetree.compact.AggregateMergeFunction
+                "first-row": De-duplicate and keep the first row.  对应org.apache.paimon.mergetree.compact.FirstRowMergeFunction
+        </description>
+        <default>deduplicate</default>
+    </property>
+
+    <!-- 在进行数据合并时，如果数据的RowKind是回撤的(DELETE、UPDATE_BEFORE)，是否需要忽略。如果不忽略，则会报错。partual-update不支持回撤数据 -->
+    <property>
+        <name>partial-update.ignore-delete</name>
+        <value>false</value>
+        <description>Whether to ignore delete records in partial-update mode.</description>
+        <default>false</default>
+    </property>
+
+    <!-- 在进行数据合并时，如果数据的RowKind是回撤的(DELETE、UPDATE_BEFORE)，是否需要忽略。如果不忽略也不会报错，可以使用回撤数据作为去重后的最后一条数据 -->
+    <property>
+        <name>deduplicate.ignore-delete</name>
+        <value>false</value>
+        <description>Whether to ignore delete records in deduplicate mode.</description>
+        <default>false</default>
+    </property>
+
+    <!-- 在进行数据合并时，如果数据的RowKind是回撤的(DELETE、UPDATE_BEFORE)，是否需要忽略。如果不忽略，则会报错。first-row不支持回撤数据 -->
+    <property>
+        <name>first-row.ignore-delete</name>
+        <value>false</value>
+        <description>Whether to ignore delete records in first-row mode.</description>
+        <default>false</default>
     </property>
 
     <property>
@@ -230,6 +299,20 @@
         <value>5</value>
         <description>Full compaction will be constantly triggered after delta commits.</description>
         <default>(none)</default>
+    </property>
+
+    <!-- 在进行compaction时，需要把lsm-tree中多个文件合并成一个完全有序的文件，才能按key使用merge-engine进行合并。该配置就是用来控制如何将多个key有序的文件合成一个key完全有序的文件。 -->
+    <property>
+        <name>sort-engine</name>
+        <value>loser-tree</value>
+        <description>
+            Specify the sort engine for table with primary key.
+
+            Possible values:
+                "min-heap": Use min-heap for multiway sorting.
+                "loser-tree": Use loser-tree for multiway sorting. Compared with heapsort, loser-tree has fewer comparisons and is more efficient.
+        </description>
+        <default>loser-tree</default>
     </property>
 
     <property>
@@ -285,6 +368,7 @@
         <default>1</default>
     </property>
 
+    <!-- 该配置用来控制，当lsm-tree中有几个sorted run时，才需要进行compaction。需要sorted run的数量比该配置大，才可以进行compaction，相等也不行。runs.size() > numRunCompactionTrigger -->
     <!-- Paimon uses LSM tree which supports a large number of updates. LSM organizes files in several sorted runs. When querying records from an LSM tree, all sorted runs must be combined to produce a complete view of all records. -->
     <!-- One can easily see that too many sorted runs will result in poor query performance. To keep the number of sorted runs in a reasonable range, Paimon writers will automatically perform compactions. The following table property determines the minimum number of sorted runs to trigger a compaction. -->
     <!-- Compaction will become less frequent when num-sorted-run.compaction-trigger becomes larger, thus improving writing performance. However, if this value becomes too large, more memory and CPU time will be needed when querying the table. This is a trade-off between writing and query performance. -->
@@ -307,6 +391,12 @@
 
     <!-- 该控制用来判断，writer在触发compaction前，是否要等待上一次提交的compaction task执行完成。以及writer在checkpoint完成时，提交了compaction task后，是否需要等待compaction task执行完成，再继续进行后续处理。 -->
     <!-- When the number of sorted runs is small, Paimon writers will perform compaction asynchronously in separated threads, so records can be continuously written into the table. However, to avoid unbounded growth of sorted runs, writers will pause writing when the number of sorted runs hits the threshold. The following table property determines the threshold. -->
+    <!-- Write stalls will become less frequent when num-sorted-run.stop-trigger becomes larger, thus improving writing performance. However, if this value becomes too large, more memory and CPU time will be needed when querying the table. If you are concerned about the OOM problem, please configure the following option. Its value depends on your memory size. -->
+    <!-- Compaction is inherently asynchronous, but if you want it to be completely asynchronous and not blocking writing, expect a mode to have maximum writing throughput, the compaction can be done slowly and not in a hurry. You can use the following strategies for your table:
+        num-sorted-run.stop-trigger = 2147483647
+        sort-spill-threshold = 10
+        This configuration will generate more files during peak write periods and gradually merge into optimal read performance during low write periods.
+    -->
     <property>
         <name>num-sorted-run.stop-trigger</name>
         <value>10</value>
@@ -324,6 +414,19 @@
             If the row is very large, reading too many lines of data at once will consume a lot of memory when making a compaction. Reducing the read.batch-size option can alleviate the impact of this case.
         </description>
         <default>1024</default>
+    </property>
+
+    <!-- 针对主键表的配置，设置如何对多个sorted file中的文件进行归并排序，形成按key进行全排序的数据。只有获得这样的数据，才能够使用merge-engine对相同key的数据进行合并。默认使用loser-tree进行排序，性能更好。 -->
+    <property>
+        <name>sort-engine</name>
+        <value>loser-tree</value>
+        <description>
+            Specify the sort engine for table with primary key.
+            Possible values:
+                "min-heap": Use min-heap for multiway sorting.
+                "loser-tree": Use loser-tree for multiway sorting. Compared with heapsort, loser-tree has fewer comparisons and is more efficient.
+        </description>
+        <default>loser-tree</default>
     </property>
     <!-- compaction配置：end -->
 

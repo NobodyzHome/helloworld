@@ -102,7 +102,7 @@ create TEMPORARY table hello_kafka(
      'scan.startup.mode'='latest-offset'
 );
 
-set execution.checkpointing.interval='10 s';
+set execution.checkpointing.interval='120 s';
 insert into paimon_waybill_c select * from hello_kafka;
 
 set execution.runtime-mode=batch;
@@ -149,6 +149,13 @@ SELECT * FROM paimon_waybill_c /*+ OPTIONS('scan.mode'='from-snapshot-full','sca
 -- 在流模式下，from-snapshot是直接读取指定snapshot中changelog文件，并持续监听后续产生的snapshot。如果指定的snapshot中没有changelog，则会直接继续依次读取后面的snapshot，如果该snapshot中有changelog文件，则读取并发送至下游。
 -- 在批模式下，from-snapshot是直接根据指定的snapshot来生成当时的快照（就是根据对snapshot指定的base file和delta file中的数据进行合并，形成该快照时的表中的数据）
 SELECT * FROM paimon_waybill_c /*+ OPTIONS('scan.mode'='from-snapshot','scan.snapshot-id'='5') */;
+
+-- 'scan.mode'='incremental'
+-- 只在批模式下使用，查询在start snapshot之后（不包含start snapshot）到stop snapshot（包含stop snapshot）之间的改动内容。
+-- 其实现就是遍历每一个需要的snapshot，从deltaManifestList或changelogManifestList中找到对应的data file或changelog file（取决于incremental-between-scan-mode的配置），将其读取出来。reader.withSnapshot(s).withMode(ScanMode.DELTA).read().splits();
+-- incremental-between-scan-mode就是用来控制读取的内容，如果值为delta，则读取deltaManifestList对应的data file，如果值为changelog，则读取changelogManifestList对应的changelog file。reader.withSnapshot(s).withMode(ScanMode.CHANGELOG).read().splits();
+select * from paimon_mysql_cdc/*+ OPTIONS('scan.mode'='incremental','incremental-between' = '58,59','incremental-between-scan-mode'='delta') */;
+select * from paimon_mysql_cdc/*+ OPTIONS('scan.mode'='incremental','incremental-between-timestamp' = '1704263750108,1704274182534','incremental-between-scan-mode'='delta') */;
 
 
 set execution.runtime-mode=batch;
@@ -504,3 +511,114 @@ insert overwrite paimon_waybill_c_overwrite /*+ OPTIONS('dynamic-partition-overw
 -- 清除全表的数据
 INSERT OVERWRITE paimon_waybill_c_overwrite /*+ OPTIONS('dynamic-partition-overwrite'='false') */ SELECT * FROM paimon_waybill_c_overwrite WHERE false;
 select * from paimon_waybill_c_overwrite;
+
+create table paimon_mysql_cdc(
+     id int,
+     name string,
+     age int,
+     dt string,
+     PRIMARY KEY(dt,id) NOT ENFORCED
+) partitioned by(
+    dt
+)
+with(
+    'auto-create' = 'true',
+    'merge-engine'='deduplicate',
+    'bucket'='2',
+    'changelog-producer'='input',
+    'full-compaction.delta-commits'='10',
+    'manifest.format'='orc'
+);
+
+drop table paimon_mysql_cdc;
+
+CREATE TEMPORARY TABLE mysql_cdc_table (
+                            id int,
+                            name string,
+                            age int,
+                            dt string,
+                            PRIMARY KEY(dt,id) NOT ENFORCED
+) WITH (
+      'connector' = 'mysql-cdc',
+      'hostname' = 'my-mysql',
+      'port' = '3306',
+      'username' = 'root',
+      'password' = '123456',
+      'database-name' = 'test_database',
+      'table-name' = 'test_table');
+
+insert into paimon_mysql_cdc select * from mysql_cdc_table;
+
+set execution.runtime-mode=batch;
+select * from paimon_mysql_cdc/*+ OPTIONS('scan.mode'='incremental','incremental-between' = '23,24','incremental-between-scan-mode'='changelog') */;
+insert overwrite paimon_mysql_cdc /*+ OPTIONS('dynamic-partition-overwrite'='false') */ partition(dt='2024-01-02') select id,name,age from paimon_mysql_cdc where dt='2024-01-03' and id<=100;
+insert overwrite paimon_mysql_cdc /*+ OPTIONS('dynamic-partition-overwrite'='false') */ partition(dt='2024-01-02') select id,name,age from paimon_mysql_cdc where false;
+select * from paimon_mysql_cdc where dt='2024-01-02' and id in (89,90);
+select * from paimon_mysql_cdc where dt='2024-01-03' and id in (89,90);
+
+set execution.runtime-mode=streaming;
+select * from paimon_mysql_cdc/*+ OPTIONS('scan.mode'='from-snapshot-full','scan.snapshot-id'='17') */;
+select * from paimon_mysql_cdc/*+ OPTIONS('scan.mode' = 'latest') */;
+select * from paimon_mysql_cdc/*+ OPTIONS('scan.mode' = 'latest-full') */;
+select age,count(id) cnt from paimon_mysql_cdc group by age;
+
+CREATE TEMPORARY TABLE source_data_table(
+    id int,
+    name string,
+    age int
+)
+with (
+    'connector'='datagen',
+    'rows-per-second'='1',
+    'fields.id.kind'='sequence',
+    'fields.id.start'='10',
+    'fields.id.end'='99999',
+    'fields.name.length'='6',
+    'fields.age.kind'='random',
+    'fields.age.min'='15',
+    'fields.age.max'='30'
+);
+
+drop TEMPORARY table source_data_table;
+
+create table paimon_table(
+     id int,
+     name string,
+     age int,
+     dt string,
+     primary key (dt,id) not enforced
+)
+partitioned by(
+    dt
+)
+with(
+    'bucket'='2',
+    'merge-engine'='deduplicate',
+    'changelog-producer'='full-compaction',
+    'full-compaction.delta-commits'='5',
+    'manifest.format'='orc'
+);
+
+drop table paimon_table;
+
+insert into paimon_table select *,cast(current_date as string) dt from source_data_table;
+
+set execution.runtime-mode=batch;
+delete from paimon_table where dt=cast(current_date as string) and id in (10,12);
+
+
+CREATE TEMPORARY TABLE jdbc_table (
+                            id int,
+                            name string,
+                            age int,
+                            dt string,
+                            PRIMARY KEY(dt,id) NOT ENFORCED
+) WITH (
+      'connector' = 'jdbc',
+      'url'='jdbc:mysql://my-mysql:3306/test_database',
+      'table-name' = 'test_table',
+      'username' = 'root',
+      'password' = '123456');
+
+insert into jdbc_table select *,cast(current_date as string) dt from source_data_table;
+
