@@ -1,7 +1,9 @@
 package com.mzq.hello.flink;
 
 import com.ververica.cdc.connectors.mysql.source.MySqlSource;
+import com.ververica.cdc.connectors.mysql.table.StartupOptions;
 import com.ververica.cdc.debezium.JsonDebeziumDeserializationSchema;
+import com.ververica.cdc.debezium.StringDebeziumDeserializationSchema;
 import com.ververica.cdc.debezium.table.RowDataDebeziumDeserializeSchema;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.streaming.api.CheckpointingMode;
@@ -26,6 +28,7 @@ public class HelloMysqlCdcJob {
                 .password("123456")
                 .serverTimeZone("UTC")
                 .deserializer(new JsonDebeziumDeserializationSchema()) // 将 SourceRecord 转换为 JSON 字符串
+                .includeSchemaChanges(true)
                 .build();
         DataStreamSource<String> stringDataStreamSource = streamExecutionEnvironment.fromSource(mySqlSource, WatermarkStrategy.noWatermarks(),"test123");
         stringDataStreamSource.print();

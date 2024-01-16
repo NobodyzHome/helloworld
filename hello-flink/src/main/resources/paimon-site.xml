@@ -237,6 +237,23 @@
         </description>
         <default>1024</default>
     </property>
+
+    <!-- 仅供append-only表使用，AppendOnlyWriter在将数据写入文件前，是否要先将数据存储到内存缓冲区。 -->
+    <property>
+        <name>write-buffer-for-append</name>
+        <value>true</value>
+        <description>This option only works for append-only table. Whether the write use write buffer to avoid out-of-memory error.</description>
+        <default>false</default>
+    </property>
+
+    <!-- primary key表和append-only表都使用该配置，用来控制当写入buffer满了以后，是否需要将buffer中的数据spill到本地磁盘。配置该属性后，buffer的put方法永远返回true
+         ，避免了在checkpoint期间，由于buffer满了而flush，导致一次checkpoint会产生多个sorted run的问题，从而减少数据文件的数量。 -->
+    <property>
+        <name>write-buffer-spillable</name>
+        <value>true</value>
+        <description>This option only works for append-only table. Whether the write use write buffer to avoid out-of-memory error.</description>
+        <default>(none)</default>
+    </property>
     <!-- write配置：end -->
 
     <!-- compaction配置：start   -->

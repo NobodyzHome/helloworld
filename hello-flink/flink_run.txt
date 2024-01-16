@@ -1,0 +1,21 @@
+flink run \
+    ./lib/paimon-flink-action-0.7-20231222.002004-33.jar mysql_sync_table \
+    --mysql_conf hostname=my-mysql \
+    --mysql_conf port=3306 \
+    --mysql_conf username=root \
+    --mysql_conf password=123456 \
+    --mysql_conf database-name='test_database' \
+    --mysql_conf table-name='student_info' \
+    --warehouse /my-paimon \
+    --database app \
+    --table student_info \
+    --primary_keys dt,id \
+    --table_conf bucket=2 \
+    --table_conf changelog-producer=input \
+    --table_conf manifest.format=orc \
+    --table_conf merge-engine=deduplicate \
+    --table_conf snapshot.num-retained.min=5 \
+    --table_conf snapshot.num-retained.max=10 \
+    --table_conf snapshot.time-retained=10min \
+    --computed_column 'dt=date_format(create_time,'yyyy-MM-dd')' \
+    --partition_keys dt

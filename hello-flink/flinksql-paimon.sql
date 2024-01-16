@@ -102,7 +102,7 @@ create TEMPORARY table hello_kafka(
      'scan.startup.mode'='latest-offset'
 );
 
-set execution.checkpointing.interval='120 s';
+set execution.checkpointing.interval='30 s';
 insert into paimon_waybill_c select * from hello_kafka;
 
 set execution.runtime-mode=batch;
@@ -622,3 +622,5 @@ CREATE TEMPORARY TABLE jdbc_table (
 
 insert into jdbc_table select *,cast(current_date as string) dt from source_data_table;
 
+
+select *,date_format(create_time,'yyyy-MM-dd') dt from student_info;
