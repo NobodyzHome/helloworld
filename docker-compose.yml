@@ -506,6 +506,18 @@ services:
     networks:
       - my-network
 
+  my-starrocks:
+    image: starrocks/allin1-ubuntu:latest
+    container_name: starrocks
+    ports:
+      - 9030:9030
+      - 8030:8030
+      - 8040:8040
+    volumes:
+      - "/Users/maziqiang/Documents/my-paimon:/my-paimon"
+    networks:
+      - my-network
+
 # 配置自己的network，其实这里也可以不配置，因为本来就想让所有service走一个network，那么走默认的即可。这里只是为了展示networks的用法。
 networks:
   # 这个是配置的network的名称，service使用该名称来加入这个网络

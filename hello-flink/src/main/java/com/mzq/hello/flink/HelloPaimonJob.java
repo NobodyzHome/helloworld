@@ -11,6 +11,7 @@ public class HelloPaimonJob {
     public static void main(String[] args) {
         StreamExecutionEnvironment streamExecutionEnvironment=StreamExecutionEnvironment.getExecutionEnvironment();
         streamExecutionEnvironment.setParallelism(1);
+//        streamExecutionEnvironment.setRuntimeMode(RuntimeExecutionMode.BATCH);
         streamExecutionEnvironment.enableCheckpointing(Duration.ofSeconds(30).toMillis(), CheckpointingMode.EXACTLY_ONCE);
         StreamTableEnvironment streamTableEnvironment=StreamTableEnvironment.create(streamExecutionEnvironment);
         streamTableEnvironment.executeSql("CREATE CATALOG paimon_catalog WITH (\n" +
@@ -23,6 +24,8 @@ public class HelloPaimonJob {
                 "    'default-database'='app'\n" +
                 ")");
         streamTableEnvironment.executeSql("use catalog paimon_catalog");
-        streamTableEnvironment.executeSql("select * from paimon_waybill_c_sort_partition/*+ options('scan.infer-parallelism'='false') */");
+//        streamTableEnvironment.executeSql("select * from paimon_none_changelog where dt='2024-02-02' and age<20");
+        streamTableEnvironment.executeSql("insert into paimon_none_changelog values(1,'hello',32,'2024-01-20')");
+
     }
 }

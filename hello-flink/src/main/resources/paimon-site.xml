@@ -169,6 +169,18 @@
         </description>
         <default>true</default>
     </property>
+
+    <!-- 如果是主键表，并且changelog-producer为none，flink在查询的拓扑中会增加normalizer算子，用state暂存拉取到的数据，并发出changelog。可想而知这个算子效率肯定很差。可以在查询时，将该配置设置为false，这样拓扑中就没有normalize算子了。
+         但是这也非常危险，因为在流读时，如果发现不了一个key的变化记录，那么最终group by的统计结果非常有可能不准。例如group by color，当key1的color从red变为black，由于没有变更记录，已统计的red+1并没有被撤回（也就是没有-1），而black还被增加一了，相同于key1让red和black都增加1了。
+         对于从paimon到目标的数据同步还可以，如果需求是流式获取每次新增snapshot中的数据并同步到目的端。 -->
+    <property>
+        <name>scan.remove-normalize</name>
+        <value>false</value>
+        <description>
+            Whether to force the removal of the normalize node when streaming read. Note: This is dangerous and is likely to cause data errors if downstream is used to calculate aggregation and the input is not complete changelog.
+        </description>
+        <default>false</default>
+    </property>
     <!-- query配置：end -->
 
     <!-- write配置：start -->
@@ -252,6 +264,14 @@
         <name>write-buffer-spillable</name>
         <value>true</value>
         <description>This option only works for append-only table. Whether the write use write buffer to avoid out-of-memory error.</description>
+        <default>(none)</default>
+    </property>
+
+    <!-- 我们可以使用rowkind.field字段，来指出table中哪个字段用于生成这行数据的RowKind，默认是无，则使用数据原本的RowKind -->
+    <property>
+        <name>rowkind.field</name>
+        <value>opt</value>
+        <description>The field that generates the row kind for primary key table, the row kind determines which data is '+I', '-U', '+U' or '-D'.</description>
         <default>(none)</default>
     </property>
     <!-- write配置：end -->
@@ -386,6 +406,7 @@
     </property>
 
     <!-- 该配置用来控制，当lsm-tree中有几个sorted run时，才需要进行compaction。需要sorted run的数量比该配置大，才可以进行compaction，相等也不行。runs.size() > numRunCompactionTrigger -->
+    <!-- 注意：仅在primary key表中有效 -->
     <!-- Paimon uses LSM tree which supports a large number of updates. LSM organizes files in several sorted runs. When querying records from an LSM tree, all sorted runs must be combined to produce a complete view of all records. -->
     <!-- One can easily see that too many sorted runs will result in poor query performance. To keep the number of sorted runs in a reasonable range, Paimon writers will automatically perform compactions. The following table property determines the minimum number of sorted runs to trigger a compaction. -->
     <!-- Compaction will become less frequent when num-sorted-run.compaction-trigger becomes larger, thus improving writing performance. However, if this value becomes too large, more memory and CPU time will be needed when querying the table. This is a trade-off between writing and query performance. -->

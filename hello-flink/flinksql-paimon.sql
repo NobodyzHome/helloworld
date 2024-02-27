@@ -624,3 +624,76 @@ insert into jdbc_table select *,cast(current_date as string) dt from source_data
 
 
 select *,date_format(create_time,'yyyy-MM-dd') dt from student_info;
+
+create table paimon_none_changelog(
+    id int,
+    name string,
+    age int,
+    dt string,
+    primary key (dt,id) not enforced
+)
+partitioned by(
+    dt
+)
+with(
+    'bucket'='3',
+    'merge-engine'='deduplicate',
+    'changelog-producer'='none',
+    'manifest.format'='orc'
+);
+insert into paimon_none_changelog select *,cast(current_date as string) dt from source_data_table;
+select * from paimon_none_changelog /*+ options('consumer-id'='testid','scan.remove-normalize'='true') */;
+
+-- 我们可以使用rowkind.field字段，来指出table中哪个字段用于生成这行数据的RowKind，默认是无，则使用数据原本的RowKind
+-- rowkind.field字段对应的值只能是+I、-U、+U、-D
+-- 实际应用：通过数据源中数据类型字段来生成changelog，而不是用paimon来生成changelog
+-- 1.在写入paimon前，也就是select时，根据根据数据源的操作类型字段，生成一个转换成【+I、-U、+U、-D】这种值的字段（例如opt，逻辑为case RAND_INTEGER(4) when 0 then '+I' when 1 then '-U' when 2 then '+U' when 3 then '-D' else '+I' end opt）
+-- 2.设置'rowkind.field'='opt',这样writer在向paimon表写入时，就能识别这行数据的RowKind并赋值
+-- 3.设置'changelog-producer'='input'，这样将该数据写入data file和changelog file时，就知道该行数据的kind了
+create table paimon_input_table(
+                             id int,
+                             name string,
+                             age int,
+                             dt string,
+                             opt string,
+                             primary key (dt,id) not enforced
+)
+    partitioned by(
+    dt
+)
+with(
+    'bucket'='1',
+    'merge-engine'='deduplicate',
+    -- 将changelog-producer设置为input，从数据源的数据中获取RowKind
+    'changelog-producer'='input',
+    'full-compaction.delta-commits'='2',
+    -- 根据paimon表中指定字段来生成数据的RowKind
+    'rowkind.field'='opt',
+    'manifest.format'='orc'
+);
+
+SELECT * FROM paimon_input_table /*+ OPTIONS('scan.mode'='from-snapshot','scan.snapshot-id'='1') */;
+insert into paimon_input_table select *,cast(current_date as string) dt,case RAND_INTEGER(4) when 0 then '+I' when 1 then '-U' when 2 then '+U' when 3 then '-D' else '+I' end opt from source_data_table;
+
+create table paimon_input_table_filter(
+                                   id int,
+                                   name string,
+                                   age int,
+                                   dt string,
+                                   opt string,
+                                   primary key (dt,id) not enforced
+)
+    partitioned by(
+    dt
+)
+with(
+    'bucket'='1',
+    'merge-engine'='deduplicate',
+    'changelog-producer'='input',
+    'full-compaction.delta-commits'='2',
+    'manifest.format'='orc'
+);
+
+insert into paimon_input_table_filter select * from paimon_input_table /*+ OPTIONS('scan.mode'='from-snapshot','scan.snapshot-id'='2') */ where age<=22;
+
+select * from paimon_input_table where id>=870;
