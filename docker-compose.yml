@@ -539,3 +539,4 @@ volumes:
 # docker compose up -d flink-jobmanager flink-taskmanager-1 zookeeper namenode datanode resourcemanager nodemanager1 hbase-master hbase-region hbase-region1 hive-server hive-metastore hive-metastore-postgresql presto-coordinator
 # docker compose up -d flink-jobmanager flink-taskmanager-1 flink-taskmanager-2 kafka-1 namenode datanode hive-server hive-metastore hive-metastore-postgresql resourcemanager nodemanager1
 # docker compose up -d flink-jobmanager flink-taskmanager-1 flink-taskmanager-2 kafka-1 my-mysql
+# docker compose up -d my-starrocks kafka-1 namenode datanode flink-jobmanager flink-taskmanager-1

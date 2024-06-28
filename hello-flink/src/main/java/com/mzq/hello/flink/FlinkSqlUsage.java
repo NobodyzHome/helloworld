@@ -26,8 +26,10 @@ public class FlinkSqlUsage {
 //        UdfFunctionUsage udfFunctionUsage = new UdfFunctionUsage();
 //        udfFunctionUsage.execute();
 
-        HudiUsage hudiUsage=new HudiUsage();
-        hudiUsage.execute();
+//        HudiUsage hudiUsage=new HudiUsage();
+//        hudiUsage.execute();
+
+        test5();
     }
 
     public static void test1() {
@@ -148,5 +150,29 @@ public class FlinkSqlUsage {
         tableEnvironment.executeSql("insert into print_sink select * from student_teacher");
     }
 
+    public static void test5(){
+        StreamExecutionEnvironment streamExecutionEnvironment = StreamExecutionEnvironment.getExecutionEnvironment();
+        TableEnvironment tableEnvironment = StreamTableEnvironment.create(streamExecutionEnvironment);
+        tableEnvironment.executeSql("CREATE TABLE stu_info_pk (\n" +
+                "     `id` int  ,\n" +
+                "     `sex` int ,\n" +
+                "     `age` int ,\n" +
+                "     `name` string ,\n" +
+                "     `tm` timestamp ,\n" +
+                "     `__op` int ,\n" +
+                "     PRIMARY KEY (id,sex) NOT ENFORCED\n" +
+                ") WITH (\n" +
+                "      'connector' = 'starrocks',\n" +
+                "      'jdbc-url' = 'jdbc:mysql://localhost:9030',\n" +
+                "      'load-url' = 'localhost:8030',\n" +
+                "      'database-name' = 'mydb',\n" +
+                "      'table-name' = 'stu_info_pk',\n" +
+                "      'username' = 'root',\n" +
+                "      'password' = '',\n" +
+                "      'sink.version' = 'V1',\n" +
+                "      'sink.properties.columns' = 'id,sex,age,name,tm,__op'\n" +
+                ")");
+        tableEnvironment.executeSql("insert into stu_info_pk values (1,1,22,'lisi',current_timestamp,0)");
+    }
 
 }

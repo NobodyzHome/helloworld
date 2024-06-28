@@ -76,14 +76,14 @@ public class Employee implements Serializable {
     public static Employee generate() {
         BuildFullName buildFullName = new BuildFullName();
         Employee employee = new Employee();
-        employee.setEmp_no("emp_" + RandomUtils.nextInt(1, 100000000));
+        employee.setEmp_no("emp_" + RandomUtils.nextInt(1, 5000000));
         int deptNo = RandomUtils.nextInt(0, deptNames.length);
         employee.setDept_no("dept_" + deptNo);
         employee.setDept_name(deptNames[deptNo]);
         employee.setSex(new String[]{"male", "female"}[RandomUtils.nextInt(0, 2)]);
         employee.setEmp_name(buildFullName.fullName(employee.getSex()));
-        employee.setSalary(RandomUtils.nextInt(3000, 5000));
-        employee.setCreate_dt(LocalDate.parse("2020-03-05").plusMonths(RandomUtils.nextInt(1, 5)).plusDays(RandomUtils.nextInt(1, 90)).toString());
+        employee.setSalary(RandomUtils.nextInt(3000, 9000));
+        employee.setCreate_dt(LocalDate.now().minusDays(RandomUtils.nextInt(0, 61)).toString());
         return employee;
     }
 

@@ -1069,3 +1069,63 @@ CREATE TABLE test_table (
       'table-name' = 'test_table');
 
 select age,count(*) from test_table group by age;
+
+
+create table kafka_sink(
+    id int,
+    age int,
+    tm timestamp,
+    name string,
+    sex int,
+    primary key (id) not enforced
+)with(
+     'connector'='upsert-kafka',
+     'properties.bootstrap.servers'='kafka-1:9092',
+     'topic'='hello_starrocks',
+     'key.format'='json',
+     'value.format'='json'
+     );
+
+CREATE TABLE source_data_table(
+    id int,
+    age int,
+    tm timestamp,
+    name string,
+    sex int
+)
+with (
+    'connector'='datagen',
+    'rows-per-second'='10',
+    'fields.sex.kind'='random',
+    'fields.sex.min'='1',
+    'fields.sex.max'='9999',
+    'fields.sex.kind'='random',
+    'fields.sex.min'='1',
+    'fields.sex.max'='2',
+    'fields.name.length'='3',
+    'fields.age.kind'='random',
+    'fields.age.min'='15',
+    'fields.age.max'='40'
+);
+
+insert into kafka_sink select * from source_data_table;
+
+CREATE TABLE stu_info_pk (
+     `id` int  ,
+     `sex` int ,
+     `age` int ,
+     `name` string ,
+     `tm` timestamp ,
+     PRIMARY KEY (id,sex) NOT ENFORCED
+) WITH (
+      'connector' = 'starrocks',
+      'jdbc-url' = 'jdbc:mysql://localhost:9030',
+      'load-url' = 'localhost:8030',
+      'database-name' = 'mydb',
+      'table-name' = 'stu_info_pk',
+      'username' = 'root',
+      'password' = '',
+       'sink.version' = 'V1',
+      'sink.properties.columns' = 'id,sex,age,name,tm,__op=if(age>20,1,0)'
+);
+insert into stu_info_pk values (1,1,22,'lisi',current_timestamp);

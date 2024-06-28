@@ -1,5 +1,6 @@
 package com.mzq.hello.flink;
 
+import org.apache.flink.api.common.RuntimeExecutionMode;
 import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
@@ -11,7 +12,7 @@ public class HelloPaimonJob {
     public static void main(String[] args) {
         StreamExecutionEnvironment streamExecutionEnvironment=StreamExecutionEnvironment.getExecutionEnvironment();
         streamExecutionEnvironment.setParallelism(1);
-//        streamExecutionEnvironment.setRuntimeMode(RuntimeExecutionMode.BATCH);
+        streamExecutionEnvironment.setRuntimeMode(RuntimeExecutionMode.BATCH);
         streamExecutionEnvironment.enableCheckpointing(Duration.ofSeconds(30).toMillis(), CheckpointingMode.EXACTLY_ONCE);
         StreamTableEnvironment streamTableEnvironment=StreamTableEnvironment.create(streamExecutionEnvironment);
         streamTableEnvironment.executeSql("CREATE CATALOG paimon_catalog WITH (\n" +
@@ -25,7 +26,7 @@ public class HelloPaimonJob {
                 ")");
         streamTableEnvironment.executeSql("use catalog paimon_catalog");
 //        streamTableEnvironment.executeSql("select * from paimon_none_changelog where dt='2024-02-02' and age<20");
-        streamTableEnvironment.executeSql("insert into paimon_none_changelog values(1,'hello',32,'2024-01-20')");
+        streamTableEnvironment.executeSql("select * from paimon_input_table where dt='2024-02-27' and age>20");
 
     }
 }

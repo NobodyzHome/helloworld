@@ -565,7 +565,8 @@ select age,count(id) cnt from paimon_mysql_cdc group by age;
 CREATE TEMPORARY TABLE source_data_table(
     id int,
     name string,
-    age int
+    age int,
+    ts timestamp
 )
 with (
     'connector'='datagen',
@@ -578,6 +579,22 @@ with (
     'fields.age.min'='15',
     'fields.age.max'='30'
 );
+
+CREATE TABLE test_table (
+                            id int,
+                            name string,
+                            age int,
+                            ts timestamp,
+                            PRIMARY KEY(id) NOT ENFORCED
+) WITH (
+      'connector'='upsert-kafka',
+      'properties.bootstrap.servers'='kafka-1:9092',
+      'topic'='hello_world',
+      'key.format'='csv',
+      'value.format'='json'
+      );
+
+insert into test_table select * from source_data_table;
 
 drop TEMPORARY table source_data_table;
 
@@ -674,6 +691,7 @@ with(
 
 SELECT * FROM paimon_input_table /*+ OPTIONS('scan.mode'='from-snapshot','scan.snapshot-id'='1') */;
 insert into paimon_input_table select *,cast(current_date as string) dt,case RAND_INTEGER(4) when 0 then '+I' when 1 then '-U' when 2 then '+U' when 3 then '-D' else '+I' end opt from source_data_table;
+select name,age,count(*) cnt,grouping_id(name,age) from paimon_input_table group by grouping sets ((name),(age))
 
 create table paimon_input_table_filter(
                                    id int,
@@ -697,3 +715,36 @@ with(
 insert into paimon_input_table_filter select * from paimon_input_table /*+ OPTIONS('scan.mode'='from-snapshot','scan.snapshot-id'='2') */ where age<=22;
 
 select * from paimon_input_table where id>=870;
+
+
+create TEMPORARY table hello_world_kafka(
+    id int,
+   name string,
+       age int
+)with(
+     'connector'='kafka',
+     'properties.bootstrap.servers'='kafka-1:9092',
+     'topic'='hello_world',
+     'key.format'='raw',
+     'key.fields'='waybillCode',
+     'value.format'='json',
+     'scan.startup.mode'='latest-offset'
+);
+
+
+create table source_sr(
+    id int,
+   name string,
+       age int,
+       ts timestamp
+)with(
+     'connector'='starrocks',
+     'jdbc-url'='jdbc:mysql://my-starrocks:9030',
+     'scan-url'='my-starrocks:8030',
+     'username'='root',
+     'password'='',
+     'database-name'='mydb',
+     'table-name'='hello_world'
+);
+
+

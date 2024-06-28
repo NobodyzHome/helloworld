@@ -164,6 +164,12 @@
             <version>2.4.2</version>
             <scope>provided</scope>
         </dependency>
+
+        <dependency>
+            <groupId>com.starrocks</groupId>
+            <artifactId>flink-connector-starrocks</artifactId>
+            <version>1.2.9_flink-1.18</version>
+        </dependency>
     </dependencies>
 
     <build>

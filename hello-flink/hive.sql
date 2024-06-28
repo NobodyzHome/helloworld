@@ -659,4 +659,71 @@ with serdeproperties (
 );
 
 select * from hbase_student;
-insert into hbase_student(rowkey,sex,age,ts) values('1001','male','17',12)
+insert into hbase_student(rowkey,sex,age,ts) values('1001','male','17',12);
+
+
+create table hello_world_starrocks(
+       id int,
+       name string,
+       age int,
+       ts TIMESTAMP
+)
+partitioned by (dt string)
+stored as parquet;
+
+load data inpath '/export/hello_world/dt=2024-03-21/data_07fd3bb8-e76a-11ee-bcf3-0242ac130007_0_1.parquet' into table hello_world_starrocks partition(dt='2024-03-21');
+
+-- 需要将hdfs中text文件格式的数据导入到目的数据表，导入后：
+-- 1.存储数据的格式由text转换为orc
+-- 2.存储数据按照数据文件中create_dt、dept_no字段进行分区存储
+create table mydb.emp_info(
+     emp_no string,
+     emp_name string,
+     dept_no string,
+     dept_name string,
+     sex string,
+     create_dt string,
+     salary int
+)
+partitioned by (
+    dt string
+)
+stored as orc;
+
+-- 由于数据源文件是text类型的，目标数据源是orc类型的，因此无法直接用load inpath进行导入（load inpath要求导入的文件和目标源的格式相同）。
+-- 因此我们先建一个数据表，他的存储格式设置为和要导入的数据源的文件格式相同，并且不包含分区
+create table mydb.emp_info_original(
+    emp_no string,
+    emp_name string,
+    dept_no string,
+    dept_name string,
+    sex string,
+    create_dt string,
+    salary int
+)
+row format delimited fields terminated by ',' lines terminated by '\n'
+stored as textfile;
+
+-- 使用load命令将数据文件导入至emp_info_original表
+-- 注意，load命令执行的内容其实是将源文件从原来的位置(在这里是/data/employee)移动到对应hive表的目录下了(在这里是/user/hive/warehouse/mydb.db/emp_info_original/employee)，原来的位置中就没有导入的文件了
+load data inpath '/data/employee' overwrite into table mydb.emp_info_original;
+
+-- 注意：如果要将数据倒入到分区表，且使用动态分区的方式导入，需要设置hive.exec.dynamic.partition.mode属性，否则会报以下错误
+-- [42000][10096] Error while compiling statement: FAILED: SemanticException [Error 10096]: Dynamic partition strict mode requires at least one static partition column. To turn this off set hive.exec.dynamic.partition.mode=nonstrict
+set hive.exec.dynamic.partition.mode=nonstrict;
+-- 使用动态分区的方式，将导入后的table中的数据写入到目标表，进行存储格式的转换以及数据的按分区存储
+insert overwrite table mydb.emp_info partition(dt) select emp_no,emp_name,dept_no,dept_name,sex,create_dt,salary,create_dt dt from emp_info_original;
+
+select count(*) from emp_info where dt='2024-06-27';
+select dt,count(*) cnt from emp_info group by dt;
+
+drop table mydb.emp_info;
+
+truncate table mydb.emp_info;
+
+use mydb;
+show tables;
+
+
+
+
