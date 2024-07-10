@@ -87,6 +87,14 @@ public class Employee implements Serializable {
         return employee;
     }
 
+    public static Employee[] generate(int cnt) {
+        Employee[] array=new Employee[cnt];
+        for (int i = 0; i < cnt; i++) {
+            array[i] = generate();
+        }
+        return array;
+    }
+
     @Override
     public String toString() {
         return String.format("%s,%s,%s,%s,%s,%s,%d%n", getEmp_no(), getEmp_name(), getDept_no(), getDept_name(), getSex(), getCreate_dt(), getSalary());
