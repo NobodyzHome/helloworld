@@ -609,3 +609,30 @@ select tracking_log from information_schema.load_tracking_logs where job_id=1606
 show databases;
 create database mydb;
 show tables from mydb;
+
+use mydb;
+
+create table test_agg(
+    waybill varchar(100),
+    ord_cnt int sum,
+    succ_cnt int sum
+)
+aggregate key (waybill)
+distributed by hash(waybill);
+
+create table test_agg1(
+    ins_code varchar(100),
+     waybill varchar(100),
+     ord_cnt int sum,
+     succ_cnt int sum
+)
+    aggregate key (ins_code,waybill)
+distributed by hash(waybill);
+
+insert into test_agg values('JDA',0,0);
+insert into test_agg values('JDA',1,0);
+
+insert into test_agg1 values('in1','JDA',null,0);
+insert into test_agg1 values('in1','JDA',1,0);
+
+select * from test_agg1;
