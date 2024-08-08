@@ -59,7 +59,8 @@ select * from mydb.dim_table_sex;
 
 
 
-# 创建一个定时自动刷新的分区物化视图
+# 本章内容：创建一个定时自动刷新的分区物化视图
+# 1.创建定时刷新的异步物化视图，通过refresh async every (interval 1 minute)指定任务执行间隔
 create materialized view mydb.mv_refresh_period
 partition by dt
 distributed by hash(id) buckets 1
@@ -75,11 +76,32 @@ select
     now() ts
 from mydb.base_table1 t1,mydb.dim_table_sex t2
 where t1.sex=t2.id;
-
-select * from information_schema.tasks;
-select * from information_schema.task_runs where task_name='mv-14266';
-
-# 当触发定时刷新后，并不是直接将所有分区刷新，而是关联分区的基表的哪些分区产生变化了，才会刷新哪个分区。因此在不改变基表数据的情况下，即使触发了自动刷新，实际也不会进行刷新，从ts字段不会被改变就可以证明。
+# 2.通过materialized_views表获取异步物化视图的task_name
+# +-----------------+---------+
+# |table_name       |task_name|
+# +-----------------+---------+
+# |mv_refresh_period|mv-14970 |
+# +-----------------+---------+
+select table_name,task_name from information_schema.materialized_views where table_name='mv_refresh_period';
+# 3.通过tasks表确认视图对应的任务调度类型是定时调度
+# +---------+-------------------------------------------------------+
+# |task_name|schedule                                               |
+# +---------+-------------------------------------------------------+
+# |mv-14970 |PERIODICAL (START 2024-08-07T13:19:08 EVERY(1 MINUTES))|
+# +---------+-------------------------------------------------------+
+select task_name,schedule from information_schema.tasks where task_name='mv-14970';
+# 4.通过task_runs表查看每次触发任务的执行情况，确认是1分钟1次
+# +------------------------------------+---------+-------------------+-------------------+-------+--------+--------+
+# |query_id                            |task_name|create_time        |finish_time        |state  |database|progress|
+# +------------------------------------+---------+-------------------+-------------------+-------+--------+--------+
+# |9a6fb203-54c0-11ef-8296-0242ac120003|mv-14970 |2024-08-07 13:26:07|2024-08-07 13:26:07|SUCCESS|mydb    |100%    |
+# |76b2fb82-54c0-11ef-8296-0242ac120003|mv-14970 |2024-08-07 13:25:07|2024-08-07 13:25:07|SUCCESS|mydb    |100%    |
+# |52f6460e-54c0-11ef-8296-0242ac120003|mv-14970 |2024-08-07 13:24:07|2024-08-07 13:24:07|SUCCESS|mydb    |100%    |
+# |2f39b6ab-54c0-11ef-8296-0242ac120003|mv-14970 |2024-08-07 13:23:07|2024-08-07 13:23:07|SUCCESS|mydb    |100%    |
+# |0b7d001b-54c0-11ef-8296-0242ac120003|mv-14970 |2024-08-07 13:22:07|2024-08-07 13:22:07|SUCCESS|mydb    |100%    |
+# +------------------------------------+---------+-------------------+-------------------+-------+--------+--------+
+select query_id,task_name,create_time,finish_time,state,`database`,progress from information_schema.task_runs where task_name='mv-14970';
+# 5.当触发定时刷新后，并不是直接将所有分区刷新，而是关联分区的基表的哪些分区产生变化了，才会刷新哪个分区。因此在不改变基表数据的情况下，即使触发了自动刷新，实际也不会进行刷新，从ts字段不会被改变就可以证明。
 # +----------+--+---------+---+---+--------+---------------------+
 # |dt        |id|name     |age|sex|sex_name|ts                   |
 # +----------+--+---------+---+---+--------+---------------------+
@@ -88,10 +110,9 @@ select * from information_schema.task_runs where task_name='mv-14266';
 # |2024-07-29|2 |li si    |30 |2  |male    |2024-07-31 12:31:58.0|
 # +----------+--+---------+---+---+--------+---------------------+
 select * from mydb.mv_refresh_period;
-# 向关联分区的基表的2024-07-30分区插入一条数据，会导致物化视图中2024-07-30分区被刷新
+# 6.向关联分区的基表的2024-07-30分区插入一条数据，会导致物化视图中2024-07-30分区被刷新
 insert into mydb.base_table1 values('2024-07-30',10,'zhao liu',22,4);
-
-# 再次查询视图，发现2024-07-30分区的数据中的ts被修改了，而其他分区中的数据没有变，说明定时刷新物化视图时，只有基表中有改变的分区才会被刷新，没有改变的分区不会被刷新。
+# 7.再次查询视图，发现2024-07-30分区的数据中的ts被修改了，而其他分区中的数据没有变，说明定时刷新物化视图时，只有基表中有改变的分区才会被刷新，没有改变的分区不会被刷新。
 # +----------+--+---------+---+---+--------+---------------------+
 # |dt        |id|name     |age|sex|sex_name|ts                   |
 # +----------+--+---------+---+---+--------+---------------------+
@@ -101,18 +122,19 @@ insert into mydb.base_table1 values('2024-07-30',10,'zhao liu',22,4);
 # |2024-07-29|2 |li si    |30 |2  |male    |2024-07-31 12:31:58.0|
 # +----------+--+---------+---+---+--------+---------------------+
 select * from mydb.mv_refresh_period;
-
-
-insert into mydb.base_table1 values('2024-07-28',9,'zhang wang',23,3);
-insert into mydb.dim_table_sex values(8,'male5');
+# 8.当视图变为失效状态后，依然会定时触发任务，但任务直接执行失败
+alter materialized view mydb.mv_refresh_period inactive;
+# +------------------------------------+---------+-------------------+-------------------+-------+--------+--------+----------+---------------------------------------------------------------------------------------------------------------------------------------------------+
+# |query_id                            |task_name|create_time        |finish_time        |state  |database|progress|error_code|error_message                                                                                                                                      |
+# +------------------------------------+---------+-------------------+-------------------+-------+--------+--------+----------+---------------------------------------------------------------------------------------------------------------------------------------------------+
+# |70db5c2a-54c1-11ef-8296-0242ac120003|mv-14970 |2024-08-07 13:32:07|2024-08-07 13:32:07|FAILED |mydb    |0%      |-1        |com.starrocks.sql.common.DmlException: Materialized view: mv_refresh_period, id: 14970 is not active, skip sync partition and data with base tables|
+# |4d1ea5bd-54c1-11ef-8296-0242ac120003|mv-14970 |2024-08-07 13:31:07|2024-08-07 13:31:07|FAILED |mydb    |0%      |-1        |com.starrocks.sql.common.DmlException: Materialized view: mv_refresh_period, id: 14970 is not active, skip sync partition and data with base tables|
+# |2962165b-54c1-11ef-8296-0242ac120003|mv-14970 |2024-08-07 13:30:07|2024-08-07 13:30:07|SUCCESS|mydb    |100%    |0         |null                                                                                                                                               |
+# +------------------------------------+---------+-------------------+-------------------+-------+--------+--------+----------+---------------------------------------------------------------------------------------------------------------------------------------------------+
+select query_id,task_name,create_time,finish_time,state,`database`,progress,error_code,error_message from information_schema.task_runs where task_name='mv-14970';
 
 # 删除一个物化视图
 drop materialized view mydb.dwd_view;
-
-
-
-
-
 
 # 本章内容：创建和基表分区一比一映射的分区物化视图
 # 当创建一个分区物化视图时，需要指定一个基表，使用该基表的分区和物化视图的分区做关联。如果我们直接用基表的分区字段作为视图的分区字段，那么基表每有一个分区，物化视图对应就有同样的一个分区。注意：一个分区物化视图只能和一个基表的分区做关联，不能和多个基表的分区做关联。
@@ -343,7 +365,7 @@ select * from information_schema.loads where label like '%d45021c8-50a2-11ef-829
 
 # 本章内容：创建分区上卷的物化视图
 # 1.创建一个分区上卷的物化视图，也是用一个基表的分区来关联物化视图的分区，但是这里就可以不是基表有一个分区，物化视图就也有一个分区，而是基表的多个分区，对应物化视图的一个分区
-# 假设基表的多个分区p20240728、p20240729、p20240730对应物化视图的一个分区p202407。在视图刷新时，当基表的p20240728分区发生变化，那么物化视图中p202407对应的基表的所有分区(p20240728、p20240729、p20240730)都会刷新，来更新到物化视图p202407的分区中
+# 假设基表的多个分区p20240728、p20240729、p20240730对应物化视图的一个分区p202407。在视图刷新时，当基表的p20240728分区发生变化，那么物化视图中p202407对应的基表的所有分区(p20240728、p20240729、p20240730)都会参与刷新，来更新到物化视图p202407的分区中
 # 什么时候适合用上卷的物化视图？
 # 当基表一个分区改变时，希望把一定范围的分区也重新刷新，此时就可以使用上卷的物化视图。
 create materialized view mydb.mv_partition_rollup
@@ -390,7 +412,7 @@ show partitions from mydb.mv_partition_rollup;
 select * from mydb.mv_partition_rollup;
 # 4.修改基表中7月份的某一个分区的数据
 insert into mydb.base_table1 values('2024-07-30',20,'de gang',33,1);
-# 发现视图中7月份的数据的ts都改变了，说明基表base_table1中7月份的分区都重新刷新了，将刷新结果存储到物化视图的7月份的分区
+# 5.发现视图中7月份的数据的ts都改变了，说明基表base_table1中7月份的分区都重新刷新了，将刷新结果存储到物化视图的7月份的分区
 # +----------+--------+---+---------------------+
 # |dt        |sex_name|cnt|ts                   |
 # +----------+--------+---+---------------------+
@@ -518,7 +540,7 @@ refresh MATERIALIZED VIEW mydb.mv_partition_rollup;
 # ]
 select * from information_schema.task_runs where task_name='mv-14477';
 
-# 本章内容：检查异步物化视图任务的执行性能
+# 本章内容：检查异步物化视图任务的资源消耗
 # 1.修改全局变量参数，将enable_profile变量设置为true，默认是false。（注意：这里要设置全局参数，官方文档上写的是设置session变量，但我设置了不起作用，异步物化视图刷新后，通过show profilelist找不到该query id）
 set global enable_profile=true;
 # 注意：谨慎启用enable_profile，因为抓取sql执行过程本身也很吃sr集群资源。生产环境建议将enable_profile设置为false，通过big_query_profile_threshold参数，仅针对慢查询才启动profile。这样既保证了系统性能，又能有效监控到慢查询。
@@ -526,7 +548,51 @@ set global enable_profile=true;
 # big_query_profile_threshold参数描述：用于设定大查询的阈值。当会话变量 enable_profile 设置为 false 且查询时间超过 big_query_profile_threshold 设定的阈值时，则会生成 Profile。
 # 2.从task_runs中找到异步物化视图的执行任务
 select query_id,CREATE_TIME from information_schema.task_runs where task_name='mv-14477';
-# 3.通过analyze profile获取指定query id的执行记录
+# 3.通过analyze profile获取指定query id的执行记录，主要从summary中获取任务的执行耗时和内存消耗等情况
+# +--------------------------------------------------------------------------------------------------------------------------------------------------------+
+# |Explain String                                                                                                                                          |
+# +--------------------------------------------------------------------------------------------------------------------------------------------------------+
+# |Summary                                                                                                                                                 |
+# |    Attention: The transaction of the statement will be aborted, and no data will be actually inserted!!!                                               |
+# |    QueryId: 92d0dfb0-50a6-11ef-8296-0242ac120003                                                                                                       |
+# |    Version: 3.2.2-269e832                                                                                                                              |
+# |    State: Finished                                                                                                                                     |
+# |    TotalTime: 471ms                                                                                                                                    |
+# |        ExecutionTime: 35.661ms [Scan: 1.172ms (3.29%), Network: 1.012ms (2.84%), ResultDeliverTime: 18.153ms (50.90%), ScheduleTime: 873.913us (2.45%)]|
+# |        CollectProfileTime: 0                                                                                                                           |
+# |        FrontendProfileMergeTime: 11.279ms                                                                                                              |
+# |    QueryPeakMemoryUsage: 1.682 MB, QueryAllocatedMemoryUsage: 1.186 MB                                                                                 |
+# |    Top Most Time-consuming Nodes:                                                                                                                      |
+# |        1. OLAP_SCAN (id=1) : 2.470ms (36.44%)                                                                                                          |
+# |        2. OLAP_TABLE_SINK: 1.765ms (26.03%)                                                                                                            |
+# |        3. OLAP_SCAN (id=0) : 974.197us (14.37%)                                                                                                        |
+# |        4. EXCHANGE (id=6) [SHUFFLE]: 639.688us (9.43%)                                                                                                 |
+# |        5. EXCHANGE (id=2) [SHUFFLE]: 611.831us (9.02%)                                                                                                 |
+# |        6. HASH_JOIN (id=3) [BUCKET_SHUFFLE, INNER JOIN]: 125.620us (1.85%)                                                                             |
+# |        7. AGGREGATION (id=5) [serialize, update]: 93.240us (1.38%)                                                                                     |
+# |        8. AGGREGATION (id=7) [finalize, merge]: 73.586us (1.09%)                                                                                       |
+# |        9. PROJECT (id=8) : 12.607us (0.19%)                                                                                                            |
+# |        10. DECODE (id=9) : 7.286us (0.11%)                                                                                                             |
+# |    Top Most Memory-consuming Nodes:                                                                                                                    |
+# |        1. OLAP_SCAN (id=1) : 195.461 KB                                                                                                                |
+# |        2. OLAP_SCAN (id=0) : 152.250 KB                                                                                                                |
+# |        3. HASH_JOIN (id=3) [BUCKET_SHUFFLE, INNER JOIN]: 98.617 KB                                                                                     |
+# |        4. AGGREGATION (id=7) [finalize, merge]: 68.242 KB                                                                                              |
+# |        5. AGGREGATION (id=5) [serialize, update]: 68.241 KB                                                                                            |
+# |        6. EXCHANGE (id=6) [SHUFFLE]: 6.186 KB                                                                                                          |
+# |        7. EXCHANGE (id=2) [SHUFFLE]: 5.116 KB                                                                                                          |
+# |    NonDefaultVariables:                                                                                                                                |
+# |        big_query_log_scan_rows_threshold: 1000000000 -> 1                                                                                              |
+# |        enable_adaptive_sink_dop: false -> true                                                                                                         |
+# |        enable_insert_strict: true -> false                                                                                                             |
+# |        enable_materialized_view_rewrite: true -> false                                                                                                 |
+# |        enable_profile: false -> true                                                                                                                   |
+# |        enable_spill: false -> true                                                                                                                     |
+# |        query_timeout: 300 -> 3600                                                                                                                      |
+# |        resource_group:  -> default_mv_wg                                                                                                               |
+# |        tx_visible_wait_timeout: 10 -> 9223372036854775                                                                                                 |
+# |        use_compute_nodes: -1 -> 0                                                                                                                      |
+# +--------------------------------------------------------------------------------------------------------------------------------------------------------+
 analyze profile from '92d0dfb0-50a6-11ef-8296-0242ac120003';
 # 4.也可以通过show profilelist，找到所有异步物化视图任务的query id
 # +------------------------------------+-------------------+-----+--------+--------------------------------------------------------------------------------------------------------------------------------+
@@ -540,6 +606,90 @@ analyze profile from '92d0dfb0-50a6-11ef-8296-0242ac120003';
 # +------------------------------------+-------------------+-----+--------+--------------------------------------------------------------------------------------------------------------------------------+
 show profilelist;
 
-select * from mv_partition_rollup;
-
-ANALYZE PROFILE FROM '5a3577f5-53ee-11ef-8296-0242ac120003';
+# 本章内容：检查sql重写是否生效
+# 1.确认物化视图是否生效
+# +-----------------------+---------+
+# |table_name             |is_active|
+# +-----------------------+---------+
+# |mv_partition_one_to_one|true     |
+# +-----------------------+---------+
+select table_name,is_active from information_schema.materialized_views where table_name='mv_partition_one_to_one';
+# 2.使用物化视图的sql来查询，通过执行计划中的MaterializedView知道走的物化视图，rollup知道改写到哪个物化视图了
+# 0:OlapScanNode
+#      TABLE: mv_partition_one_to_one
+#      PREAGGREGATION: ON
+#      PREDICATES: 10: id = 1
+#      partitions=4/4
+#      rollup: mv_partition_one_to_one
+#      tabletRatio=4/4
+#      tabletList=14960,14962,14956,14958
+#      cardinality=1
+#      avgRowSize=39.285713
+#      MaterializedView: true
+explain
+select
+    t1.dt,
+    t1.id,
+    t1.name,
+    t1.age,
+    t1.sex,
+    t2.name sex_name,
+    now() ts
+from mydb.base_table1 t1,mydb.dim_table_sex t2
+where t1.sex=t2.id
+and t1.id=1;
+# 3.模拟视图失效，手动将视图设置为inactive状态
+alter MATERIALIZED view mydb.mv_partition_one_to_one inactive;
+# 4.确认视图已处于失效状态
+# +-----------------------+---------+
+# |table_name             |is_active|
+# +-----------------------+---------+
+# |mv_partition_one_to_one|false    |
+# +-----------------------+---------+
+select table_name,is_active from information_schema.materialized_views where table_name='mv_partition_one_to_one';
+# 5.即使视图处于失效状态，依然可以从视图中查询出数据
+# +----------+--+-----------+---+---+--------+---------------------+
+# |dt        |id|name       |age|sex|sex_name|ts                   |
+# +----------+--+-----------+---+---+--------+---------------------+
+# |2024-08-02|1 |zhang zhang|20 |1  |男       |2024-08-07 12:46:22.0|
+# |2024-08-01|2 |li si      |30 |2  |male    |2024-08-07 12:46:22.0|
+# |2024-07-30|3 |wang wu    |35 |3  |male1   |2024-08-07 12:46:22.0|
+# |2024-07-30|6 |liu wu     |23 |1  |男       |2024-08-07 12:46:22.0|
+# |2024-07-30|10|zhao liu   |22 |4  |male2   |2024-08-07 12:46:22.0|
+# |2024-07-30|20|de gang    |33 |1  |男       |2024-08-07 12:46:22.0|
+# |2024-07-31|5 |liu liu    |20 |1  |男       |2024-08-07 12:46:22.0|
+# +----------+--+-----------+---+---+--------+---------------------+
+select * from mydb.mv_partition_one_to_one;
+# 6.视图变成失效状态的主要影响：
+#   a) 无法进行sql重写了。因此再次查询sql的执行计划，发现不走视图了，从基表进行查询了。
+#   b) 视图无法刷新了。当视图处于inactive状态时，即使触发视图任务执行，但任务也会由于视图已失效而直接失败，无法刷新视图。
+# 主要是是通过产生了shuffle证明没有走视图，rollup为基表也代表直接从基表查询，而不是查询视图
+# 3:HASH JOIN
+#   |  join op: INNER JOIN (BUCKET_SHUFFLE)
+#   |  colocate: false, reason:
+#   |  equal join conjunct: 6: id = 5: sex
+#   |
+#   |----2:EXCHANGE
+#   |
+#   0:OlapScanNode
+#      TABLE: dim_table_sex
+#      PREAGGREGATION: ON
+#      PREDICATES: 6: id IS NOT NULL
+#      partitions=1/1
+#      rollup: dim_table_sex
+#      tabletRatio=1/1
+#      tabletList=14013
+#      cardinality=9
+#      avgRowSize=8.0
+explain
+select
+    t1.dt,
+    t1.id,
+    t1.name,
+    t1.age,
+    t1.sex,
+    t2.name sex_name,
+    now() ts
+from mydb.base_table1 t1,mydb.dim_table_sex t2
+where t1.sex=t2.id
+  and t1.id=1;
