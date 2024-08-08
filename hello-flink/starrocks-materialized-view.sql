@@ -57,10 +57,13 @@ show partitions from mydb.dim_table_sex;
 
 select * from mydb.dim_table_sex;
 
-
-
 # 本章内容：创建一个定时自动刷新的分区物化视图
 # 1.创建定时刷新的异步物化视图，通过refresh async every (interval 1 minute)指定任务执行间隔
+# 基于时间的与基于事件的有一些【不同】：
+#  a) 基于时间的刷新，当基表改变时，不会直接触发任务，而是等到下一周期才触发任务
+#  b) 基于事件的刷新，当基表改变时，会立即触发任务
+# 基于时间的与基于事件的【相同】之处：
+#  只会刷新有变化的分区的数据，没有变化的分区，即使触发了任务，也不会被刷新
 create materialized view mydb.mv_refresh_period
 partition by dt
 distributed by hash(id) buckets 1
@@ -693,3 +696,54 @@ select
 from mydb.base_table1 t1,mydb.dim_table_sex t2
 where t1.sex=t2.id
   and t1.id=1;
+
+
+select * from mydb.base_table1;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+drop materialized view mydb.mv_non_partition;
+
+
+create materialized view mydb.mv_non_partition
+refresh async every (interval 1 minute)
+distributed by hash(sex_name) buckets 2
+properties(
+       "replication_num"="1",
+       "session.query_timeout"="120"
+)
+as
+select
+    t2.name sex_name,
+    count(t1.id) cnt,
+    now() ts
+from mydb.base_table1 t1,mydb.dim_table_sex t2
+where
+    t1.sex=t2.id
+group by t2.name;
+
+select * from information_schema.materialized_views where table_name='mv_non_partition';
+select * from information_schema.tasks where task_name='mv-15191';
+select * from information_schema.task_runs where task_name='mv-15191';
+
+insert into mydb.base_table1 values('2024-07-15',19,'wang dong',27,2);
+select * from mydb.mv_non_partition;
+
+show partitions from mydb.base_table1;
+
