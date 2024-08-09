@@ -63,7 +63,7 @@ select * from mydb.dim_table_sex;
 #  a) 基于时间的刷新，当基表改变时，不会直接触发任务，而是等到下一周期才触发任务
 #  b) 基于事件的刷新，当基表改变时，会立即触发任务
 # 基于时间的与基于事件的【相同】之处：
-#  只会刷新有变化的分区的数据，没有变化的分区，即使触发了任务，也不会被刷新
+#  当任务触发后，只会刷新有变化的分区的数据。没有变化的分区，即使触发了任务，也不会被刷新。
 create materialized view mydb.mv_refresh_period
 partition by dt
 distributed by hash(id) buckets 1
