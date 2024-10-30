@@ -94,4 +94,31 @@ select tracking_log from information_schema.load_tracking_logs where job_id=1223
 
 truncate table emp_info_routine_load;
 
-select tracking_log from information_schema.load_tracking_logs where job_id=12240
+select tracking_log from information_schema.load_tracking_logs where job_id=12240;
+
+
+SHOW RESOURCE GROUPS;
+
+SHOW RESOURCE GROUPS ALL;
+
+
+SHOW USAGE RESOURCE GROUPS;
+
+SHOW USAGE RESOURCE GROUPS;
+
+SET enable_pipeline_engine = true;
+
+SET GLOBAL enable_pipeline_engine = true;
+
+CREATE RESOURCE GROUP group_name
+TO (
+    query_type in ('select')
+) -- 创建分类器，多个分类器间用英文逗号（,）分隔。
+WITH (
+    "cpu_core_limit" = "1",
+    "mem_limit" = "20%"
+);
+
+explain verbose select * from mydb.base_table1;
+
+SHOW RUNNING QUERIES;

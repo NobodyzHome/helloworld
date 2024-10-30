@@ -747,4 +747,36 @@ create table source_sr(
      'table-name'='hello_world'
 );
 
+CREATE CATALOG paimon_hdfs_catalog WITH (
+    'type' = 'paimon',
+    -- 元数据存储方式，可选值为filesystem和hive，默认是filesystem，也就是将元数据存储到文件系统中。如果为hive的话，则是将元数据发送至hive的metastore服务。
+    'metastore' = 'filesystem',
+    -- 如果metastore为filesystem，元数据存储的目录
+    'warehouse' = 'hdfs://namenode:9000/my-paimon',
+    -- 默认使用的数据库。注意：paimon会自动在warehouse指定的目录下创建数据库的目录，创建的目录为【数据库名.db】。因此，这里指定的database不用带着.db后缀，否则创建的数据库目录就变为了app.db.db(假设database=app.db)。这点和hudi不同，hudi创建的数据库目录就是数据库名本身。
+    'default-database'='app'
+);
 
+use catalog paimon_hdfs_catalog;
+
+
+create table paimon_append(
+    id int,
+    name string,
+    dt date
+)
+    partitioned by(dt)
+with(
+    'bucket'='3',
+    'bucket-key'='id',
+    'compaction.min.file-num'='2',
+    'compaction.max.file-num'='5',
+    'target-file-size'='100 kb',
+    'full-compaction.delta-commits'='100'
+);
+
+set execution.runtime-mode=batch;
+
+insert into app.paimon_append values(1,'hello',current_date);
+
+select * from app.paimon_append;

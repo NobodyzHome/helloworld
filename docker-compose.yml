@@ -514,7 +514,7 @@ services:
       - 8030:8030
       - 8040:8040
     volumes:
-      - "/Users/maziqiang/Documents/my-paimon:/my-paimon"
+      - "/Users/maziqiang/Documents/my-starrocks:/my-starrocks"
     networks:
       - my-network
 

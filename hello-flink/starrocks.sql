@@ -1,14 +1,4 @@
-CREATE
-EXTERNAL CATALOG my_paimon_catalog
-PROPERTIES
-(
-    "type" = "paimon",
-    'paimon.catalog.type'='filesystem',
-    'paimon.catalog.warehouse'='/my-paimon'
-);
 
-show catalogs;
-set catalog my_paimon_catalog;
 
 show databases;
 
@@ -636,3 +626,26 @@ insert into test_agg1 values('in1','JDA',null,0);
 insert into test_agg1 values('in1','JDA',1,0);
 
 select * from test_agg1;
+
+
+
+set @v1=cast((select curdate()) as bigint);
+select @v1;
+
+create table mydb.paritition_tbl(
+    id int,
+    name varchar(200),
+    ts datetime
+)
+duplicate key (id)
+partition by date_trunc('day',ts);
+
+insert into mydb.paritition_tbl values(1,'hello',now()),(2,'world',now());
+
+select count(*) from mydb.paritition_tbl;
+
+set @dt=concat('p',(select cast(curdate() as bigint)));
+select @dt;
+insert overwrite mydb.paritition_tbl partition (@dt) values (3,'hello_world',now());
+
+
