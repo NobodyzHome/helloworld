@@ -780,3 +780,24 @@ set execution.runtime-mode=batch;
 insert into app.paimon_append values(1,'hello',current_date);
 
 select * from app.paimon_append;
+
+create table app.paimon_pk_tbl(
+    dt string,
+    id int,
+    name string,
+    age int,
+    sex int,
+    primary key (dt,id) not enforced
+)
+partitioned by(dt)
+with(
+    'bucket'='2',
+    'bucket-key'='id',
+    'merge-engine'='partial-update'
+);
+
+drop table app.paimon_pk_tbl;
+
+insert into app.paimon_pk_tbl values('2024-10-30',1,'hello',11,1),('2024-10-30',2,'world',15,2);
+insert into app.paimon_pk_tbl values('2024-10-30',1,'hello world',20,cast(null as int));
+insert into app.paimon_pk_tbl values('2024-10-30',2,'hello paimon',cast(null as int),cast(null as int));

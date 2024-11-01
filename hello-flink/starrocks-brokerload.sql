@@ -175,3 +175,138 @@ explain analyze select dt,count(*) from emp_info group by dt;
 show partitions from emp_info;
 
 select tracking_log from information_schema.load_tracking_logs where job_id=12052;
+
+create database mydb;
+coa
+create table mydb.realtime_delivery_invocation(
+    apiName varchar(500),
+    dt date,
+    invoke_tm datetime,
+    apiGroupName varchar(500),
+    appId varchar(500),
+    erp varchar(500),
+    endDate varchar(500),
+    theaterCode varchar(500),
+    waybillSource varchar(500),
+    deliveryType varchar(500),
+    siteName varchar(500),
+    deliveryThirdType varchar(500),
+    udataLimit varchar(500),
+    province_code varchar(500),
+    isExpress varchar(500),
+    productSubType varchar(500),
+    goodsType varchar(500),
+    isKa varchar(500),
+    areaCode varchar(500),
+    orgCode varchar(500),
+    partitionCode varchar(500),
+    deliverySubType varchar(500),
+    rejectionRoleId varchar(500),
+    isZy varchar(500),
+    productType varchar(500),
+    siteDimension varchar(500),
+    waybillDimension varchar(500)
+)
+duplicate key(apiName)
+partition by range(dt)(
+    start ("2024-10-24") end ("2024-11-02") every (interval 1 day)
+)
+distributed by hash(apiName) buckets 3
+properties(
+    "replication_num" = "1",
+    "dynamic_partition.enable" = "true",
+    "dynamic_partition.time_unit" = "DAY",
+    "dynamic_partition.time_zone" = "Asia/Shanghai",
+    "dynamic_partition.start" = "-6",
+    "dynamic_partition.end" = "2",
+    "dynamic_partition.prefix" = "p",
+    "dynamic_partition.buckets" = "1",
+    "dynamic_partition.history_partition_num" = "0",
+    "in_memory" = "false",
+    "storage_format" = "DEFAULT",
+    "enable_persistent_index" = "false"
+);
+
+drop table mydb.realtime_delivery_invocation;
+
+truncate table mydb.realtime_delivery_invocation;
+
+/*
+    需求：
+    1.从/my-starrocks/realtime_invocation_log读出所有.log文件
+    2.文件中数据是json格式的，需要解析
+    3.json数据params这个key的值是json值，需要获取json里的字段。
+    4.要获取的字段包括invoke_tm、apiGroupName、apiName以及params属性值里的siteCode、endDate等字段
+    5.需要根据数据中invoke_tm字段的值，来生成一个dt字段的值，用于分区
+    6.数据中可能有一些脏数据，不超过一定比例就可以忽略这些脏数据，而不是整个load失败（通过"max_filter_ratio"="0.1"配置）
+    json数据内容举例：
+    {"invoke_tm":"2024-10-28 06:58:50.243","apiGroupName":"75","apiName":"historyWaybillAndPackage","currPage":1,"erp":"HTTP","pageSize":20,"params":{"siteCode":"","endDate":"2024-10-27","outWaybillType":"","orgCode":"3","waybillOrPackage":"2","subType":"","udataLimit":500000,"newWaybillType":"","startDate":"2024-10-27","siteDimension":"1"}}
+
+    注意：
+    如果一个load执行失败，那么还可以用这个load label(在这里是load_log1)重新提交load。但是如果load成功了，就不能再用这个label了。
+
+    注意：
+    ()中的字段顺序可以跟表结构的字段顺序不一致，这个顺序是自己定义的，但一定要跟jsonpaths的字段顺序一致。在这里apiName是第一个，那么jsonpaths中$.apiName也必须是第一个。invoke_tm是第二个，jsonpaths中$.invoke_tm也必须写在第二个。以此类推。
+ */
+LOAD LABEL mydb.load_log4
+(
+    DATA INFILE("file:///my-starrocks/realtime_invocation_log/*.log")
+    INTO TABLE realtime_delivery_invocation
+     format as "json"
+    (apiName,invoke_tm,apiGroupName,appId,erp,endDate,theaterCode,waybillSource,deliveryType,siteName,deliveryThirdType,udataLimit,province_code,isExpress,productSubType,goodsType,isKa,areaCode,orgCode,partitionCode,deliverySubType,rejectionRoleId,isZy,productType,siteDimension,waybillDimension)
+     set(dt=cast(invoke_tm as date))
+)
+WITH BROKER
+PROPERTIES
+(
+    "timeout" = "3600",
+     "max_filter_ratio"="0",
+     "jsonpaths" = "[\"$.apiName\",\"$.invoke_tm\",\"$.apiGroupName\",\"$.appId\",\"$.erp\",\"$.params.endDate\",\"$.params.theaterCode\",\"$.params.waybillSource\",\"$.params.deliveryType\",\"$.params.siteName\",\"$.params.deliveryThirdType\",\"$.params.udataLimit\",\"$.params.province_code\",\"$.params.isExpress\",\"$.params.productSubType\",\"$.params.goodsType\",\"$.params.isKa\",\"$.params.areaCode\",\"$.params.orgCode\",\"$.params.partitionCode\",\"$.params.deliverySubType\",\"$.params.rejectionRoleId\",\"$.params.isZy\",\"$.params.productType\",\"$.params.siteDimension\",\"$.params.waybillDimension\"]"
+);
+
+# 提交完load任务后，第一时间就是去查看load任务的进度
+show load from mydb where label='load_log4';
+
+type:LOAD_RUN_FAIL; msg:Failed to iterate document stream as object. error: UNESCAPED_CHARS: Within strings, some characters must be escaped, we found unescaped characters: BE:10001
+resource:N/A; timeout(s):3600; max_filter_ratio:0.0
+type:LOAD_RUN_FAIL; msg:Failed to iterate document stream as object. error: UNESCAPED_CHARS: Within strings, some characters must be escaped, we found unescaped characters: BE:10001
+
+type:ETL_RUN_FAIL; msg:No files were found matching the pattern(s) or path(s): 'file:///my-starrocks/*.log'
+
+                   type:LOAD_RUN_FAIL; msg:Failed to iterate document stream as object. error: TAPE_ERROR: The JSON document has an improper structure: missing or superfluous commas, braces, missing keys, etc.: BE:10001
+
+select current_version();
+
+select * from mydb.realtime_delivery_invocation where COALESCE(siteName, '') <> '';
+select * from (
+      select apiName,dt,COUNT( *) cnt from mydb.realtime_delivery_invocation group by dt,apiName
+) t
+order by apiName,dt;
+
+SELECT
+    apiName,
+    COUNT( *) cnt,
+    COUNT(distinct IF(COALESCE(theaterCode, '') = '', NULL, theaterCode)) theaterCode_cnt,
+    COUNT(distinct IF(COALESCE(waybillSource, '') = '', NULL, waybillSource)) waybillSource_cnt,
+    COUNT(distinct IF(COALESCE(deliveryType, '') = '', NULL, deliveryType)) deliveryType_cnt,
+    COUNT(distinct IF(COALESCE(siteName, '') = '', NULL, siteName)) siteName_cnt,
+    COUNT(distinct IF(COALESCE(deliveryThirdType, '') = '', NULL, deliveryThirdType)) deliveryThirdType_cnt,
+    COUNT(distinct IF(COALESCE(udataLimit, '') = '', NULL, udataLimit)) udataLimit_cnt,
+    COUNT(distinct IF(COALESCE(province_code, '') = '', NULL, province_code)) province_code_cnt,
+    COUNT(distinct IF(COALESCE(isExpress, '') = '', NULL, isExpress)) isExpress_cnt,
+    COUNT(distinct IF(COALESCE(productSubType, '') = '', NULL, productSubType)) productSubType_cnt,
+    COUNT(distinct IF(COALESCE(goodsType, '') = '', NULL, goodsType)) goodsType_cnt,
+    COUNT(distinct IF(COALESCE(isKa, '') = '', NULL, isKa)) isKa_cnt,
+    COUNT(distinct IF(COALESCE(areaCode, '') = '', NULL, areaCode)) areaCode_cnt,
+    COUNT(distinct IF(COALESCE(orgCode, '') = '', NULL, orgCode)) orgCode_cnt,
+    COUNT(distinct IF(COALESCE(partitionCode, '') = '', NULL, partitionCode)) partitionCode_cnt,
+    COUNT(distinct IF(COALESCE(deliverySubType, '') = '', NULL, deliverySubType)) deliverySubType_cnt,
+    COUNT(distinct IF(COALESCE(rejectionRoleId, '') = '', NULL, rejectionRoleId)) rejectionRoleId_cnt,
+    COUNT(distinct IF(COALESCE(isZy, '') = '', NULL, isZy)) isZy_cnt,
+    COUNT(distinct IF(COALESCE(productType, '') = '', NULL, productType)) productType_cnt,
+    COUNT(distinct IF(COALESCE(siteDimension, '') = '', NULL, siteDimension)) siteDimension_cnt,
+    COUNT(distinct IF(COALESCE(waybillDimension, '') = '', NULL, waybillDimension)) waybillDimension_cnt
+FROM
+    mydb.realtime_delivery_invocation
+GROUP BY
+    apiName
