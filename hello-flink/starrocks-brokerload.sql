@@ -177,7 +177,7 @@ show partitions from emp_info;
 select tracking_log from information_schema.load_tracking_logs where job_id=12052;
 
 create database mydb;
-coa
+
 create table mydb.realtime_delivery_invocation(
     apiName varchar(500),
     dt date,
@@ -209,7 +209,7 @@ create table mydb.realtime_delivery_invocation(
 )
 duplicate key(apiName)
 partition by range(dt)(
-    start ("2024-10-24") end ("2024-11-02") every (interval 1 day)
+    start ("2024-10-20") end ("2024-11-05") every (interval 1 day)
 )
 distributed by hash(apiName) buckets 3
 properties(
@@ -217,7 +217,7 @@ properties(
     "dynamic_partition.enable" = "true",
     "dynamic_partition.time_unit" = "DAY",
     "dynamic_partition.time_zone" = "Asia/Shanghai",
-    "dynamic_partition.start" = "-6",
+    "dynamic_partition.start" = "-30",
     "dynamic_partition.end" = "2",
     "dynamic_partition.prefix" = "p",
     "dynamic_partition.buckets" = "1",
@@ -248,7 +248,7 @@ truncate table mydb.realtime_delivery_invocation;
     注意：
     ()中的字段顺序可以跟表结构的字段顺序不一致，这个顺序是自己定义的，但一定要跟jsonpaths的字段顺序一致。在这里apiName是第一个，那么jsonpaths中$.apiName也必须是第一个。invoke_tm是第二个，jsonpaths中$.invoke_tm也必须写在第二个。以此类推。
  */
-LOAD LABEL mydb.load_log4
+LOAD LABEL mydb.load_log5
 (
     DATA INFILE("file:///my-starrocks/realtime_invocation_log/*.log")
     INTO TABLE realtime_delivery_invocation
@@ -264,8 +264,16 @@ PROPERTIES
      "jsonpaths" = "[\"$.apiName\",\"$.invoke_tm\",\"$.apiGroupName\",\"$.appId\",\"$.erp\",\"$.params.endDate\",\"$.params.theaterCode\",\"$.params.waybillSource\",\"$.params.deliveryType\",\"$.params.siteName\",\"$.params.deliveryThirdType\",\"$.params.udataLimit\",\"$.params.province_code\",\"$.params.isExpress\",\"$.params.productSubType\",\"$.params.goodsType\",\"$.params.isKa\",\"$.params.areaCode\",\"$.params.orgCode\",\"$.params.partitionCode\",\"$.params.deliverySubType\",\"$.params.rejectionRoleId\",\"$.params.isZy\",\"$.params.productType\",\"$.params.siteDimension\",\"$.params.waybillDimension\"]"
 );
 
-# 提交完load任务后，第一时间就是去查看load任务的进度
-show load from mydb where label='load_log4';
+# 提交完load任务后，第一时间就是去查看load任务的进度。如果load失败了，State字段会为CANCELLED，并且ErrorMsg字段中有错误原因。如果是sql执行错误，可以从TrackingSQL字段获取查询错误原因的sql。
+# +-----+---------+---------+-----------------+------+--------+--------+------------+--------------+--------+-------+---------------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------+-------------------+-------------------+-------------------+-------------------+-------------------+---------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+# |JobId|Label    |State    |Progress         |Type  |Priority|ScanRows|FilteredRows|UnselectedRows|SinkRows|EtlInfo|TaskInfo                                           |ErrorMsg                                                                                                                                                                  |CreateTime         |EtlStartTime       |EtlFinishTime      |LoadStartTime      |LoadFinishTime     |TrackingSQL                                                                      |JobDetails                                                                                                                                                                                                                                                                                 |
+# +-----+---------+---------+-----------------+------+--------+--------+------------+--------------+--------+-------+---------------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------+-------------------+-------------------+-------------------+-------------------+-------------------+---------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+# |11462|load_log5|CANCELLED|ETL:N/A; LOAD:N/A|BROKER|NORMAL  |63694   |4423        |0             |59271   |null   |resource:N/A; timeout(s):3600; max_filter_ratio:0.0|type:ETL_QUALITY_UNSATISFIED; msg:quality issues with ingested data, please check trackingSQL for details. You can find detailed error message from running `TrackingSQL`.|2024-11-04 02:11:28|2024-11-04 02:11:33|2024-11-04 02:11:33|2024-11-04 02:11:33|2024-11-04 02:11:38|select tracking_log from information_schema.load_tracking_logs where job_id=11462|{"All backends":{"bdf7502c-c26c-466d-831c-18a7a9c32261":[10001]},"FileNumber":6,"FileSize":35052369,"InternalTableLoadBytes":14225053,"InternalTableLoadRows":59271,"ScanBytes":35052369,"ScanRows":63694,"TaskNumber":1,"Unfinished backends":{"bdf7502c-c26c-466d-831c-18a7a9c32261":[]}}|
+# +-----+---------+---------+-----------------+------+--------+--------+------------+--------------+--------+-------+---------------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------+-------------------+-------------------+-------------------+-------------------+-------------------+---------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+show load from mydb where label='load_log5';
+
+# 执行查询错误原因的sql，看具体错误是什么
+select tracking_log from information_schema.load_tracking_logs where job_id=11462;
 
 type:LOAD_RUN_FAIL; msg:Failed to iterate document stream as object. error: UNESCAPED_CHARS: Within strings, some characters must be escaped, we found unescaped characters: BE:10001
 resource:N/A; timeout(s):3600; max_filter_ratio:0.0
@@ -277,36 +285,26 @@ type:ETL_RUN_FAIL; msg:No files were found matching the pattern(s) or path(s): '
 
 select current_version();
 
-select * from mydb.realtime_delivery_invocation where COALESCE(siteName, '') <> '';
-select * from (
-      select apiName,dt,COUNT( *) cnt from mydb.realtime_delivery_invocation group by dt,apiName
-) t
-order by apiName,dt;
+select count(*) from mydb.realtime_delivery_invocation;
+select * from mydb.realtime_delivery_invocation where erp='其他';
+select apiName,count(*) from mydb.realtime_delivery_invocation group by apiName;
 
 SELECT
-    apiName,
-    COUNT( *) cnt,
-    COUNT(distinct IF(COALESCE(theaterCode, '') = '', NULL, theaterCode)) theaterCode_cnt,
-    COUNT(distinct IF(COALESCE(waybillSource, '') = '', NULL, waybillSource)) waybillSource_cnt,
-    COUNT(distinct IF(COALESCE(deliveryType, '') = '', NULL, deliveryType)) deliveryType_cnt,
-    COUNT(distinct IF(COALESCE(siteName, '') = '', NULL, siteName)) siteName_cnt,
-    COUNT(distinct IF(COALESCE(deliveryThirdType, '') = '', NULL, deliveryThirdType)) deliveryThirdType_cnt,
-    COUNT(distinct IF(COALESCE(udataLimit, '') = '', NULL, udataLimit)) udataLimit_cnt,
-    COUNT(distinct IF(COALESCE(province_code, '') = '', NULL, province_code)) province_code_cnt,
-    COUNT(distinct IF(COALESCE(isExpress, '') = '', NULL, isExpress)) isExpress_cnt,
-    COUNT(distinct IF(COALESCE(productSubType, '') = '', NULL, productSubType)) productSubType_cnt,
-    COUNT(distinct IF(COALESCE(goodsType, '') = '', NULL, goodsType)) goodsType_cnt,
-    COUNT(distinct IF(COALESCE(isKa, '') = '', NULL, isKa)) isKa_cnt,
-    COUNT(distinct IF(COALESCE(areaCode, '') = '', NULL, areaCode)) areaCode_cnt,
-    COUNT(distinct IF(COALESCE(orgCode, '') = '', NULL, orgCode)) orgCode_cnt,
-    COUNT(distinct IF(COALESCE(partitionCode, '') = '', NULL, partitionCode)) partitionCode_cnt,
-    COUNT(distinct IF(COALESCE(deliverySubType, '') = '', NULL, deliverySubType)) deliverySubType_cnt,
-    COUNT(distinct IF(COALESCE(rejectionRoleId, '') = '', NULL, rejectionRoleId)) rejectionRoleId_cnt,
-    COUNT(distinct IF(COALESCE(isZy, '') = '', NULL, isZy)) isZy_cnt,
-    COUNT(distinct IF(COALESCE(productType, '') = '', NULL, productType)) productType_cnt,
-    COUNT(distinct IF(COALESCE(siteDimension, '') = '', NULL, siteDimension)) siteDimension_cnt,
-    COUNT(distinct IF(COALESCE(waybillDimension, '') = '', NULL, waybillDimension)) waybillDimension_cnt
+    *
 FROM
-    mydb.realtime_delivery_invocation
-GROUP BY
-    apiName
+    (
+        SELECT
+            dt,
+            apiName,
+            COUNT( *) cnt
+        FROM
+            mydb.realtime_delivery_invocation
+        GROUP BY
+            dt,
+            apiName
+    )
+        t
+ORDER BY
+    dt asc,cnt DESC;
+
+select * from mydb.mv_realtime_invocation_report order by col_field,col_rank;
