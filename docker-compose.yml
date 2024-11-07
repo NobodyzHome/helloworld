@@ -506,15 +506,112 @@ services:
     networks:
       - my-network
 
-  my-starrocks:
-    image: starrocks/allin1-ubuntu:latest
-    container_name: starrocks
+
+  starrocks-fe-0:
+    image: starrocks/fe-ubuntu:latest
+    container_name: starrocks-fe-0
+    command:
+      - /bin/bash
+      - -c
+      - |
+        /opt/starrocks/fe_entrypoint.sh starrocks-fe-0
+    environment:
+      - HOST_TYPE=FQDN
+      - TZ=Asia/Shanghai
     ports:
-      - 9030:9030
-      - 8030:8030
-      - 8040:8040
+      # 8030是FE web页面的端口
+      - "8030:8030"
+      - "9020:9020"
+      - "9030:9030"
     volumes:
-      - "/Users/maziqiang/Documents/my-starrocks:/my-starrocks"
+      - /Users/maziqiang/Documents/my-starrocks:/my-starrocks
+      # 可以把宿主机的目录挂载到fe的meta目录，这样可以从宿主机中看到meta文件夹里的内容
+      - /Users/maziqiang/Documents/my-starrocks/docker_container/fe/meta:/opt/starrocks/fe/meta
+    networks:
+      - my-network
+
+  starrocks-be-0:
+    image: starrocks/be-ubuntu:latest
+    hostname: starrocks-be-0
+    container_name: starrocks-be-0
+    command:
+      - /bin/bash
+      - -c
+      - |
+        /opt/starrocks/be_entrypoint.sh starrocks-fe-0
+    environment:
+      - HOST_TYPE=FQDN
+      - TZ=Asia/Shanghai
+    depends_on:
+      - starrocks-fe-0
+    volumes:
+      - /Users/maziqiang/Documents/my-starrocks:/my-starrocks
+      # 可以把宿主机的目录挂载到be的storage目录，这样可以从宿主机中看到storage文件夹里的内容
+      - /Users/maziqiang/Documents/my-starrocks/docker_container/be-0/storage:/opt/starrocks/be/storage
+    networks:
+      - my-network
+
+  starrocks-be-1:
+    image: starrocks/be-ubuntu:latest
+    hostname: starrocks-be-1
+    container_name: starrocks-be-1
+    command:
+      - /bin/bash
+      - -c
+      - |
+        /opt/starrocks/be_entrypoint.sh starrocks-fe-0
+    environment:
+      - HOST_TYPE=FQDN
+      - TZ=Asia/Shanghai
+    depends_on:
+      - starrocks-fe-0
+    volumes:
+      - /Users/maziqiang/Documents/my-starrocks:/my-starrocks
+      - /Users/maziqiang/Documents/my-starrocks/docker_container/be-1/storage:/opt/starrocks/be/storage
+    networks:
+      - my-network
+
+  starrocks-be-2:
+    image: starrocks/be-ubuntu:latest
+    hostname: starrocks-be-2
+    container_name: starrocks-be-2
+    command:
+      - /bin/bash
+      - -c
+      - |
+        /opt/starrocks/be_entrypoint.sh starrocks-fe-0
+    environment:
+      - HOST_TYPE=FQDN
+      - TZ=Asia/Shanghai
+    depends_on:
+      - starrocks-fe-0
+    volumes:
+      - /Users/maziqiang/Documents/my-starrocks:/my-starrocks
+      - /Users/maziqiang/Documents/my-starrocks/docker_container/be-2/storage:/opt/starrocks/be/storage
+    networks:
+      - my-network
+
+  prometheus_sr:
+    image: prom/prometheus
+    container_name: prometheus
+    ports:
+      - 9090:9090
+    depends_on:
+      - starrocks-fe-0
+      - starrocks-be-0
+      - starrocks-be-1
+      - starrocks-be-2
+    volumes:
+      # 将宿主机中prometheus的配置文件挂载到容器中，这样可以在宿主机中修改配置文件，更方便
+      - /Users/maziqiang/Documents/my-starrocks/prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - my-network
+
+  my-grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - 3000:3000
     networks:
       - my-network
 
@@ -540,3 +637,4 @@ volumes:
 # docker compose up -d flink-jobmanager flink-taskmanager-1 flink-taskmanager-2 kafka-1 namenode datanode hive-server hive-metastore hive-metastore-postgresql resourcemanager nodemanager1
 # docker compose up -d flink-jobmanager flink-taskmanager-1 flink-taskmanager-2 kafka-1 my-mysql
 # docker compose up -d my-starrocks kafka-1 namenode datanode flink-jobmanager flink-taskmanager-1
+# docker compose up -d starrocks-fe-0 starrocks-be-0 starrocks-be-1 starrocks-be-2 prometheus_sr my-grafana
