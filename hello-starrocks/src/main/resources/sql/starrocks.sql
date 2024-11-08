@@ -649,3 +649,15 @@ select @dt;
 insert overwrite mydb.paritition_tbl partition (@dt) values (3,'hello_world',now());
 
 
+select * from starrocks_audit_db__.starrocks_audit_tbl__ where queryType='slow_query';
+
+analyze profile from '7c09d5ba-9cce-11ef-a1c0-0242c0a83002';
+
+show tablet from mydb.realtime_delivery_invocation;
+use mydb;
+show data;
+show partitions from mydb.realtime_delivery_invocation;
+
+select * from information_schema.columns;
+
+show proc '/dbs/10330'

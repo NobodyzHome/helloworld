@@ -637,4 +637,4 @@ volumes:
 # docker compose up -d flink-jobmanager flink-taskmanager-1 flink-taskmanager-2 kafka-1 namenode datanode hive-server hive-metastore hive-metastore-postgresql resourcemanager nodemanager1
 # docker compose up -d flink-jobmanager flink-taskmanager-1 flink-taskmanager-2 kafka-1 my-mysql
 # docker compose up -d my-starrocks kafka-1 namenode datanode flink-jobmanager flink-taskmanager-1
-# docker compose up -d starrocks-fe-0 starrocks-be-0 starrocks-be-1 starrocks-be-2 prometheus_sr my-grafana
+# docker compose up -d starrocks-fe-0 starrocks-be-0 starrocks-be-1 starrocks-be-2 prometheus_sr my-grafana kafka-1 flink-jobmanager flink-taskmanager-1

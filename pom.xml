@@ -26,6 +26,7 @@
         <module>hello-springboot</module>
         <module>hello-LeetCode</module>
         <module>hello-hadoop</module>
+        <module>hello-starrocks</module>
     </modules>
     <packaging>pom</packaging>
 
