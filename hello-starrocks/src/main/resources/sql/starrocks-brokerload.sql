@@ -299,3 +299,45 @@ show backends;
 truncate table mydb.realtime_delivery_invocation;
 
 show tablet from mydb.realtime_delivery_invocation;
+
+-- 如果导入的是csv文件，并且文件中第一行是表头，则需要配置format的option，将skip_header设置为1
+-- ()中列出的字段可以比表中的字段多，最终存到表里是能够和表字段名匹配的字段
+-- ()列出的字段也可以为set()提供入参。在这里是set(CRASH_DATE=str_to_date(concat_ws(' ', tmp_CRASH_DATE, tmp_CRASH_TIME), '%m/%d/%Y %H:%i'))，用()中指出的tmp_CRASH_DATE, tmp_CRASH_TIME字段来生成一个新的字段CRASH_DATE。
+LOAD LABEL mydb.load_crash_1
+(
+    DATA INFILE("file:///my-starrocks/ny_data/crash_data.csv")
+    INTO TABLE crash_data
+    COLUMNS TERMINATED BY ","
+    format as "csv" (
+        skip_header = 1
+        trim_space = TRUE
+        enclose = "\""
+    )
+    (tmp_CRASH_DATE, tmp_CRASH_TIME,BOROUGH,ZIP_CODE,LATITUDE,LONGITUDE,LOCATION,ON_STREET_NAME,CROSS_STREET_NAME,OFF_STREET_NAME,NUMBER_OF_PERSONS_INJURED,NUMBER_OF_PERSONS_KILLED,NUMBER_OF_PEDESTRIANS_INJURED,NUMBER_OF_PEDESTRIANS_KILLED,NUMBER_OF_CYCLIST_INJURED,NUMBER_OF_CYCLIST_KILLED,NUMBER_OF_MOTORIST_INJURED,NUMBER_OF_MOTORIST_KILLED,CONTRIBUTING_FACTOR_VEHICLE_1,CONTRIBUTING_FACTOR_VEHICLE_2,CONTRIBUTING_FACTOR_VEHICLE_3,CONTRIBUTING_FACTOR_VEHICLE_4,CONTRIBUTING_FACTOR_VEHICLE_5,COLLISION_ID,VEHICLE_TYPE_CODE_1,VEHICLE_TYPE_CODE_2,VEHICLE_TYPE_CODE_3,VEHICLE_TYPE_CODE_4,VEHICLE_TYPE_CODE_5)
+     set(CRASH_DATE=str_to_date(concat_ws(' ', tmp_CRASH_DATE, tmp_CRASH_TIME), '%m/%d/%Y %H:%i'))
+)
+WITH BROKER
+PROPERTIES
+(
+    "timeout" = "3600",
+     "max_filter_ratio"="0.1"
+);
+
+LOAD LABEL mydb.load_realtime_invoke_log
+(
+    DATA INFILE ("file:///my-starrocks/realtime_invocation_log/*.log")
+    into table realtime_delivery_invocation
+     FORMAT AS "json"
+     (apiName,invoke_tm,apiGroupName,appId,erp,endDate,theaterCode,waybillSource,deliveryType,siteName,deliveryThirdType,udataLimit,province_code,isExpress,productSubType,goodsType,isKa,areaCode,orgCode,partitionCode,deliverySubType,rejectionRoleId,isZy,productType,siteDimension,waybillDimension)
+     set(dt=cast(invoke_tm as date))
+)
+WITH BROKER
+PROPERTIES
+(
+    "timeout" = "180",
+     "max_filter_ratio"="0.05",
+     "jsonpaths"="[\"$.apiName\",\"$.invoke_tm\",\"$.apiGroupName\",\"$.appId\",\"$.erp\",\"$.params.endDate\",\"$.params.theaterCode\",\"$.params.waybillSource\",\"$.params.deliveryType\",\"$.params.siteName\",\"$.params.deliveryThirdType\",\"$.params.udataLimit\",\"$.params.province_code\",\"$.params.isExpress\",\"$.params.productSubType\",\"$.params.goodsType\",\"$.params.isKa\",\"$.params.areaCode\",\"$.params.orgCode\",\"$.params.partitionCode\",\"$.params.deliverySubType\",\"$.params.rejectionRoleId\",\"$.params.isZy\",\"$.params.productType\",\"$.params.siteDimension\",\"$.params.waybillDimension\"]"
+);
+
+use mydb;
+show load where label='load_realtime_invoke_log';
