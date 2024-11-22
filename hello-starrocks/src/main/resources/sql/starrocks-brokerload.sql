@@ -174,6 +174,7 @@ explain analyze select dt,count(*) from emp_info group by dt;
 
 show partitions from emp_info;
 
+select * from information_schema.task_runs;
 select tracking_log from information_schema.load_tracking_logs where job_id=12052;
 
 create database mydb;
@@ -211,7 +212,7 @@ create table mydb.realtime_delivery_invocation(
 )
 duplicate key(apiName)
 partition by range(dt)(
-    start ("2024-10-20") end ("2024-11-08") every (interval 1 day)
+    start ("2024-10-20") end ("2024-11-22") every (interval 1 day)
 )
 distributed by hash(apiName) buckets 3
 properties(
@@ -250,7 +251,7 @@ truncate table mydb.realtime_delivery_invocation;
     注意：
     ()中的字段顺序可以跟表结构的字段顺序不一致，这个顺序是自己定义的，但一定要跟jsonpaths的字段顺序一致。在这里apiName是第一个，那么jsonpaths中$.apiName也必须是第一个。invoke_tm是第二个，jsonpaths中$.invoke_tm也必须写在第二个。以此类推。
  */
-LOAD LABEL mydb.load_log6
+LOAD LABEL mydb.load_log18
 (
     DATA INFILE("file:///my-starrocks/realtime_invocation_log/*.log")
     INTO TABLE realtime_delivery_invocation
@@ -272,19 +273,25 @@ PROPERTIES
 # +-----+---------+---------+-----------------+------+--------+--------+------------+--------------+--------+-------+---------------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------+-------------------+-------------------+-------------------+-------------------+-------------------+---------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 # |11462|load_log5|CANCELLED|ETL:N/A; LOAD:N/A|BROKER|NORMAL  |63694   |4423        |0             |59271   |null   |resource:N/A; timeout(s):3600; max_filter_ratio:0.0|type:ETL_QUALITY_UNSATISFIED; msg:quality issues with ingested data, please check trackingSQL for details. You can find detailed error message from running `TrackingSQL`.|2024-11-04 02:11:28|2024-11-04 02:11:33|2024-11-04 02:11:33|2024-11-04 02:11:33|2024-11-04 02:11:38|select tracking_log from information_schema.load_tracking_logs where job_id=11462|{"All backends":{"bdf7502c-c26c-466d-831c-18a7a9c32261":[10001]},"FileNumber":6,"FileSize":35052369,"InternalTableLoadBytes":14225053,"InternalTableLoadRows":59271,"ScanBytes":35052369,"ScanRows":63694,"TaskNumber":1,"Unfinished backends":{"bdf7502c-c26c-466d-831c-18a7a9c32261":[]}}|
 # +-----+---------+---------+-----------------+------+--------+--------+------------+--------------+--------+-------+---------------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------+-------------------+-------------------+-------------------+-------------------+-------------------+---------------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-show load from mydb where label='load_log6';
+show load from mydb where label='load_log18';
 
 # 执行查询错误原因的sql，看具体错误是什么
-select tracking_log from information_schema.load_tracking_logs where job_id=11462;
+# +----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+# |tracking_log                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+# +----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+# |Error: The row is out of partition ranges. Please add a new partition.. Row: ['deliveryMonitoMidOperBp', 2024-11-19, 2024-11-19 10:43:14.904000, '75', NULL, 'HTTP', '2024-11-19 09:17', '010S003', '', '4,16,8', '', '3,4,5,6,7,8', '500000', '0', '', '', '', '', '010P188', '6', '', '6', '', '', '', '3', '1']                                                                                                                                                                                                                                                                                                                      |
+# |Error: The row is out of partition ranges. Please add a new partition.. Row: ['deliveryMonitorGatherBpDd', 2024-11-18, 2024-11-18 13:02:39.447000, '75', 'SSYYJK', 'liangdezhi3', '2024-11-18 12:59', '', '', '4,16,8', '', '3,4,5,6,7,8', NULL, '0', '', '', '', '', '', '0', '', '6', '16,3135', '', '', '1', '1']                                                                                                                                                                                                                                                                                                                    |
+# +----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+select tracking_log from information_schema.load_tracking_logs where job_id=20407;
 
 create database mydb;
 select current_version();
 
-select * from information_schema.task_runs;
+select * from information_schema.task_runs order by create_time desc limit 1;
+
 
 select count(*) from mydb.realtime_delivery_invocation;
 select * from mydb.realtime_delivery_invocation;
-select * from mydb.mv_realtime_invocation_report;
 select * from mydb.mv_realtime_invocation_api_report;
 select apiName,count(*) from mydb.realtime_delivery_invocation group by apiName;
 
@@ -323,21 +330,34 @@ PROPERTIES
      "max_filter_ratio"="0.1"
 );
 
-LOAD LABEL mydb.load_realtime_invoke_log
+
+create table mydb.realtime_invocation_erp_agg(
+    dt date,
+    erp varchar(200),
+    cnt int sum
+)
+    aggregate key(dt,erp)
+distributed by hash(erp) buckets 2
+properties(
+    "replication_num" = "3"
+);
+
+LOAD LABEL mydb.load_realtime_invocation_erp_agg_1
 (
     DATA INFILE ("file:///my-starrocks/realtime_invocation_log/*.log")
-    into table realtime_delivery_invocation
-     FORMAT AS "json"
-     (apiName,invoke_tm,apiGroupName,appId,erp,endDate,theaterCode,waybillSource,deliveryType,siteName,deliveryThirdType,udataLimit,province_code,isExpress,productSubType,goodsType,isKa,areaCode,orgCode,partitionCode,deliverySubType,rejectionRoleId,isZy,productType,siteDimension,waybillDimension)
-     set(dt=cast(invoke_tm as date))
+    INTO TABLE realtime_invocation_erp_agg
+    FORMAT AS "JSON"
+    (invoke_tm,erp)
+    SET(dt=date(invoke_tm),cnt=1)
 )
 WITH BROKER
 PROPERTIES
 (
-    "timeout" = "180",
-     "max_filter_ratio"="0.05",
-     "jsonpaths"="[\"$.apiName\",\"$.invoke_tm\",\"$.apiGroupName\",\"$.appId\",\"$.erp\",\"$.params.endDate\",\"$.params.theaterCode\",\"$.params.waybillSource\",\"$.params.deliveryType\",\"$.params.siteName\",\"$.params.deliveryThirdType\",\"$.params.udataLimit\",\"$.params.province_code\",\"$.params.isExpress\",\"$.params.productSubType\",\"$.params.goodsType\",\"$.params.isKa\",\"$.params.areaCode\",\"$.params.orgCode\",\"$.params.partitionCode\",\"$.params.deliverySubType\",\"$.params.rejectionRoleId\",\"$.params.isZy\",\"$.params.productType\",\"$.params.siteDimension\",\"$.params.waybillDimension\"]"
+    "timeout" = "120",
+    "max_filter_ratio" = "0",
+     "jsonpaths" = "[\"$.invoke_tm\",\"$.erp\"]"
 );
 
-use mydb;
-show load where label='load_realtime_invoke_log';
+show load where label='load_realtime_invocation_erp_agg_1';
+
+SHOW PROC '/statistic';

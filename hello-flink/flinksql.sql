@@ -1091,7 +1091,9 @@ CREATE TABLE source_data_table(
     age int,
     tm timestamp,
     name string,
-    sex int
+    sex int,
+    salary double,
+    level int
 )
 with (
     'connector'='datagen',
@@ -1105,7 +1107,13 @@ with (
     'fields.name.length'='3',
     'fields.age.kind'='random',
     'fields.age.min'='15',
-    'fields.age.max'='40'
+    'fields.age.max'='40',
+    'fields.salary.kind'='random',
+    'fields.salary.min'='2000',
+    'fields.salary.max'='10000',
+    'fields.level.kind'='random',
+    'fields.level.min'='2',
+    'fields.level.max'='10'
 );
 
 insert into kafka_sink select * from source_data_table;
@@ -1116,6 +1124,8 @@ CREATE TABLE stu_info_pk (
      `age` int ,
      `name` string ,
      `tm` timestamp ,
+     salary double,
+     level int
      PRIMARY KEY (id,sex) NOT ENFORCED
 ) WITH (
       'connector' = 'starrocks',
