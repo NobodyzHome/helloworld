@@ -224,5 +224,7 @@ from mydb.emp_info_sex_report;
 
 truncate table mydb.emp_info_sex_report;
 
+show tables from _statistics_;
 
+select * from _statistics_.table_statistic_v1 where table_name='mydb.hello_world';
 

@@ -660,4 +660,99 @@ show partitions from mydb.realtime_delivery_invocation;
 
 select * from information_schema.columns;
 
-show proc '/dbs/10330'
+create table mydb.test_tbl(
+    id int,
+    name varchar(10),
+    age int
+)
+duplicate key(id,name)
+distributed by hash(id) buckets 1
+PROPERTIES("bloom_filter_columns" = "age");
+
+SHOW CREATE TABLE mydb.test_tbl;
+
+drop table mydb.test_tbl;
+truncate table mydb.test_tbl;
+
+insert into mydb.test_tbl values(12,'b',1),(12,'b',10),(14,'d',3),(14,'d',3),(14,'d',3),(14,'d',3),(14,'d',3),(14,'d',3),(14,'d',3),(14,'d',3),(14,'d',3),(14,'d',3),(14,'d',3),(14,'d',3),(14,'d',3),(14,'d',3),(13,'c',5),(13,'c',5),(13,'c',5),(13,'c',5),(13,'c',5),(13,'c',5),(13,'c',5),(13,'c',5),(13,'c',5),(13,'c',5),(13,'c',5);
+
+select * from mydb.test_tbl;
+
+show proc '/dbs/10330/31091';
+
+use mydb;
+ADMIN SHOW REPLICA DISTRIBUTION FROM test_tbl;
+
+insert into mydb.test_tbl values(14,'d',7),(13,'c',9),(13,'c',9),(13,'c',9),(13,'c',9),(13,'c',9),(13,'c',9),(13,'c',9),(13,'c',9),(13,'c',9),(13,'c',9),(13,'c',9),(13,'c',9),(13,'c',9),(13,'c',9),(5,'a',2),(5,'a',2),(5,'a',2),(5,'a',2),(5,'a',2),(5,'a',2),(5,'a',2),(5,'a',2),(5,'a',2),(12,'b',111),(12,'b',111),(12,'b',111),(12,'b',111),(12,'b',111),(12,'b',111),(12,'b',111),(12,'b',111),(16,'e',111),(19,'f',111),(23,'g',111),(23,'g',111),(26,'h',111);
+select * from mydb.test_tbl where id=1;
+
+show tablet 28701;
+
+
+
+
+
+explain analyze insert into mydb.test_tbl values('e',7),('c',9),('b',99),('a',113),('d',66),('c',27),('c',18),('d',15),('e',99),('e',12),('a',131);
+
+explain analyze select id from mydb.test_tbl where age=11;
+
+SHOW ALTER TABLE COLUMN from mydb;
+
+set pipeline_profile_level=1;
+
+SET enable_profile = true;
+
+show variables like 'enable_profile';
+
+select id from mydb.test_tbl where id='g';
+
+create table mydb.realtime_time(
+    succ_delv_tm datetime,
+    rej_tm datetime,
+    succ_site varchar(100),
+    rej_site varchar(100)
+)
+duplicate key (succ_delv_tm);
+
+truncate table mydb.realtime_time;
+insert into mydb.realtime_time values('2024-12-04','2024-12-03','site_1','site_2'),('2024-12-04',null,'site_1',null),('2024-12-04',null,'site_2',null),('2024-12-04',null,'site_2',null),('2024-12-04','2024-12-04','site_1','site_2'),(null,'2024-12-02',null,'site_2'),(null,'2024-12-02',null,'site_1'),(null,'2024-12-02',null,'site_1'),('2024-12-02',null,'site_1',null);
+
+SELECT
+    *
+FROM
+    (
+        SELECT
+            CASE gid
+                WHEN 1
+                    THEN succ_site
+                WHEN 2
+                    THEN rej_site
+                END agg_site,
+            CASE gid
+                WHEN 1
+                    THEN 'succ'
+                WHEN 2
+                    THEN 'rej'
+                END agg_type,
+            cnt
+        FROM
+            (
+                SELECT
+                    succ_site,
+                    rej_site,
+                    grouping_id(succ_site, rej_site) gid,
+                    COUNT( *) cnt
+                FROM
+                    mydb.realtime_time
+                GROUP BY
+                    grouping sets((succ_site),(rej_site))
+            )
+                t
+    )
+        t1
+WHERE
+    agg_site IS NOT NULL
+order by agg_type,
+         agg_site
+    desc;
+

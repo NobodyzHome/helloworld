@@ -1139,3 +1139,57 @@ CREATE TABLE stu_info_pk (
       'sink.properties.columns' = 'id,sex,age,name,tm,__op=if(age>20,1,0)'
 );
 insert into stu_info_pk values (1,1,22,'lisi',current_timestamp);
+
+set table.exec.resource.default-parallelism=1;
+
+CREATE TABLE source_data_hello_world(
+    id bigint,
+    name string,
+    age int,
+    sex int,
+    salary int,
+    pId int,
+    uId int
+)
+with (
+    'connector'='datagen',
+    'rows-per-second'='10',
+    'fields.id.kind'='random',
+    'fields.id.min'='100',
+    'fields.id.max'='10000000',
+    'fields.name.length'='5',
+    'fields.sex.kind'='random',
+    'fields.sex.min'='1',
+    'fields.sex.max'='2',
+    'fields.age.kind'='random',
+    'fields.age.min'='15',
+    'fields.age.max'='40',
+    'fields.salary.kind'='random',
+    'fields.salary.min'='2000',
+    'fields.salary.max'='500000',
+    'fields.pId.kind'='random',
+    'fields.pId.min'='100',
+    'fields.pId.max'='10000',
+    'fields.uId.kind'='random',
+    'fields.uId.min'='5',
+    'fields.uId.max'='10000'
+    );
+
+create table kafka_sink_hello_world(
+    id bigint,
+    name string,
+    age int,
+    sex int,
+    salary int,
+    pId int,
+    uId int,
+    primary key (id) not enforced
+)with(
+     'connector'='upsert-kafka',
+     'properties.bootstrap.servers'='kafka-1:9092',
+     'topic'='hello_world',
+     'key.format'='csv',
+     'value.format'='json'
+     );
+
+insert into kafka_sink_hello_world select * from source_data_hello_world;
