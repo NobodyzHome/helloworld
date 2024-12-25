@@ -1153,7 +1153,7 @@ CREATE TABLE source_data_hello_world(
 )
 with (
     'connector'='datagen',
-    'rows-per-second'='10',
+    'rows-per-second'='360',
     'fields.id.kind'='random',
     'fields.id.min'='100',
     'fields.id.max'='10000000',
@@ -1173,7 +1173,7 @@ with (
     'fields.uId.kind'='random',
     'fields.uId.min'='5',
     'fields.uId.max'='10000'
-    );
+);
 
 create table kafka_sink_hello_world(
     id bigint,
@@ -1190,6 +1190,6 @@ create table kafka_sink_hello_world(
      'topic'='hello_world',
      'key.format'='csv',
      'value.format'='json'
-     );
+ );
 
 insert into kafka_sink_hello_world select * from source_data_hello_world;
