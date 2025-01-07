@@ -7,8 +7,8 @@ SET enable_table_prune_on_update = true;
 
 # 裁剪表。通常为主键模型或具有唯一约束的明细模型
 create table mydb.dept(
-                          id bigint,
-                          name varchar(500)
+    id bigint,
+    name varchar(500),
 )
     primary key (id)
 distributed by hash(id) buckets 1;
@@ -26,6 +26,21 @@ distributed by random buckets 1
 properties(
     # 为保留表的指定字段设置为外键
    "foreign_key_constraints" =  "(dept_id) REFERENCES dept(id)"
+);
+
+alter table mydb.dept
+    add column province_id int;
+
+# 保留表。明细模型，通过unique_constraints指定唯一键。
+create table mydb.province(
+                              id bigint,
+                              name varchar(500)
+)
+    duplicate key(id)
+distributed by random buckets 1
+properties(
+    # 针对明细模型，可以使用unique_constraints设置唯一约束。但该属性只是用于给优化器增加优化提示，sr实际不用校验该字段的唯一性，需要由用户导入数据时保证数据的唯一性。
+    "unique_constraints" = "id"
 );
 
 select * from mydb.dept;
@@ -173,7 +188,70 @@ FROM
     )
         t;
 
-select * from mydb.emp;
-select * from mydb.dept;
+update mydb.dept set province_id=10 where id=1;
+update mydb.dept set province_id=20 where id=2;
 
-show create table mydb.emp;
+select * from mydb.province;
+
+insert into mydb.province values(10,'北京'),(20,'天津');
+
+# 针对多表join的情况，可以将多张表设置为保留表。在这里可以看到，emp表和dept表被选为保留表（select中只列出了emp和dept的字段），province表则为裁剪表（select中没有列出province的字段）。
+# 关闭表裁剪的执行计划。可以看到三个表都被scan了。
+# "- Output => [10:concat, 6:name]"
+# "    - HASH/LEFT OUTER JOIN [12:cast = 8:id] => [6:name, 10:concat]"
+# "            Estimates: {row: 6, cpu: 342.00, memory: 16.00, network: 0.00, cost: 1053.00}"
+# "            10:concat := DictMapping(13: name, concat(emp_, 2: name))"
+# "        - HASH/LEFT OUTER JOIN [4:dept_id = 5:id] => [6:name, 12:cast, 13:name]"
+# "                Estimates: {row: 6, cpu: 331.00, memory: 36.00, network: 0.00, cost: 564.50}"
+#                 12:cast := cast(7:province_id as bigint(20))
+#             - EXCHANGE(SHUFFLE) [4]
+# "                    Estimates: {row: 6, cpu: 48.00, memory: 0.00, network: 48.00, cost: 227.50}"
+# "                - SCAN [emp] => [4:dept_id, 13:name]"
+# "                        Estimates: {row: 6, cpu: 91.00, memory: 0.00, network: 0.00, cost: 45.50}"
+# "                        partitionRatio: 1/1, tabletRatio: 1/1"
+#             - EXCHANGE(SHUFFLE) [5]
+# "                    Estimates: {row: 2, cpu: 36.00, memory: 0.00, network: 36.00, cost: 90.00}"
+# "                - SCAN [dept] => [5:id, 6:name, 7:province_id]"
+# "                        Estimates: {row: 2, cpu: 36.00, memory: 0.00, network: 0.00, cost: 18.00}"
+# "                        partitionRatio: 1/1, tabletRatio: 1/1"
+#         - EXCHANGE(BROADCAST)
+# "                Estimates: {row: 2, cpu: 48.00, memory: 48.00, network: 48.00, cost: 200.00}"
+#             - SCAN [province] => [8:id]
+# "                    Estimates: {row: 2, cpu: 16.00, memory: 0.00, network: 0.00, cost: 8.00}"
+# "                    partitionRatio: 1/1, tabletRatio: 1/1"
+# 启动表裁剪后的查询计划。可以看到province表被裁剪了。
+# "- Output => [10:concat, 6:name]"
+# "    - HASH/LEFT OUTER JOIN [4:dept_id = 5:id] => [6:name, 10:concat]"
+# "            Estimates: {row: 6, cpu: 318.00, memory: 28.00, network: 0.00, cost: 524.67}"
+# "            10:concat := DictMapping(13: name, concat(emp_, 2: name))"
+#         - EXCHANGE(SHUFFLE) [4]
+# "                Estimates: {row: 6, cpu: 48.00, memory: 0.00, network: 48.00, cost: 227.50}"
+# "            - SCAN [emp] => [4:dept_id, 13:name]"
+# "                    Estimates: {row: 6, cpu: 91.00, memory: 0.00, network: 0.00, cost: 45.50}"
+# "                    partitionRatio: 1/1, tabletRatio: 1/1"
+#         - EXCHANGE(SHUFFLE) [5]
+# "                Estimates: {row: 2, cpu: 28.00, memory: 0.00, network: 28.00, cost: 70.00}"
+# "            - SCAN [dept] => [5:id, 6:name]"
+# "                    Estimates: {row: 2, cpu: 28.00, memory: 0.00, network: 0.00, cost: 14.00}"
+# "                    partitionRatio: 1/1, tabletRatio: 1/1"
+explain logical
+SELECT
+    busi_name,
+    dept_name
+FROM
+    (
+        SELECT
+            concat('emp_', t1.name) busi_name,
+            IF(t1.sex = 1, '男', '女') busi_sex,
+            t2.name dept_name,
+            t3.name province_name
+        FROM
+            mydb.emp t1
+                LEFT JOIN mydb.dept t2
+                          ON
+                              t1.dept_id = t2.id
+                LEFT JOIN mydb.province t3
+                          ON
+                              t2.province_id = t3.id
+    )
+        t
