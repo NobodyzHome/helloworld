@@ -251,3 +251,41 @@ select * from mydb.hello_world_source where sex=1 and uid = 8622 and salary in (
 # - __MAX_OF_ShortKeyFilterRows: 440.125K (440125)
 # - __MIN_OF_ShortKeyFilterRows: 0
 select * from mydb.hello_world_source where sex=1 and name='000';
+# 使用zonemap索引查询。可以看到使用segment级别的zonemap索引过滤了442w的数据，通过DataPage级别的zonemap索引过滤了55w数据
+# 3 rows retrieved starting from 1 in 1 s 289 ms (execution: 879 ms, fetching: 410 ms)
+# - SegmentRuntimeZoneMapFilterRows: 0
+#                  - SegmentZoneMapFilterRows: 4.428M (4427841)
+#                    - __MAX_OF_SegmentZoneMapFilterRows: 769.351K (769351)
+#                    - __MIN_OF_SegmentZoneMapFilterRows: 0
+#                  - ZoneMapIndexFilterRows: 552.483K (552483)
+#                    - __MAX_OF_ZoneMapIndexFilterRows: 184.852K (184852)
+#                    - __MIN_OF_ZoneMapIndexFilterRows: 0
+select * from mydb.hello_world_source where id between 100 and 102;
+
+show create table mydb.hello_world_source;
+
+show indexes  from mydb.hello_world_source;
+
+
+CREATE TABLE `hello_world_source` (
+                                      `sex` int(11) NULL COMMENT "",
+                                      `name` varchar(10) NULL COMMENT "",
+                                      `id` bigint(20) NULL COMMENT "",
+                                      `age` int(11) NULL COMMENT "",
+                                      `salary` int(11) NULL COMMENT "",
+                                      `pId` int(11) NULL COMMENT "",
+                                      `uId` int(11) NULL COMMENT "",
+                                      `birthday` date NULL COMMENT "",
+                                      INDEX lo_salary_index (`salary`) USING BITMAP COMMENT '',
+                                      INDEX lo_pId_index (`pId`) USING BITMAP COMMENT ''
+) ENGINE=OLAP
+    DUPLICATE KEY(`sex`, `name`)
+PARTITION BY date_trunc('day', birthday)
+DISTRIBUTED BY HASH(`age`) BUCKETS 3
+PROPERTIES (
+"bloom_filter_columns" = "age, uId",
+"compression" = "LZ4",
+"fast_schema_evolution" = "true",
+"replicated_storage" = "true",
+"replication_num" = "3"
+);
