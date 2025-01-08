@@ -112,6 +112,41 @@ FROM
     )
         t;
 
+# 下面这个sql无法形成表裁剪。因为虽然满足了里层用外键和主键关联、且外层只用了保留表的字段，但是没有满足join结果的基数与保留表的基数相同。
+# 因为裁剪表的范围被缩小了，必然会导致inner join的结果也变小了，无法join结果的基数与保留侧一致。因此无法使用表裁剪。
+# 从执行计划中可以看到，该sql依然是需要scan emp和dept表。
+# "- Output => [8:concat, 9:if]"
+# "    - HASH/INNER JOIN [4:dept_id = 5:id] => [8:concat, 9:if]"
+# "            Estimates: {row: 2, cpu: 188.67, memory: 8.00, network: 0.00, cost: 324.33}"
+# "            8:concat := DictMapping(10: name, concat(emp_, 2: name))"
+# "            9:if := if(3:sex = 1, '男', '女')"
+# "        - SCAN [emp] => [3:sex, 4:dept_id, 10:name]"
+# "                Estimates: {row: 6, cpu: 115.00, memory: 0.00, network: 0.00, cost: 57.50}"
+# "                partitionRatio: 1/1, tabletRatio: 1/1"
+#         - EXCHANGE(BROADCAST)
+# "                Estimates: {row: 1, cpu: 24.00, memory: 24.00, network: 24.00, cost: 103.00}"
+#             - SCAN [dept] => [5:id]
+# "                    Estimates: {row: 1, cpu: 14.00, memory: 0.00, network: 0.00, cost: 7.00}"
+# "                    partitionRatio: 1/1, tabletRatio: 1/1"
+#                     predicate: 6:name = 'dept_1'
+explain logical
+SELECT
+    busi_name,
+    busi_sex
+FROM
+    (
+        SELECT
+            concat('emp_', t1.name) busi_name,
+            IF(t1.sex = 1, '男', '女') busi_sex,
+            t2.name dept_name
+        FROM
+            mydb.emp t1
+                INNER JOIN (select * from mydb.dept where name='dept_1') t2
+                           ON
+                               t1.dept_id = t2.id
+    )
+        t;
+
 # 表裁剪也可以发生在逻辑视图中
 # 里层：在逻辑视图中进行emp表与dept表的join，用的是dept的主键字段进行join，此时可以使用emp的字段与dept的字段
 # 外层：使用这个视图时只查询emp表的字段，即可形成表裁剪。即使使用的是该视图，也不需要进行关联，只需要读取emp表的数据。
