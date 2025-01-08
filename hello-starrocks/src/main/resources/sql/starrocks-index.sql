@@ -253,14 +253,25 @@ select * from mydb.hello_world_source where sex=1 and uid = 8622 and salary in (
 select * from mydb.hello_world_source where sex=1 and name='000';
 # 使用zonemap索引查询。可以看到使用segment级别的zonemap索引过滤了442w的数据，通过DataPage级别的zonemap索引过滤了55w数据
 # 3 rows retrieved starting from 1 in 1 s 289 ms (execution: 879 ms, fetching: 410 ms)
-# - SegmentRuntimeZoneMapFilterRows: 0
-#                  - SegmentZoneMapFilterRows: 4.428M (4427841)
-#                    - __MAX_OF_SegmentZoneMapFilterRows: 769.351K (769351)
-#                    - __MIN_OF_SegmentZoneMapFilterRows: 0
-#                  - ZoneMapIndexFilterRows: 552.483K (552483)
-#                    - __MAX_OF_ZoneMapIndexFilterRows: 184.852K (184852)
-#                    - __MIN_OF_ZoneMapIndexFilterRows: 0
-select * from mydb.hello_world_source where id between 100 and 102;
+# - SegmentZoneMapFilterRows: 4.428M (4427841)
+#   - __MAX_OF_SegmentZoneMapFilterRows: 769.351K (769351)
+#   - __MIN_OF_SegmentZoneMapFilterRows: 0
+# - ZoneMapIndexFilterRows: 552.483K (552483)
+#   - __MAX_OF_ZoneMapIndexFilterRows: 184.852K (184852)
+#   - __MIN_OF_ZoneMapIndexFilterRows: 0
+select * from mydb.hello_world_source where id between 100 and 200;
+# zonemap索引联合前缀索引。可以看到使用segment级别的zonemap索引过滤了96w的数据，通过DataPage级别的zonemap索引过滤了183w数据，通过前缀索引过滤了200w数据
+# 24 rows retrieved starting from 1 in 372 ms (execution: 324 ms, fetching: 48 ms)
+# - SegmentZoneMapFilterRows: 962.144K (962144)
+#   - __MAX_OF_SegmentZoneMapFilterRows: 193.126K (193126)
+#   - __MIN_OF_SegmentZoneMapFilterRows: 0
+# - ShortKeyFilterRows: 2.021M (2020738)
+#   - __MAX_OF_ShortKeyFilterRows: 192.774K (192774)
+#   - __MIN_OF_ShortKeyFilterRows: 0
+# - ZoneMapIndexFilterRows: 1.830M (1830432)
+#   - __MAX_OF_ZoneMapIndexFilterRows: 184.314K (184314)
+#   - __MIN_OF_ZoneMapIndexFilterRows: 0
+select * from mydb.hello_world_source where id between 100 and 200 and sex=1;
 
 show create table mydb.hello_world_source;
 
