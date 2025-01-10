@@ -59,8 +59,8 @@ SET GLOBAL query_queue_cpu_used_permille_limit = 500;
 # 【资源组粒度的阈值配置】
 # 如果短时间到来的查询并发量大于匹配的资源组的concurrency_limit配置，但小于全局的query_queue_concurrency_limit配置，那么查询请求依然会被熔断，报以下错误。
 # Exceed concurrency limit: 5 backend [id=10003] [host=starrocks-be-2]
-# 这是因为是否将查询放到队列是用的全局配置，这个配置只有一个。此时我们就可以启动资源组的配置，即当查询请求超过资源组的【concurrency_limit】或【max_cpu_cores】时，不再熔断后续查询，而是将查询放入查询队列中。
-# 启用资源组粒度查询队列。
+# 这是因为全局阈值配置只有一个，当前BE资源使用情况超过了资源组的配置，而没有超过全局队列的配置，是按照资源组的处理方式进行阻断。我们期望的是资源使用超过匹配的资源组的【concurrency_limit】或【max_cpu_cores】阈值时，也可以进入到查询队列，而非直接阻断。
+# 此时我们可以通过以下配置启用资源组粒度查询队列。
 SET GLOBAL enable_group_level_query_queue = true;
 # concurrency_limit：该资源组在单个BE节点中并发查询上限。仅在设置为大于 0 后生效。
 # max_cpu_cores：该资源组在单个 BE 节点中使用的 CPU 核数上限。仅在设置为大于 0 后生效。取值范围：[0, avg_be_cpu_cores]，其中 avg_be_cpu_cores 表示所有 BE 的 CPU 核数的平均值。
