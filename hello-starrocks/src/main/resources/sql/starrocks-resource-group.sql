@@ -24,7 +24,7 @@ WITH (
     'concurrency_limit' = '1'
 );
 
-# 1.测试【big_query_mem_limit】
+# 1.测试【mem_limit】
 # 将资源组的mem_limit设置的很小，同时将其他指标设置大些，避免由其他指标触发熔断。观察大查询执行时的情况。
 ALTER RESOURCE GROUP bigQuery WITH (
     'mem_limit' = '2%',
