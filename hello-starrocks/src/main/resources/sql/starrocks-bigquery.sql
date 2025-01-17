@@ -21,6 +21,8 @@ SHOW PROC '/current_queries/cc4d120d-d328-11ef-b066-0242c0a83006/hosts';
 # |/* ApplicationName=IntelliJ IDEA 2024.3.1.1 */ select sleep(30)|
 # +---------------------------------------------------------------+
 select stmt from starrocks_audit_db__.starrocks_audit_tbl__ where queryId='cc4d120d-d328-11ef-b066-0242c0a83006';
+# 我们可以通过kill命令，结合show proc '/current_queries'中返回的【ConnectionId】，来停止正在运行的大查询
+kill query 29;
 
 # 【监控已查询完成的大查询】
 # 通过审计日志可以查询到出现次数最多的大查询语句
