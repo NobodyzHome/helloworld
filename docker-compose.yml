@@ -85,7 +85,7 @@ services:
   # 配置jobManager
   flink-jobmanager:
     # 使用镜像flink，注意：该镜像的dockerfile默认执行的command是help，在实际使用这个镜像时，应根据需要使用command命令覆盖为：jobmanager、taskmanager等命令
-    image: flink:1.18.0-java8
+    image: flink
     container_name: my-flink-jobmanager
     # 8081应该暴露给宿主机，供宿主机访问flink ui页面
     ports:
@@ -122,7 +122,7 @@ services:
 
   # 配置第一个taskManager
   flink-taskmanager-1:
-    image: flink:1.18.0-java8
+    image: flink
     container_name: my-flink-taskmanager-1
     networks:
       - my-network
@@ -157,7 +157,7 @@ services:
 
   # 配置第二个taskManager
   flink-taskmanager-2:
-    image: flink:1.18.0-java8
+    image: flink
     container_name: my-flink-taskmanager-2
     networks:
       - my-network
@@ -526,7 +526,7 @@ services:
     volumes:
       - /Users/maziqiang/Documents/my-starrocks:/my-starrocks
       # 可以把宿主机的目录挂载到fe的meta目录，这样可以从宿主机中看到meta文件夹里的内容
-      - /Users/maziqiang/Documents/my-starrocks/docker_container/fe/meta:/opt/starrocks/fe/meta
+      - /Users/maziqiang/Documents/my-starrocks/20250425/docker_container/fe/meta:/opt/starrocks/fe/meta
     networks:
       - my-network
 
@@ -547,7 +547,7 @@ services:
     volumes:
       - /Users/maziqiang/Documents/my-starrocks:/my-starrocks
       # 可以把宿主机的目录挂载到be的storage目录，这样可以从宿主机中看到storage文件夹里的内容
-      - /Users/maziqiang/Documents/my-starrocks/docker_container/be-0/storage:/opt/starrocks/be/storage
+      - /Users/maziqiang/Documents/my-starrocks/20250425/docker_container/be-0/storage:/opt/starrocks/be/storage
     networks:
       - my-network
 
@@ -567,7 +567,7 @@ services:
       - starrocks-fe-0
     volumes:
       - /Users/maziqiang/Documents/my-starrocks:/my-starrocks
-      - /Users/maziqiang/Documents/my-starrocks/docker_container/be-1/storage:/opt/starrocks/be/storage
+      - /Users/maziqiang/Documents/my-starrocks/20250425/docker_container/be-1/storage:/opt/starrocks/be/storage
     networks:
       - my-network
 
@@ -587,7 +587,7 @@ services:
       - starrocks-fe-0
     volumes:
       - /Users/maziqiang/Documents/my-starrocks:/my-starrocks
-      - /Users/maziqiang/Documents/my-starrocks/docker_container/be-2/storage:/opt/starrocks/be/storage
+      - /Users/maziqiang/Documents/my-starrocks/20250425/docker_container/be-2/storage:/opt/starrocks/be/storage
     networks:
       - my-network
 
@@ -637,4 +637,4 @@ volumes:
 # docker compose up -d flink-jobmanager flink-taskmanager-1 flink-taskmanager-2 kafka-1 namenode datanode hive-server hive-metastore hive-metastore-postgresql resourcemanager nodemanager1
 # docker compose up -d flink-jobmanager flink-taskmanager-1 flink-taskmanager-2 kafka-1 my-mysql
 # docker compose up -d my-starrocks kafka-1 namenode datanode flink-jobmanager flink-taskmanager-1
-# docker compose up -d starrocks-fe-0 starrocks-be-0 starrocks-be-1 starrocks-be-2 prometheus_sr my-grafana kafka-1 flink-jobmanager flink-taskmanager-1
+# docker compose up -d starrocks-fe-0 starrocks-be-0 starrocks-be-1 starrocks-be-2 kafka-1 flink-jobmanager flink-taskmanager-1
