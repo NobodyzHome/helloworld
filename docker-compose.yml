@@ -1,640 +1,74 @@
-version: "3.8"
 services:
+  #begin Fluss cluster
+  coordinator-server:
+    image: fluss/fluss:0.6.0
+    command: coordinatorServer
+    depends_on:
+      - zookeeper
+    environment:
+      - |
+        FLUSS_PROPERTIES=
+        zookeeper.address: zookeeper:2181
+        coordinator.host: coordinator-server
+        remote.data.dir: /tmp/fluss/remote-data
+        datalake.format: paimon
+        datalake.paimon.metastore: filesystem
+        datalake.paimon.warehouse: /tmp/paimon
+  tablet-server:
+    image: fluss/fluss:0.6.0
+    command: tabletServer
+    depends_on:
+      - coordinator-server
+    environment:
+      - |
+        FLUSS_PROPERTIES=
+        zookeeper.address: zookeeper:2181
+        tablet-server.host: tablet-server
+        data.dir: /tmp/fluss/data
+        remote.data.dir: /tmp/fluss/remote-data
+        kv.snapshot.interval: 0s
+        datalake.format: paimon
+        datalake.paimon.metastore: filesystem
+        datalake.paimon.warehouse: /tmp/paimon
+    volumes:
+      - /Users/maziqiang/Documents/my-fluss/20250428/tablet-server/data:/tmp/fluss/data
+      - /Users/maziqiang/Documents/my-fluss/20250428/tablet-server/remote-data:/tmp/fluss/remote-data
+      - /Users/maziqiang/Documents/my-fluss/20250428/tablet-server/paimon:/tmp/paimon
   zookeeper:
-    image: zookeeper
-    restart: unless-stopped
+    restart: always
+    image: zookeeper:3.9.2
+  #end
+  #begin Flink cluster
+  jobmanager:
+    image: fluss/quickstart-flink:1.20-0.6
     ports:
-      - "2181:2181"
-    container_name: my-zookeeper
-    networks:
-      - my-network
-
-  kafka-1:
-    image: wurstmeister/kafka
-    ports:
-      - "9092:9092"
-    environment:
-      # KAFKA_LISTENERS是kafka server真正监听的地址和端口
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
-      # KAFKA_ADVERTISED_LISTENERS是注册给zookeeper的，用于kafka客户端真正连接到kafka server的地址
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-1:9092
-      # zookeeper连接地址
-      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
-      # kafka server的id。连接到zookeeper上的多个kafka server不能有相同的id
-      KAFKA_BROKER_ID: 1
-      # 配置broker的num.partitions属性
-      KAFKA_NUM_PARTITIONS: 5
-    depends_on:
-      - zookeeper
-    container_name: my-kafka-1
-    networks:
-      - my-network
-
-  kafka-2:
-    image: wurstmeister/kafka
-    ports:
-      - "9093:9093"
-    environment:
-      # 如果在宿主机里运行，该配置需要配置为localhost。如果在容器里运行，该配置需要配置为kafka
-      KAFKA_LISTENERS: PLAINTEXT://kafka-2:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-2:9093
-      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
-      KAFKA_BROKER_ID: 2
-      # 配置broker的num.partitions属性
-      KAFKA_NUM_PARTITIONS: 5
-    depends_on:
-      - zookeeper
-    container_name: my-kafka-2
-    networks:
-      - my-network
-
-  my-kibana:
-    image: docker.elastic.co/kibana/kibana:7.10.0
-    container_name: ilike-kibana
-    environment:
-      SERVER_NAME: myKibana
-      ELASTICSEARCH_HOSTS: "http://my-elasticsearch:9200"
-    ports:
-      - "5601:5601"
-    networks:
-      - my-network
-    # 表明这个service需要在指定service启动之后再启动
-    depends_on:
-      - my-elasticsearch
-
-
-  # my-elasticsearch是这个service的名称，也是这个docker的域名，其他docker可以通过使用这个域名来访问这个docker。
-  # 例如my-kibana这个service配置了http://my-elasticsearch:9200，其中my-elasticsearch就是这个docker的域名
-  my-elasticsearch:
-    # 这个service使用的镜像
-    image: docker.elastic.co/elasticsearch/elasticsearch:7.10.0
-    # 这个service创建的docker的名称。相当于docker --name 选项
-    container_name: ilike-elasticsearch
-    # 为这个docker配置的环境变量。相当于docker -e 选项
-    environment:
-      discovery.type: single-node
-    # 为这个docker配置的端口映射。相当于docker -p 选项
-    ports:
-      - "9200:9200"
-      - "9300:9300"
-    # 配置这个service所加入的网络。只有加入到同一个network的多个service才可以互相访问
-    # 其实这里也可以不配置，因为不配置的话，默认就让所有service走一个network，那么走默认的即可。这里只是为了展示networks的用法。
-    networks:
-      - my-network
-
-  # 配置jobManager
-  flink-jobmanager:
-    # 使用镜像flink，注意：该镜像的dockerfile默认执行的command是help，在实际使用这个镜像时，应根据需要使用command命令覆盖为：jobmanager、taskmanager等命令
-    image: flink
-    container_name: my-flink-jobmanager
-    # 8081应该暴露给宿主机，供宿主机访问flink ui页面
-    ports:
-      - 8081:8081
-    # 把宿主机的存储job jar包的目录挂载到虚拟机的一个目录上，这样就可以进入到jobManager中使用flink命令进行任务的提交了
-    volumes:
-      - "/Users/maziqiang/IdeaProjects/helloworld/hello-flink/target:/my-volume"
-      - "/Users/maziqiang/Documents/my-libs/flink-libs:/flink-libs"
-      - "/Users/maziqiang/Documents/my-hudi:/my-hudi"
-      - "/Users/maziqiang/Documents/my-paimon:/my-paimon"
-    networks:
-      - my-network
-    # 默认情况下，镜像flink的docker-file执行的command的是help，我们要通过覆盖这个命令，覆盖为jobManager，告诉flink镜像，应该执行创建jobManager的命令
+      - "8083:8081"
     command: jobmanager
-    # jobManager监听6123端口获取taskManager的心跳、任务状态等数据。因此jobManager需要把6123端口暴露出来，供taskManager发送向该端口数据。
-    expose:
-      - 6123
-    environment:
-      # 具体配置内容参见flink官网：https://nightlies.apache.org/flink/flink-docs-release-1.14/docs/deployment/config/
-      - |
-        FLINK_PROPERTIES=
-        jobmanager.rpc.address: flink-jobmanager
-        taskmanager.numberOfTaskSlots: 3
-        parallelism.default: 2
-        state.checkpoint-storage: jobmanager
-        restart-strategy: fixed-delay
-        restart-strategy.fixed-delay.attempts: 3
-        restart-strategy.fixed-delay.delay: 5 s
-        execution.checkpointing.mode: EXACTLY_ONCE
-        execution.checkpointing.timeout: 10 min
-        classloader.resolve-order: parent-first
-        rest.flamegraph.enabled: true
-        execution.checkpointing.interval: 2 min
-
-  # 配置第一个taskManager
-  flink-taskmanager-1:
-    image: flink
-    container_name: my-flink-taskmanager-1
-    networks:
-      - my-network
     environment:
       - |
         FLINK_PROPERTIES=
-        jobmanager.rpc.address: flink-jobmanager
-        taskmanager.numberOfTaskSlots: 3
-        parallelism.default: 2
-        state.checkpoint-storage: jobmanager
-        restart-strategy: fixed-delay
-        restart-strategy.fixed-delay.attempts: 3
-        restart-strategy.fixed-delay.delay: 5 s
-        execution.checkpointing.mode: EXACTLY_ONCE
-        execution.checkpointing.timeout: 10 min
-        classloader.resolve-order: parent-first
-        rest.flamegraph.enabled: true
-        execution.checkpointing.interval: 2 min
+        jobmanager.rpc.address: jobmanager
+    volumes:
+      - shared-tmpfs:/tmp/paimon
+  taskmanager:
+    image: fluss/quickstart-flink:1.20-0.6
     depends_on:
-      - flink-jobmanager
-    # 替换flink镜像的默认command，替换为taskManager，代表告诉flink镜像创建taskManager
+      - jobmanager
     command: taskmanager
-    # taskManager监听6121、6122端口，获取从jobmanager发来的deploy/cancel/stop task、trigger checkpoint等内容。因此需要把6121、6122端口暴露出来，供jobManager向这两个端口发送数据
-    expose:
-      - 6121
-      - 6122
-    volumes:
-      - "/Users/maziqiang/IdeaProjects/helloworld/hello-hadoop/target:/my-volume"
-      - "/Users/maziqiang/Documents/my-libs/flink-libs:/flink-libs"
-      - "/Users/maziqiang/Documents/my-hudi:/my-hudi"
-      - "/Users/maziqiang/Documents/my-paimon:/my-paimon"
-
-  # 配置第二个taskManager
-  flink-taskmanager-2:
-    image: flink
-    container_name: my-flink-taskmanager-2
-    networks:
-      - my-network
     environment:
       - |
         FLINK_PROPERTIES=
-        jobmanager.rpc.address: flink-jobmanager
-        taskmanager.numberOfTaskSlots: 3
-        parallelism.default: 2
-        state.backend: hashmap
-        state.checkpoint-storage: jobmanager
-        restart-strategy: fixed-delay
-        restart-strategy.fixed-delay.attempts: 3
-        restart-strategy.fixed-delay.delay: 5 s
-        execution.checkpointing.mode: EXACTLY_ONCE
-        execution.checkpointing.timeout: 10 min
-        classloader.resolve-order: parent-first
-        rest.flamegraph.enabled: true
-        execution.checkpointing.interval: 2 min
-    expose:
-      - 6121
-      - 6122
-    depends_on:
-      - flink-jobmanager
-    command: taskmanager
+        jobmanager.rpc.address: jobmanager
+        taskmanager.numberOfTaskSlots: 10
+        taskmanager.memory.process.size: 2048m
+        taskmanager.memory.framework.off-heap.size: 256m
     volumes:
-      - "/Users/maziqiang/IdeaProjects/helloworld/hello-hadoop/target:/my-volume"
-      - "/Users/maziqiang/Documents/my-libs/flink-libs:/flink-libs"
-      - "/Users/maziqiang/Documents/my-hudi:/my-hudi"
-      - "/Users/maziqiang/Documents/my-paimon:/my-paimon"
-
-  my-redis:
-    image: redis
-    container_name: ilike-redis
-    networks:
-      - my-network
-    ports:
-      - "6379:6379"
-
-  my-mysql:
-    image: mysql:5.7
-    container_name: mysql
-    environment:
-      MYSQL_ROOT_PASSWORD: 123456
-    ports:
-      - "3306:3306"
-    networks:
-      - my-network
-
-  my-canal:
-    image: canal/canal-server
-    container_name: my-canal
-    networks:
-      - my-network
-    environment:
-      # canal.properties的配置
-      # 配canal的工作模式为向kafka发送数据
-      canal.serverMode: "kafka"
-      # 配连接kafka的地址。这个配置不起作用，需要在canal的docker中手动修改canal.properties
-      kafka.bootstrap.servers: "kafka-1:9092"
-      # 是否忽略dcl语句，例如创建database、trigger等
-      canal.instance.filter.query.dcl: "true"
-      # 是否忽略dms语句，例如insert、update等
-      canal.instance.filter.query.dml: "false"
-      # 是否忽略ddl语句，例如create table等
-      canal.instance.filter.query.ddl: "true"
-      # 是否忽略dml中的insert语句
-      canal.instance.filter.dml.insert: "false"
-      # 是否忽略dml中的update语句
-      canal.instance.filter.dml.update: "false"
-      # 是否忽略dml中的delete语句
-      canal.instance.filter.dml.delete: "true"
-
-      # instance.properties的配置
-      # 配置连接的mysql的地址
-      canal.instance.master.address: "my-mysql:3306"
-      # 配置连接的mysql的用户
-      canal.instance.dbUsername: "user_binlog"
-      # 配置连接的mysql的密码
-      canal.instance.dbPassword: "123456"
-      # 基础topic，如果没有设置canal.mq.dynamicTopic，那么所有表的binlog都写到该topic；如果设置了canal.mq.dynamicTopic，那么没有匹配上的表，默认把消息发送到该属性对应的topic中
-      canal.mq.topic: fallback_data
-      # dynamic topic route by schema or table regex
-      # instance.properties的配置。配置匹配哪些表，把这些表发送到对应的topic
-      # dynamicTopic用于表示要抓取binlog的表。dynamicTopic格式为schema或schema.table。其中schema是库名，table是表名
-      # canal.mq.dynamicTopic=hello_database代表对于hello_database库下的所有表的binlog，把这些binlog都放到kafka的名为hello_database的topic
-      # canal.mq.dynamicTopic=hello_database\\.hello_world代表对于hello_database库下的hello_world表的binlog，把这些binlog都放到kafka的名为hello_database_hello_world的topic
-      # canal.mq.dynamicTopic=hello_database\\..*代表对于hello_database库下的所有表的binlog，把这些binlog都放到kafka的名为hello_database_表名的topic，例如把hello_database.hello_world的数据写入到hello_database_hello_world这个topic中，把hello_database.hello_world_1的数据写入到hello_database_hello_world_1这个topic中
-      # canal.mq.dynamicTopic=.*\\..*代表对于任何库下的任何表的binlog，把这些binlog都放到kafka的名为库名_表名的topic，例如把hello_database.hello_world的数据写入到hello_database_hello_world这个topic中，把my_database.hello_world的数据写入到my_database_hello_world_1这个topic中
-      # canal.mq.dynamicTopic=hello_database,my_database\\..*代表对于hello_database库下的任何表的binlog，把这些binlog都放到kafka的名为hello_database的topic，对于my_database下的任何表的binlog数据，写入到my_database_表名这个topic中。把my_database.hello_world的binlog数据写入到my_database_hello_world这个topic中
-      # canal.mq.dynamicTopic可以用多个匹配语句，可以把单独匹配的表的放到前面，统一匹配的表放到后面
-
-      # 上面的配置方式：具体使用哪个topic由canal系统自己来生成，例如canal.mq.dynamicTopic=hello_database\\..*，对于hello_database下的hello_test table的话，生成的topic名就是hello_database_hello_topic。不是由我们自己控制的
-      # canal提供了：topicName:schema 或 topicName:schema.table的方式，使用表达式捕获的table的binlog数据，均发送到用户自己指定的topic。不过这种方式，虽然是使用我们自己的topic，但是没办法根据不同的table生成不同的topic了。
-      # 例如：hello_topic:hello_database\\..*，那么是将hello_database下的所有表的binlog都发送到hello_topic这个topic中
-      canal.mq.dynamicTopic: "hello_database\\..*,my_database"
-      # 这个参数不是用来指定canal创建topic的分区数，而是用来指定topic的分区数，canal会用根据canal.mq.partitionHash计算出要发送的数据的hash值，然后与配属性值求余数，求出来的余数就是canal要将该数据发送到哪个分区。所以，该属性值需要和broker的num.partitions一致
-      # 这点就非常坑，canal在创建topic，不会指定要创建的分区个数，完全是按照broker配置中的num.partitions来决定创建的topic的分区个数的
-      canal.mq.partitionsNum: 5
-      # 当canal要发送的topic是多分区时，就涉及到一个问题就是如何对表发送的数据进行hash，让相同hash的发送到同一个kafka的partition中，保证同一个主键或同一个表的数据发送到同一个partition中
-      # 注意：canal只是计算出要发送的分区号，但是canal向kafka发送的数据中没有key，也就是说canal不是通过key来保证数据的一致性的
-      # canal可以使用表达式，让同一个表的数据落在一个分区或同一个主键的数据落在同一个分区。根据用户实际的使用情况来判断
-      # 1.hello_database\\..*:$pk$代表的就是hello_database库下的任何表的binlog数据，都是使用主键（canal会自动获取有哪些主键）进行hash，保证同一个表的相同主键的数据都发送到同一个partition，保证了主键级别的顺序
-      # 2.hello_database\\..*，没有给出分区计算规则，代表的就是hello_database库下的任何表的binlog数据，都是使用表名进行hash，保证同一个表的数据都发送到同一个partition，保证了表级别的顺序（注意：如果有的表数据很大，可能会造成特定分区的数据很大）
-      # 3.hello_database.hello_world:my_id，代表的就是hello_database库下的hello_world表的binlog数据，使用字段my_id进行hash，保证相同my_id字段值的数据都发送到同一个partition
-      # 4.hello_database.hello_world:my_id1^my_id2，代表的就是hello_database库下的hello_world表的binlog数据，使用字段my_id1和my_id2一起进行hash，保证相同my_id1和my_id2字段值的数据都发送到同一个partition
-      # 5.如果没有写匹配规则，那么默认写到分区0
-      # 6.hello_database\\..*:$pk$,my_database\\.test:my_id，多个匹配规则，代表的是hello_database下的所有表，使用主键进行hash，my_database下的test表，使用my_id字段进行hash
-      # （下面理论上应该是hello_database\\..*:$pk$，为什么这里用的是hello_database\\..*:$$pk$$，因为docker compose里，$应该是有含义的符号，在前面再加一个$，就进行转义了。也就是docker compose里，$$才代表$）
-
-      # 总结：canal.mq.dynamicTopic决定了数据表的binlog写到哪些topic中，而当写入的topic是多个分区时，canal.mq.partitionHash决定了binlog数据写到哪个kafka分区的计算规则
-      canal.mq.partitionHash: ".*\\..*:$$pk$$"
-
-  namenode:
-    image: bde2020/hadoop-namenode:2.0.0-hadoop2.7.4-java8
-    container_name: namenode
-    volumes:
-      - hadoop_namenode:/hadoop/dfs/name
-    ports:
-      # 50070是namenode提供http服务的端口
-      - "50070:50070"
-      # 9000是namenode对外提供服务的端口（通过core-site.xml里fs.defaultFS来配置的），用于程序连接namenode，获取文件的信息
-      - "9000:9000"
-    environment:
-      - CLUSTER_NAME=test
-    env_file:
-      - ./hadoop.env
-    networks:
-      - my-network
-
-  datanode:
-    image: bde2020/hadoop-datanode:2.0.0-hadoop2.7.4-java8
-    container_name: datanode
-    volumes:
-      - hadoop_datanode:/hadoop/dfs/data
-    ports:
-      # 50075是datanode提供http服务的端口
-      - "50075:50075"
-      # 50010是datanode对外提供读写服务的端口，用户程序连接datanode，获取文件的数据
-      - "50010:50010"
-      # 50020是datanode对外ipc端口(dfs.datanode.ipc.address)
-      - "50020:50020"
-    environment:
-      SERVICE_PRECONDITION: "namenode:50070"
-    env_file:
-      - ./hadoop.env
-    networks:
-      - my-network
-
-  resourcemanager:
-    image: bde2020/hadoop-resourcemanager:2.0.0-hadoop2.7.4-java8
-    container_name: resourcemanager
-    environment:
-      SERVICE_PRECONDITION: "namenode:50070 datanode:50075"
-    ports:
-      # 8088是resourcemanager提供http服务的端口
-      - "8088:8088"
-      # 8032是程序向resourcemanager发布任务的端口，MR程序通过该端口连接ResourceManager，发布任务
-      - "8032:8032"
-    depends_on:
-      - namenode
-      - datanode
-    env_file:
-      - ./hadoop.env
-    volumes:
-      - "/Users/maziqiang/Documents/my-libs:/my-libs"
-    networks:
-      - my-network
-
-  nodemanager1:
-    image: bde2020/hadoop-nodemanager:2.0.0-hadoop2.7.4-java8
-    container_name: nodemanager1
-    environment:
-      SERVICE_PRECONDITION: "namenode:50070 datanode:50075 resourcemanager:8088"
-    env_file:
-      - ./hadoop.env
-    depends_on:
-      - resourcemanager
-    networks:
-      - my-network
-    volumes:
-      - "/Users/maziqiang/Documents/my-libs:/my-libs"
-
-  nodemanager2:
-    image: bde2020/hadoop-nodemanager:2.0.0-hadoop2.7.4-java8
-    container_name: nodemanager2
-    environment:
-      SERVICE_PRECONDITION: "namenode:50070 datanode:50075 resourcemanager:8088"
-    env_file:
-      - ./hadoop.env
-    depends_on:
-      - resourcemanager
-    networks:
-      - my-network
-    volumes:
-      - "/Users/maziqiang/Documents/my-libs:/my-libs"
-
-  historyserver:
-    image: bde2020/hadoop-historyserver:2.0.0-hadoop2.7.4-java8
-    container_name: historyserver
-    environment:
-      SERVICE_PRECONDITION: "namenode:50070 datanode:50075 resourcemanager:8088"
-    volumes:
-      - hadoop_historyserver:/hadoop/yarn/timeline
-    env_file:
-      - ./hadoop.env
-    depends_on:
-      - resourcemanager
-    networks:
-      - my-network
-
-  hive-server:
-    image: bde2020/hive:2.3.2-postgresql-metastore
-    env_file:
-      - hadoop.env
-    environment:
-      SERVICE_PRECONDITION: "hive-metastore:9083"
-    ports:
-      - "10000:10000"
-    networks:
-      - my-network
-    volumes:
-      - "/Users/maziqiang/Documents/my-libs:/my-libs"
-
-  hive-metastore:
-    image: bde2020/hive:2.3.2-postgresql-metastore
-    env_file:
-      - hadoop.env
-    command: /opt/hive/bin/hive --service metastore
-    environment:
-      SERVICE_PRECONDITION: "namenode:50070 datanode:50075 hive-metastore-postgresql:5432"
-    ports:
-      - "9083:9083"
-    networks:
-      - my-network
-
-  hive-metastore-postgresql:
-    image: bde2020/hive-metastore-postgresql:2.3.0
-    ports:
-      - "5432:5432"
-    networks:
-      - my-network
-
-  presto-coordinator:
-    image: shawnzhu/prestodb:0.181
-    ports:
-      - "8080:8080"
-    networks:
-      - my-network
-
-  spark-master:
-    image: bde2020/spark-master:2.4.5-hadoop2.7
-    container_name: spark-master
-    ports:
-      - "8090:8090"
-      - "7077:7077"
-      - "4040:4040"
-    environment:
-      - INIT_DAEMON_STEP=setup_spark
-      # 配置spark web的端口，默认8080，总是会被占用，因此换一个不冲突的端口
-      - SPARK_MASTER_WEBUI_PORT=8090
-      # spark on yarn的关键配置
-      - YARN_CONF_DIR=/my-libs
-    volumes:
-      - /Users/maziqiang/Documents/my-libs:/my-libs
-    networks:
-      - my-network
-
-  spark-worker-1:
-    image: bde2020/spark-worker:2.4.5-hadoop2.7
-    container_name: spark-worker-1
-    depends_on:
-      - spark-master
-    ports:
-      - "8091:8091"
-    environment:
-      - "SPARK_MASTER=spark://spark-master:7077"
-      # 配置spark worker web的端口，默认8081，总是会被占用，因此换一个不冲突的端口
-      - SPARK_WORKER_WEBUI_PORT=8091
-    volumes:
-      - /Users/maziqiang/Documents/my-libs:/my-libs
-    networks:
-      - my-network
-
-  spark-worker-2:
-    image: bde2020/spark-worker:2.4.5-hadoop2.7
-    container_name: spark-worker-2
-    depends_on:
-      - spark-master
-    ports:
-      - "8092:8092"
-    environment:
-      - "SPARK_MASTER=spark://spark-master:7077"
-      # 配置spark worker web的端口，默认8081，总是会被占用，因此换一个不冲突的端口
-      - SPARK_WORKER_WEBUI_PORT=8092
-    volumes:
-      - /Users/maziqiang/Documents/my-libs:/my-libs
-    networks:
-      - my-network
-        
-  hbase-master:
-    image: bde2020/hbase-master:1.0.0-hbase1.2.6
-    container_name: hbase-master
-    hostname: hbase-master
-    env_file:
-      - ./hbase-distributed-local.env
-    environment:
-      SERVICE_PRECONDITION: "namenode:50070 datanode:50075 zookeeper:2181"
-    ports:
-      - 16010:16010
-      # 16000是hbase-client发起请求的端口
-      - 16000:16000
-    networks:
-      - my-network
-
-  hbase-region:
-    image: bde2020/hbase-regionserver:1.0.0-hbase1.2.6
-    container_name: hbase-regionserver
-    hostname: hbase-regionserver
-    env_file:
-      - ./hbase-distributed-local.env
-    environment:
-      HBASE_CONF_hbase_regionserver_hostname: hbase-region
-      SERVICE_PRECONDITION: "namenode:50070 datanode:50075 zookeeper:2181 hbase-master:16010"
-    ports:
-      - 16030:16030
-      # 16020是hbase-client访问region-server的端口
-      - 16020:16020
-    networks:
-      - my-network
-
-  hbase-region1:
-    image: bde2020/hbase-regionserver:1.0.0-hbase1.2.6
-    container_name: hbase-regionserver1
-    hostname: hbase-regionserver1
-    env_file:
-      - ./hbase-distributed-local.env
-    environment:
-      HBASE_CONF_hbase_regionserver_hostname: hbase-region1
-      HBASE_CONF_hbase_regionserver_info_port: 16031
-      HBASE_CONF_hbase_regionserver_port: 16021
-      SERVICE_PRECONDITION: "namenode:50070 datanode:50075 zookeeper:2181 hbase-master:16010"
-    ports:
-      - 16031:16031
-      - 16021:16021
-    networks:
-      - my-network
-
-
-  starrocks-fe-0:
-    image: starrocks/fe-ubuntu:latest
-    container_name: starrocks-fe-0
-    command:
-      - /bin/bash
-      - -c
-      - |
-        /opt/starrocks/fe_entrypoint.sh starrocks-fe-0
-    environment:
-      - HOST_TYPE=FQDN
-      - TZ=Asia/Shanghai
-    ports:
-      # 8030是FE web页面的端口
-      - "8030:8030"
-      - "9020:9020"
-      - "9030:9030"
-    volumes:
-      - /Users/maziqiang/Documents/my-starrocks:/my-starrocks
-      # 可以把宿主机的目录挂载到fe的meta目录，这样可以从宿主机中看到meta文件夹里的内容
-      - /Users/maziqiang/Documents/my-starrocks/20250425/docker_container/fe/meta:/opt/starrocks/fe/meta
-    networks:
-      - my-network
-
-  starrocks-be-0:
-    image: starrocks/be-ubuntu:latest
-    hostname: starrocks-be-0
-    container_name: starrocks-be-0
-    command:
-      - /bin/bash
-      - -c
-      - |
-        /opt/starrocks/be_entrypoint.sh starrocks-fe-0
-    environment:
-      - HOST_TYPE=FQDN
-      - TZ=Asia/Shanghai
-    depends_on:
-      - starrocks-fe-0
-    volumes:
-      - /Users/maziqiang/Documents/my-starrocks:/my-starrocks
-      # 可以把宿主机的目录挂载到be的storage目录，这样可以从宿主机中看到storage文件夹里的内容
-      - /Users/maziqiang/Documents/my-starrocks/20250425/docker_container/be-0/storage:/opt/starrocks/be/storage
-    networks:
-      - my-network
-
-  starrocks-be-1:
-    image: starrocks/be-ubuntu:latest
-    hostname: starrocks-be-1
-    container_name: starrocks-be-1
-    command:
-      - /bin/bash
-      - -c
-      - |
-        /opt/starrocks/be_entrypoint.sh starrocks-fe-0
-    environment:
-      - HOST_TYPE=FQDN
-      - TZ=Asia/Shanghai
-    depends_on:
-      - starrocks-fe-0
-    volumes:
-      - /Users/maziqiang/Documents/my-starrocks:/my-starrocks
-      - /Users/maziqiang/Documents/my-starrocks/20250425/docker_container/be-1/storage:/opt/starrocks/be/storage
-    networks:
-      - my-network
-
-  starrocks-be-2:
-    image: starrocks/be-ubuntu:latest
-    hostname: starrocks-be-2
-    container_name: starrocks-be-2
-    command:
-      - /bin/bash
-      - -c
-      - |
-        /opt/starrocks/be_entrypoint.sh starrocks-fe-0
-    environment:
-      - HOST_TYPE=FQDN
-      - TZ=Asia/Shanghai
-    depends_on:
-      - starrocks-fe-0
-    volumes:
-      - /Users/maziqiang/Documents/my-starrocks:/my-starrocks
-      - /Users/maziqiang/Documents/my-starrocks/20250425/docker_container/be-2/storage:/opt/starrocks/be/storage
-    networks:
-      - my-network
-
-  prometheus_sr:
-    image: prom/prometheus
-    container_name: prometheus
-    ports:
-      - 9090:9090
-    depends_on:
-      - starrocks-fe-0
-      - starrocks-be-0
-      - starrocks-be-1
-      - starrocks-be-2
-    volumes:
-      # 将宿主机中prometheus的配置文件挂载到容器中，这样可以在宿主机中修改配置文件，更方便
-      - /Users/maziqiang/Documents/my-starrocks/prometheus.yml:/etc/prometheus/prometheus.yml
-    networks:
-      - my-network
-
-  my-grafana:
-    image: grafana/grafana
-    container_name: grafana
-    ports:
-      - 3000:3000
-    networks:
-      - my-network
-
-# 配置自己的network，其实这里也可以不配置，因为本来就想让所有service走一个network，那么走默认的即可。这里只是为了展示networks的用法。
-networks:
-  # 这个是配置的network的名称，service使用该名称来加入这个网络
-  my-network:
-    # 这个是这个network所使用的driver，目前基础的好像只有bridge和host这两个driver，一般本地连的话用bridge就可以了
-    driver: bridge
+      - shared-tmpfs:/tmp/paimon
+  #end
 
 volumes:
-  hadoop_namenode:
-  hadoop_datanode:
-  hadoop_historyserver:
-
-# docker compose up -d flink-jobmanager flink-taskmanager-1 namenode datanode resourcemanager nodemanager1 historyserver hive-server hive-metastore hive-metastore-postgresql presto-coordinator spark-master spark-worker-1 spark-worker-2
-# docker compose up -d namenode datanode resourcemanager nodemanager1 historyserver hive-server hive-metastore hive-metastore-postgresql presto-coordinator spark-master spark-worker-1
-# docker compose up -d spark-master spark-worker-1 namenode datanode
-# docker compose up -d flink-jobmanager flink-taskmanager-1 zookeeper namenode datanode resourcemanager nodemanager1 historyserver hive-server hive-metastore hive-metastore-postgresql presto-coordinator hbase-master hbase-region
-# docker compose up -d zookeeper namenode datanode resourcemanager nodemanager1 hive-server hive-metastore hive-metastore-postgresql presto-coordinator hbase-master hbase-region spark-master spark-worker-1
-# docker compose up -d flink-taskmanager-1 kafka-1 namenode datanode resourcemanager nodemanager1 hive-server hive-metastore hive-metastore-postgresql presto-coordinator
-# docker compose up -d flink-jobmanager flink-taskmanager-1 zookeeper namenode datanode resourcemanager nodemanager1 hbase-master hbase-region hbase-region1 hive-server hive-metastore hive-metastore-postgresql presto-coordinator
-# docker compose up -d flink-jobmanager flink-taskmanager-1 flink-taskmanager-2 kafka-1 namenode datanode hive-server hive-metastore hive-metastore-postgresql resourcemanager nodemanager1
-# docker compose up -d flink-jobmanager flink-taskmanager-1 flink-taskmanager-2 kafka-1 my-mysql
-# docker compose up -d my-starrocks kafka-1 namenode datanode flink-jobmanager flink-taskmanager-1
-# docker compose up -d starrocks-fe-0 starrocks-be-0 starrocks-be-1 starrocks-be-2 kafka-1 flink-jobmanager flink-taskmanager-1
+  shared-tmpfs:
+    driver: local
+    driver_opts:
+      type: "tmpfs"
+      device: "tmpfs"
